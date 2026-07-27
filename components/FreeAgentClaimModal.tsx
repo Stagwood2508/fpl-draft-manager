@@ -1,0 +1,490 @@
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { supabase } from '../utils/supabase';
+
+interface PlayerAsset {
+  id: number;
+  web_name: string;
+  element_type: string; // 'GKP' | 'DEF' | 'MID' | 'FWD'
+  team_short_name?: string;
+  team_name?: string;
+}
+
+interface FreeAgentClaimModalProps {
+  visible: boolean;
+  leagueId: string;
+  currentGameweek: number;
+  targetPlayer: PlayerAsset | null; // The Free Agent player to ADD
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const POSITION_COLORS: Record<string, string> = {
+  GKP: '#FFC107',
+  DEF: '#00A2FF',
+  MID: '#00FF87',
+  FWD: '#FF0055',
+};
+
+export default function FreeAgentClaimModal({
+  visible,
+  leagueId,
+  currentGameweek,
+  targetPlayer,
+  onClose,
+  onSuccess,
+}: FreeAgentClaimModalProps) {
+  const [loadingRoster, setLoadingRoster] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
+  const [myRoster, setMyRoster] = useState<PlayerAsset[]>([]);
+  const [selectedDropPlayerId, setSelectedDropPlayerId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (visible && leagueId) {
+      fetchUserRoster();
+    } else {
+      setSelectedDropPlayerId(null);
+    }
+  }, [visible, leagueId]);
+
+  // 1. Fetch Current Manager's Roster & League Roster Rule Type
+  async function fetchUserRoster() {
+    try {
+      setLoadingRoster(true);
+
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !authData?.user) throw new Error('User authentication error.');
+
+      // Fetch League Configuration (roster_type)
+      const { data: leagueData } = await supabase
+        .from('leagues')
+        .select('roster_type')
+        .eq('id', leagueId)
+        .maybeSingle();
+
+      const activeRosterType = leagueData?.roster_type || 'STRICT';
+      setRosterType(activeRosterType as 'STRICT' | 'FLEXIBLE');
+
+      // Fetch User Roster
+      const { data: rosterData, error: rosterErr } = await supabase
+        .from('rosters')
+        .select(`
+          player_id,
+          players (
+            id,
+            web_name,
+            element_type,
+            team_name
+          )
+        `)
+        .eq('league_id', leagueId)
+        .eq('user_id', authData.user.id);
+
+      if (rosterErr) throw rosterErr;
+
+      const formattedRoster: PlayerAsset[] = (rosterData || [])
+        .map((r: any) => {
+          const p = Array.isArray(r.players) ? r.players[0] : r.players;
+          if (!p) return null;
+          return {
+            id: p.id,
+            web_name: p.web_name,
+            element_type: p.element_type || 'FWD',
+            team_short_name: p.team_name ? p.team_name.slice(0, 3).toUpperCase() : 'PL',
+          };
+        })
+        .filter(Boolean);
+
+      // Sort by position matching target player first for quick selection
+      if (targetPlayer) {
+        formattedRoster.sort((a, b) => {
+          if (a.element_type === targetPlayer.element_type) return -1;
+          if (b.element_type === targetPlayer.element_type) return 1;
+          return 0;
+        });
+      }
+
+      setMyRoster(formattedRoster);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setLoadingRoster(false);
+    }
+  }
+
+  // 2. Helper to determine if a player can be selected for drop
+  const isDropAllowed = (playerPos: string) => {
+    if (!targetPlayer) return false;
+    if (rosterType === 'STRICT') {
+      return playerPos === targetPlayer.element_type;
+    }
+    // FLEXIBLE MODE
+    if (targetPlayer.element_type === 'GKP') {
+      return playerPos === 'GKP';
+    }
+    return playerPos !== 'GKP'; // Outfield players can swap across DEF/MID/FWD
+  };
+
+  // 3. Action Handler: Execute Instant Free Agent Claim
+  const handleExecuteClaim = async () => {
+    if (!targetPlayer) return;
+
+    if (!selectedDropPlayerId) {
+      Alert.alert('Select Player to Drop', 'You must select a player from your squad to drop.');
+      return;
+    }
+
+    const dropPlayer = myRoster.find((p) => p.id === selectedDropPlayerId);
+
+    // Validate using dynamic roster rules
+    if (dropPlayer && !isDropAllowed(dropPlayer.element_type)) {
+      Alert.alert(
+        'Invalid Swap',
+        rosterType === 'STRICT'
+          ? `Strict mode requires dropping a ${targetPlayer.element_type} to add ${targetPlayer.web_name}.`
+          : 'Goalkeepers can only be swapped for Goalkeepers.'
+      );
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      // Call Atomic Postgres RPC Function (validates final squad counts)
+      const { data, error } = await supabase.rpc('claim_free_agent', {
+        p_league_id: leagueId,
+        p_add_player_id: targetPlayer.id,
+        p_drop_player_id: selectedDropPlayerId,
+        p_gameweek: currentGameweek,
+      });
+
+      if (error) throw error;
+
+      if (data && !data.success) {
+        throw new Error(data.error || 'Failed to complete Free Agent claim.');
+      }
+
+      Alert.alert(
+        'Free Agent Signed!',
+        `Successfully added ${targetPlayer.web_name} and dropped ${dropPlayer?.web_name}.`
+      );
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      Alert.alert('Signing Failed', err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!targetPlayer) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.modalCard}>
+          {/* Header */}
+          <Text style={styles.modalBadge}>FREE AGENT PICKUP ({rosterType})</Text>
+          <Text style={styles.modalTitle}>Confirm Player Swap</Text>
+
+          {/* Target Add Player Box */}
+          <View style={styles.addPlayerContainer}>
+            <Text style={styles.boxLabel}>ADD PLAYER (FREE AGENT)</Text>
+            <View style={styles.playerCardAdd}>
+              <View style={styles.playerInfoLeft}>
+                <Text style={styles.addPlayerName}>{targetPlayer.web_name}</Text>
+                <Text style={styles.addPlayerMeta}>
+                  {targetPlayer.team_short_name || targetPlayer.team_name || 'PL'}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.posBadge,
+                  { backgroundColor: POSITION_COLORS[targetPlayer.element_type] || '#222' },
+                ]}
+              >
+                <Text style={styles.posBadgeText}>{targetPlayer.element_type}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.dividerArrowContainer}>
+            <Text style={styles.swapArrowText}>⇅ SELECT SQUAD PLAYER TO DROP</Text>
+          </View>
+
+          {/* Drop Selection Roster Scroll */}
+          {loadingRoster ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color="#00ff87" />
+            </View>
+          ) : (
+            <ScrollView style={styles.rosterScroll} showsVerticalScrollIndicator={false}>
+              {myRoster.map((player) => {
+                const isSelected = selectedDropPlayerId === player.id;
+                const canDrop = isDropAllowed(player.element_type);
+
+                return (
+                  <TouchableOpacity
+                    key={player.id}
+                    style={[
+                      styles.dropPlayerCard,
+                      isSelected && styles.dropPlayerCardSelected,
+                      !canDrop && styles.dropPlayerCardDisabled,
+                    ]}
+                    onPress={() => setSelectedDropPlayerId(player.id)}
+                    disabled={!canDrop}
+                  >
+                    <View style={styles.playerInfoLeft}>
+                      <Text
+                        style={[
+                          styles.dropPlayerName,
+                          isSelected && styles.dropPlayerNameSelected,
+                          !canDrop && styles.disabledText,
+                        ]}
+                      >
+                        {player.web_name}
+                      </Text>
+                      <Text style={styles.dropPlayerMeta}>{player.team_short_name}</Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.miniPosBadge,
+                        { backgroundColor: POSITION_COLORS[player.element_type] || '#222' },
+                        !canDrop && { opacity: 0.3 },
+                      ]}
+                    >
+                      <Text style={styles.posBadgeText}>{player.element_type}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <Text style={styles.noticeText}>
+            ⚡ Free agent claims take effect instantly. Your squad roster will be updated immediately.
+          </Text>
+
+          {/* Action Buttons */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.btnCancel} onPress={onClose} disabled={submitting}>
+              <Text style={styles.btnCancelText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.btnConfirm,
+                (!selectedDropPlayerId || submitting) && styles.btnDisabled,
+              ]}
+              onPress={handleExecuteClaim}
+              disabled={!selectedDropPlayerId || submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={styles.btnConfirmText}>Sign Free Agent</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justify: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: '#121212',
+    width: '100%',
+    maxHeight: '85%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#262626',
+    padding: 16,
+  },
+  modalBadge: {
+    color: '#00ff87',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 16,
+    textTransform: 'uppercase',
+  },
+
+  addPlayerContainer: {
+    backgroundColor: '#0A0A0A',
+    borderWidth: 1,
+    borderColor: '#00ff8744',
+    borderRadius: 8,
+    padding: 10,
+  },
+  boxLabel: {
+    color: '#00ff87',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  playerCardAdd: {
+    flexDirection: 'row',
+    justify: 'space-between',
+    alignItems: 'center',
+  },
+  playerInfoLeft: {
+    flex: 1,
+  },
+  addPlayerName: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  addPlayerMeta: {
+    color: '#666',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  dividerArrowContainer: {
+    marginVertical: 12,
+    alignItems: 'center',
+  },
+  swapArrowText: {
+    color: '#666',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  loadingBox: {
+    height: 160,
+    justify: 'center',
+    alignItems: 'center',
+  },
+  rosterScroll: {
+    maxHeight: 220,
+    marginBottom: 12,
+  },
+  dropPlayerCard: {
+    flexDirection: 'row',
+    justify: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 6,
+  },
+  dropPlayerCardSelected: {
+    borderColor: '#FF3B30',
+    backgroundColor: '#2A1010',
+  },
+  dropPlayerCardDisabled: {
+    opacity: 0.3,
+    backgroundColor: '#0E0E0E',
+    borderColor: '#181818',
+  },
+  dropPlayerName: {
+    color: '#DDD',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dropPlayerNameSelected: {
+    color: '#FF3B30',
+    fontWeight: '900',
+  },
+  disabledText: {
+    color: '#555',
+  },
+  dropPlayerMeta: {
+    color: '#666',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+
+  posBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+  },
+  miniPosBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 3,
+  },
+  posBadgeText: {
+    color: '#000',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  noticeText: {
+    color: '#666',
+    fontSize: 10,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 14,
+    fontStyle: 'italic',
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  btnCancel: {
+    flex: 1,
+    backgroundColor: '#222',
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  btnCancelText: {
+    color: '#AAA',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  btnConfirm: {
+    flex: 1,
+    backgroundColor: '#00ff87',
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  btnDisabled: {
+    opacity: 0.4,
+  },
+  btnConfirmText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+});
