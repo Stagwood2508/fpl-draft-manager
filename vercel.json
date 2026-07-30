@@ -1,21 +1,11 @@
 {
-  "outputDirectory": "dist",
+  "version": 2,
   "cleanUrls": true,
-"rewrites": [
+  "framework": null,
+  "rewrites": [
     {
-      "source": "/((?!assets/|_expo/|favicon.ico).*)",
+      "source": "/((?!_expo|assets|favicon.ico).*)",
       "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
     }
   ]
 }
