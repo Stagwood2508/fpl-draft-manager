@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, Activity
 import { useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getActiveManagerForPick, getPicksUntilMyTurn, PositionCounts } from 'utils/draftEngine';
+import { getActiveManagerForPick, getPicksUntilMyTurn, PositionCounts } from '@/utils/draftEngine';
 
 interface Player {
   id: string;          // uuid
