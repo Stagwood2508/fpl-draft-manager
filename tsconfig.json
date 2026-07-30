@@ -3,10 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }
   }
 }
-

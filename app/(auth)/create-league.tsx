@@ -33,7 +33,7 @@ export default function CreateLeagueScreen() {
 
       const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      // 1. Insert new league (handling both potential column naming schemas)
+      // 1. Insert new league using exact schema columns (invite_code instead of code)
       const { data: league, error: lErr } = await supabase
         .from('leagues')
         .insert({ 
@@ -41,9 +41,8 @@ export default function CreateLeagueScreen() {
           commissioner_id: user.id, 
           status: 'PRE_DRAFT',
           draft_status: 'WAITING_ROOM', 
-          code: inviteCode,
           invite_code: inviteCode,
-          max_size: parseInt(size) || 8
+          max_size: parseInt(size, 10) || 8
         })
         .select()
         .single();
