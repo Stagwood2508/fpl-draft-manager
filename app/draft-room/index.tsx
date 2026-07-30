@@ -224,7 +224,7 @@ const PlayerPoolRow = React.memo(({
       </View>
       <View style={styles.splitMetricCell}>
         <Text style={styles.splitMetricVal}>{item.total_points}</Text>
-        <Text style={styles.splitMetricLabel}>Pts (25/26)</Text>
+        <Text style={styles.splitMetricLabel}>Pts</Text>
       </View>
     </TouchableOpacity>
 
@@ -423,7 +423,7 @@ export default function LiveDraftRoomScreen() {
           .eq('league_id', currentLid);
         if (teamsProfiles) setManagersList(teamsProfiles);
 
-        // 🚀 FIXED: Register .on() listener BEFORE calling .subscribe()
+        // Register Realtime Listener
         activeChannel = supabase
           .channel(`live-draft-room-${currentLid}`)
           .on(
@@ -662,7 +662,7 @@ export default function LiveDraftRoomScreen() {
     }
   };
 
-  // 🚨 TIMEOUT AUTO-PICK EXECUTOR: CALLS NATIVE DATABASE AUTO-PICK RPC WHEN CLOCK HITS 0
+  // 🚨 TIMEOUT AUTO-PICK EXECUTOR
   const handleTurnTimeoutTrigger = useCallback(async () => {
     if (!session || !leagueId || isProcessingAutopick.current) return;
     const activeStatus = session.draft_status;
@@ -671,29 +671,18 @@ export default function LiveDraftRoomScreen() {
     try {
       isProcessingAutopick.current = true;
       const currentPicker = session.current_picker_id;
-      const currentPickNum = Number(session.current_pick_index);
 
-      console.log(`⏱️ Turn timer expired for Pick #${currentPickNum}. Triggering execute_draft_autopick...`);
+      console.log(`⏱️ Turn timer expired. Invoking execute_draft_autopick...`);
 
-      if (!currentPicker) {
-        console.warn("No active current_picker_id found on timeout.");
-        return;
-      }
+      if (!currentPicker) return;
 
-      // Invoke native auto-pick routine
       const { data, error } = await supabase.rpc('execute_draft_autopick', {
         p_league_id: leagueId,
-        p_user_id: currentPicker,
-        p_pick_number: currentPickNum
+        p_user_id: currentPicker
       });
 
       if (error) {
         console.error("execute_draft_autopick RPC Error:", error.message);
-        await supabase.rpc('execute_auto_pick', {
-          p_league_id: leagueId,
-          p_user_id: currentPicker,
-          p_pick_number: currentPickNum
-        });
       } else {
         console.log("Auto-pick committed successfully:", data);
       }
@@ -704,6 +693,7 @@ export default function LiveDraftRoomScreen() {
     }
   }, [session, leagueId]);
 
+  // ⚡ FIXED SINGLE-RPC MANUAL PICK SUBMISSION HANDLER
   const submitManualPick = async () => {
     if (!selectedPlayer || !session || !leagueId || !myUserId || localSyncing) return;
     try {
@@ -719,32 +709,23 @@ export default function LiveDraftRoomScreen() {
 
       if (pickResult && !pickResult.success) {
         if (pickResult.error === 'PLAYER_ALREADY_TAKEN') {
-          Alert.alert('Selection Sniped!', 'Another manager just drafted this player a split second before you.');
-        } else if (pickResult.error.includes('LIMIT') || pickResult.error.includes('EXCEEDED')) {
-          Alert.alert('Roster Cap Reached', 'You have already filled all maximum available draft slots for this position group.');
+          Alert.alert('Selection Sniped!', 'Another manager drafted this player right before you.');
+        } else if (pickResult.error === 'NOT_YOUR_TURN') {
+          Alert.alert('Not Your Turn', 'Please wait for your pick in the turn order.');
         } else {
-          Alert.alert('Selection Refused', `Draft error constraint: ${pickResult.error}`);
+          Alert.alert('Selection Refused', pickResult.error || 'Could not submit pick.');
         }
         setSelectedPlayer(null);
         return;
       }
 
-      const { error: advanceError } = await supabase.rpc('submit_validated_draft_pick', {
-        p_league_id: leagueId,
-        p_user_id: myUserId,
-        p_player_id: selectedPlayer.id,
-        p_current_pick_index: Number(session.current_pick_index),
-        p_current_round: Number(session.current_round),
-        p_turn_duration: turnDurationSeconds
-      });
-
-      if (advanceError) throw advanceError;
-      
+      // Pick succeeded! Reset selection and let Realtime subscription sync the update
       setSelectedPlayer(null);
+
     } catch (err: any) {
       Alert.alert(
         'Draft Transmission Failure', 
-        `Database Response: ${err.message || JSON.stringify(err)}`
+        err.message || 'Pick failed.'
       );
     } finally {
       setLocalSyncing(false);
@@ -989,8 +970,16 @@ export default function LiveDraftRoomScreen() {
             <Text style={styles.workbenchTitle}>Confirm: {selectedPlayer.web_name}</Text>
             <Text style={styles.workbenchSub}>Deployment slot: Rank {selectedPlayer.draft_rank}</Text>
           </View>
-          <TouchableOpacity style={styles.submitPickBtn} onPress={submitManualPick}>
-            <Text style={styles.submitPickBtnText}>SUBMIT PICK</Text>
+          <TouchableOpacity 
+            style={[styles.submitPickBtn, localSyncing && { opacity: 0.6 }]} 
+            onPress={submitManualPick}
+            disabled={localSyncing}
+          >
+            {localSyncing ? (
+              <ActivityIndicator color="#000" size="small" />
+            ) : (
+              <Text style={styles.submitPickBtnText}>SUBMIT PICK</Text>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -1026,7 +1015,7 @@ export default function LiveDraftRoomScreen() {
                 <Text style={styles.modalPlayerTitle}>{inspectingPlayer.web_name}</Text>
                 <Text style={styles.modalPlayerSub}>{inspectingPlayer.element_type} • {inspectingPlayer.team_name}</Text>
                 <View style={styles.dividerLine} />
-                <Text style={styles.statsMetricsHeader}>CURRENT SEASON PERFORMANCE DATA (25/26)</Text>
+                <Text style={styles.statsMetricsHeader}>CURRENT SEASON PERFORMANCE DATA</Text>
                 <View style={styles.metricsGridContainer}>
                   <View style={styles.metricItemBox}><Text style={styles.metricValText}>{inspectingPlayer.total_points}</Text><Text style={styles.metricLabelText}>Total Points</Text></View>
                   <View style={styles.metricItemBox}><Text style={styles.metricValText}>#{inspectingPlayer.draft_rank === 999 ? 'N/A' : inspectingPlayer.draft_rank}</Text><Text style={styles.metricLabelText}>Draft Rank</Text></View>
@@ -1122,13 +1111,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0A' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
   turnHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: '#222' },
-  myTurnBg: { backgroundColor: '#57be23', borderLeftWidth: 4, borderLeftColor: '#00ff87' },
+  myTurnBg: { backgroundColor: '#1A3B22', borderLeftWidth: 4, borderLeftColor: '#00ff87' },
   rivalTurnBg: { backgroundColor: '#111', borderLeftWidth: 4, borderLeftColor: '#444' },
-  warningAmberBg: { backgroundColor: '#976513', borderLeftWidth: 4, borderLeftColor: '#FF9500' },
-  criticalRedBg: { backgroundColor: '#8c2f26', borderLeftWidth: 4, borderLeftColor: '#FF453A' },
+  warningAmberBg: { backgroundColor: '#3D2A0A', borderLeftWidth: 4, borderLeftColor: '#FF9500' },
+  criticalRedBg: { backgroundColor: '#3A1412', borderLeftWidth: 4, borderLeftColor: '#FF453A' },
   completedBg: { backgroundColor: '#1C1C1E', justifyContent: 'center' },
   turnLabel: { color: '#FFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
-  turnMetaSub: { color: '#ffffff', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  turnMetaSub: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 2 },
   clockContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
   clockText: { fontSize: 14, fontWeight: '900', marginLeft: 6, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
 
