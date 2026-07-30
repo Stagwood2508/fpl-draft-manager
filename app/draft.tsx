@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, ScrollView, Platform, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from 'utils/supabase';
+import { supabase } from '@utils/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getActiveManagerForPick, getPicksUntilMyTurn, PositionCounts } from 'utils/draftEngine';
 
