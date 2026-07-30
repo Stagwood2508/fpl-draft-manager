@@ -340,7 +340,6 @@ export default function LiveDraftRoomScreen() {
         if (session?.draft_status === 'WAITING_ROOM' && leagueId) {
           console.log("🚀 Kickoff time reached! Launching draft via update_league_draft_status...");
           try {
-            // Call actual database routine
             const { data, error } = await supabase.rpc('update_league_draft_status', {
               p_league_id: leagueId,
               p_status: 'LIVE'
@@ -349,7 +348,6 @@ export default function LiveDraftRoomScreen() {
             if (error) {
               console.warn("update_league_draft_status RPC Error:", error.message);
               
-              // Fallback to initialize_draft_session or direct status sync
               const fallback = await supabase.rpc('initialize_draft_session', { p_league_id: leagueId });
               
               if (fallback.error) {
@@ -425,6 +423,7 @@ export default function LiveDraftRoomScreen() {
           .eq('league_id', currentLid);
         if (teamsProfiles) setManagersList(teamsProfiles);
 
+        // 🚀 FIXED: Register .on() listener BEFORE calling .subscribe()
         activeChannel = supabase
           .channel(`live-draft-room-${currentLid}`)
           .on(
@@ -472,7 +471,11 @@ export default function LiveDraftRoomScreen() {
     };
 
     engineStartup();
-    return () => { if (activeChannel) supabase.removeChannel(activeChannel); };
+    return () => { 
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel); 
+      }
+    };
   }, []);
 
   const syncPipelineEngine = async (
@@ -686,7 +689,6 @@ export default function LiveDraftRoomScreen() {
 
       if (error) {
         console.error("execute_draft_autopick RPC Error:", error.message);
-        // Fallback call to execute_auto_pick
         await supabase.rpc('execute_auto_pick', {
           p_league_id: leagueId,
           p_user_id: currentPicker,
