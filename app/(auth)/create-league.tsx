@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 
@@ -33,51 +33,66 @@ export default function CreateLeagueScreen() {
 
       const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      // 1. Insert new league
+      // 1. Insert new league (handling both potential column naming schemas)
       const { data: league, error: lErr } = await supabase
         .from('leagues')
         .insert({ 
           name: cleanName, 
           commissioner_id: user.id, 
-          draft_status: 'PRE_DRAFT', 
+          status: 'PRE_DRAFT',
+          draft_status: 'WAITING_ROOM', 
+          code: inviteCode,
           invite_code: inviteCode,
           max_size: parseInt(size) || 8
         })
         .select()
         .single();
 
-      if (lErr) throw lErr;
+      if (lErr) {
+        console.error('Error inserting league:', lErr);
+        throw lErr;
+      }
       if (!league) throw new Error('League record could not be generated.');
 
-      // 2. Add commissioner to league_members
+      // 2. Add commissioner to league_members with initial draft_order
       const { error: memberErr } = await supabase
         .from('league_members')
         .insert({ 
           league_id: league.id, 
           user_id: user.id,
-          team_name: cleanTeamName
+          team_name: cleanTeamName,
+          role: 'COMMISSIONER',
+          draft_order: 1
         });
 
       if (memberErr) {
         if (memberErr.code === '23505') {
           throw new Error('That team name is already taken in this league.');
         }
+        console.error('Error inserting member:', memberErr);
         throw memberErr;
       }
       
       // 3. Seed configurations
-      await supabase.from('league_settings').insert({ league_id: league.id });
+      await supabase.from('league_settings').insert({ 
+        league_id: league.id,
+        draft_clock_duration: 60 
+      });
+
+      // 4. Initialize draft session state
       await supabase.from('draft_sessions').insert({
         league_id: league.id,
         draft_status: 'WAITING_ROOM',
         current_round: 1,
-        current_pick_index: 1
+        current_pick_index: 1,
+        current_picker_id: user.id,
+        pick_deadline: new Date().toISOString()
       });
 
       setCreatedCode(inviteCode);
     } catch (err: any) {
       console.error('League Creation Crash:', JSON.stringify(err, null, 2));
-      const exactErrorMsg = err?.message || err?.details || JSON.stringify(err);
+      const exactErrorMsg = err?.message || err?.details || err?.hint || JSON.stringify(err);
       Alert.alert('Database Rejection', exactErrorMsg);
     } finally {
       setLoading(false);
@@ -118,8 +133,16 @@ export default function CreateLeagueScreen() {
             onChangeText={setSize} 
           />
 
-          <TouchableOpacity style={styles.btn} onPress={handleCreateLeaguePipeline} disabled={loading}>
-            <Text style={styles.btnText}>{loading ? 'INITIALIZING...' : 'GENERATE LEAGUE'}</Text>
+          <TouchableOpacity 
+            style={[styles.btn, loading && styles.btnDisabled]} 
+            onPress={handleCreateLeaguePipeline} 
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#000" size="small" />
+            ) : (
+              <Text style={styles.btnText}>GENERATE LEAGUE</Text>
+            )}
           </TouchableOpacity>
         </>
       ) : (
@@ -147,6 +170,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 11, color: '#666', fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
   input: { backgroundColor: '#111', borderColor: '#222', borderWidth: 1, color: '#FFF', padding: 14, borderRadius: 2, marginBottom: 16 },
   btn: { backgroundColor: '#00ff87', padding: 16, alignItems: 'center', borderRadius: 2 },
+  btnDisabled: { opacity: 0.6 },
   btnText: { color: '#000', fontWeight: '900', fontSize: 13 },
   codeContainer: { alignItems: 'center', backgroundColor: '#111', padding: 24, borderWidth: 1, borderColor: '#00ff87' },
   successText: { color: '#FFF', fontWeight: '800', fontSize: 16, marginBottom: 16 },
