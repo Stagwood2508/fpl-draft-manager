@@ -8,6 +8,8 @@ export default function CreateLeagueScreen() {
   const [name, setName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [size, setSize] = useState('8');
+  const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
+  const [createdLeagueId, setCreatedLeagueId] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +35,7 @@ export default function CreateLeagueScreen() {
 
       const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      // 1. Insert new league using exact schema columns (invite_code instead of code)
+      // 1. Insert into leagues table
       const { data: league, error: lErr } = await supabase
         .from('leagues')
         .insert({ 
@@ -53,7 +55,7 @@ export default function CreateLeagueScreen() {
       }
       if (!league) throw new Error('League record could not be generated.');
 
-      // 2. Add commissioner to league_members with initial draft_order
+      // 2. Add commissioner to league_members
       const { error: memberErr } = await supabase
         .from('league_members')
         .insert({ 
@@ -72,10 +74,11 @@ export default function CreateLeagueScreen() {
         throw memberErr;
       }
       
-      // 3. Seed configurations
+      // 3. Seed Configurations (Saving roster_type choice)
       await supabase.from('league_settings').insert({ 
         league_id: league.id,
-        draft_clock_duration: 60 
+        draft_clock_duration: 60,
+        roster_type: rosterType
       });
 
       // 4. Initialize draft session state
@@ -88,6 +91,7 @@ export default function CreateLeagueScreen() {
         pick_deadline: new Date().toISOString()
       });
 
+      setCreatedLeagueId(league.id);
       setCreatedCode(inviteCode);
     } catch (err: any) {
       console.error('League Creation Crash:', JSON.stringify(err, null, 2));
@@ -123,6 +127,27 @@ export default function CreateLeagueScreen() {
             onChangeText={setTeamName} 
             autoCapitalize="words"
           />
+
+          <Text style={styles.label}>Roster Type Strategy</Text>
+          <View style={styles.rosterTypeRow}>
+            <TouchableOpacity 
+              style={[styles.rosterTypeBtn, rosterType === 'STRICT' && styles.rosterTypeBtnActive]}
+              onPress={() => setRosterType('STRICT')}
+            >
+              <Text style={[styles.rosterTypeText, rosterType === 'STRICT' && styles.rosterTypeTextActive]}>
+                STRICT (2-5-5-3)
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.rosterTypeBtn, rosterType === 'FLEXIBLE' && styles.rosterTypeBtnActive]}
+              onPress={() => setRosterType('FLEXIBLE')}
+            >
+              <Text style={[styles.rosterTypeText, rosterType === 'FLEXIBLE' && styles.rosterTypeTextActive]}>
+                FLEXIBLE (OPEN)
+              </Text>
+            </TouchableOpacity>
+          </View>
           
           <Text style={styles.label}>Max Size Constraints</Text>
           <TextInput 
@@ -153,9 +178,12 @@ export default function CreateLeagueScreen() {
 
           <TouchableOpacity 
             style={[styles.btn, { marginTop: 30 }]} 
-            onPress={() => router.replace('/(tabs)/dashboard')}
+            onPress={() => router.replace({
+              pathname: '/(tabs)/dashboard',
+              params: { leagueId: createdLeagueId }
+            })}
           >
-            <Text style={styles.btnText}>ENTER MY SQUAD CLUB DASHBOARD</Text>
+            <Text style={styles.btnText}>ENTER MY SQUAD DASHBOARD</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -168,7 +196,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '900', color: '#FFF', textTransform: 'uppercase', marginBottom: 20 },
   label: { fontSize: 11, color: '#666', fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
   input: { backgroundColor: '#111', borderColor: '#222', borderWidth: 1, color: '#FFF', padding: 14, borderRadius: 2, marginBottom: 16 },
-  btn: { backgroundColor: '#00ff87', padding: 16, alignItems: 'center', borderRadius: 2 },
+  rosterTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  rosterTypeBtn: { flex: 1, backgroundColor: '#111', borderColor: '#222', borderWidth: 1, padding: 12, alignItems: 'center', borderRadius: 2 },
+  rosterTypeBtnActive: { borderColor: '#00ff87', backgroundColor: '#121915' },
+  rosterTypeText: { color: '#666', fontSize: 10, fontWeight: '800' },
+  rosterTypeTextActive: { color: '#00ff87' },
+  btn: { backgroundColor: '#00ff87', padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#000', fontWeight: '900', fontSize: 13 },
   codeContainer: { alignItems: 'center', backgroundColor: '#111', padding: 24, borderWidth: 1, borderColor: '#00ff87' },

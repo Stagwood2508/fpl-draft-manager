@@ -7,10 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
+  FlatList,
   Dimensions
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { synchronizeFplPlayerPool } from '@/utils/fplSync'; 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
@@ -20,7 +23,15 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface LeagueMetadata {
   id: string;
   name: string;
+  commissioner_id: string;
   draft_status: string;
+}
+
+interface UserLeagueMembership {
+  league_id: string;
+  team_name: string;
+  role: string;
+  leagues: LeagueMetadata;
 }
 
 interface LeaderboardRow {
@@ -34,15 +45,20 @@ interface LeaderboardRow {
 export default function HomeDashboardScreen() {
   const isFocused = useIsFocused();
   const router = useRouter();
+  const params = useLocalSearchParams<{ leagueId?: string }>();
+
   const [loading, setLoading] = useState(true);
   const [syncingPool, setSyncingPool] = useState(false); 
 
-  // Context State
-  const [leagueId, setLeagueId] = useState<string | null>(null);
-  const [leagueMeta, setLeagueMeta] = useState<LeagueMetadata | null>(null);
+  // Multi-League Context State
+  const [userLeagues, setUserLeagues] = useState<UserLeagueMembership[]>([]);
+  const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
+  const [activeLeagueMeta, setActiveLeagueMeta] = useState<LeagueMetadata | null>(null);
+  const [isCommissioner, setIsCommissioner] = useState(false);
+  const [isPickerModalOpen, setIsPickerModalOpen] = useState(false);
+
+  // Standings & Controls
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  
-  // Dynamic Access & Completion States
   const [canEnterDraftRoom, setCanEnterDraftRoom] = useState(false);
   const [isDraftCompleted, setIsDraftCompleted] = useState(false);
 
@@ -61,7 +77,7 @@ export default function HomeDashboardScreen() {
     if (isFocused) {
       syncDashboardEngine();
     }
-  }, [isFocused]);
+  }, [isFocused, params?.leagueId, activeLeagueId]);
 
   // LIVE GAMEWEEK DEADLINE COUNTDOWN TIMER TICK
   useEffect(() => {
@@ -85,20 +101,20 @@ export default function HomeDashboardScreen() {
       setDeadlineString(formatted);
     };
 
-    updateClock(); // Run immediately
+    updateClock();
     const clockInterval = setInterval(updateClock, 1000);
-
     return () => clearInterval(clockInterval);
   }, [targetDeadline]);
 
+  // DRAFT ROOM GATE CHECKER
   useEffect(() => {
-    if (!isFocused || !leagueMeta?.id || isDraftCompleted) return;
+    if (!isFocused || !activeLeagueMeta?.id || isDraftCompleted) return;
 
     const checkGateInterval = setInterval(async () => {
       const { data: settingsData } = await supabase
         .from('league_settings')
         .select('draft_start_time')
-        .eq('league_id', leagueId)
+        .eq('league_id', activeLeagueId)
         .maybeSingle();
 
       if (settingsData?.draft_start_time) {
@@ -106,7 +122,7 @@ export default function HomeDashboardScreen() {
         const msUntilKickoff = targetStartTime - Date.now();
         const tenMinutesInMs = 10 * 60 * 1000;
 
-        if ((msUntilKickoff <= tenMinutesInMs && msUntilKickoff > 0) || leagueMeta.draft_status === 'LIVE') {
+        if ((msUntilKickoff <= tenMinutesInMs && msUntilKickoff > 0) || activeLeagueMeta.draft_status === 'LIVE') {
           setCanEnterDraftRoom(true);
           clearInterval(checkGateInterval);
         }
@@ -114,61 +130,78 @@ export default function HomeDashboardScreen() {
     }, 5000);
 
     return () => clearInterval(checkGateInterval);
-  }, [isFocused, leagueId, leagueMeta, isDraftCompleted]);
+  }, [isFocused, activeLeagueId, activeLeagueMeta, isDraftCompleted]);
 
   const syncDashboardEngine = async () => {
     try {
       setLoading(true);
 
-      // 1. Resolve Active User Context
+      // 1. Resolve Auth User
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
       if (authErr || !user) throw new Error('User authentication token lost.');
 
-      // 2. Resolve Active League Metadata
-      const { data: memberData, error: memberErr } = await supabase
+      // 2. Fetch ALL Leagues User Belongs To
+      const { data: members, error: memberErr } = await supabase
         .from('league_members')
         .select(`
           league_id,
-          leagues ( id, name, draft_status )
+          team_name,
+          role,
+          leagues ( id, name, commissioner_id, draft_status )
         `)
-        .limit(1)
-        .single();
+        .eq('user_id', user.id);
 
-      if (memberErr || !memberData?.leagues) throw new Error('No assigned league membership profile identified.');
+      if (memberErr || !members || members.length === 0) {
+        throw new Error('No assigned league membership profile identified.');
+      }
+
+      const formattedMembers = members.map((m: any) => ({
+        league_id: m.league_id,
+        team_name: m.team_name,
+        role: m.role,
+        leagues: Array.isArray(m.leagues) ? m.leagues[0] : m.leagues
+      })) as UserLeagueMembership[];
+
+      setUserLeagues(formattedMembers);
+
+      // Determine active league selection (URL params > state selection > first league)
+      const targetLid = params?.leagueId || activeLeagueId || formattedMembers[0].league_id;
+      const activeMember = formattedMembers.find(m => m.league_id === targetLid) || formattedMembers[0];
+      const currentMeta = activeMember.leagues;
+
+      setActiveLeagueId(currentMeta.id);
+      setActiveLeagueMeta(currentMeta);
       
-      const currentLeagueMeta = memberData.leagues as unknown as LeagueMetadata;
-      setLeagueId(currentLeagueMeta.id);
-      setLeagueMeta(currentLeagueMeta);
+      // Determine Commissioner Privilege
+      setIsCommissioner(currentMeta.commissioner_id === user.id);
 
-      // 3. Check official draft status from the 'draft_sessions' table
-      const { data: draftSessionData, error: draftSessionErr } = await supabase
+      // 3. Fetch Draft Status for Active League
+      const { data: draftSessionData } = await supabase
         .from('draft_sessions')
         .select('draft_status')
-        .eq('league_id', currentLeagueMeta.id)
+        .eq('league_id', currentMeta.id)
         .maybeSingle();
 
       const draftFinished = draftSessionData?.draft_status === 'COMPLETED' || draftSessionData?.draft_status === 'finished';
 
-      if (!draftSessionErr && draftFinished) {
+      if (draftFinished) {
         setIsDraftCompleted(true);
         setCanEnterDraftRoom(false);
       } else {
         setIsDraftCompleted(false);
 
-        // 4. Fetch Draft Start Time Constraints from League Settings
-        const { data: settingsData, error: settingsErr } = await supabase
+        const { data: settingsData } = await supabase
           .from('league_settings')
           .select('draft_start_time')
-          .eq('league_id', currentLeagueMeta.id)
+          .eq('league_id', currentMeta.id)
           .maybeSingle();
 
-        if (!settingsErr && settingsData?.draft_start_time) {
+        if (settingsData?.draft_start_time) {
           const targetStartTime = new Date(settingsData.draft_start_time).getTime();
-          const currentTime = Date.now();
-          const msUntilKickoff = targetStartTime - currentTime;
+          const msUntilKickoff = targetStartTime - Date.now();
           const tenMinutesInMs = 10 * 60 * 1000;
 
-          if ((msUntilKickoff <= tenMinutesInMs && msUntilKickoff > 0) || currentLeagueMeta.draft_status === 'LIVE') {
+          if ((msUntilKickoff <= tenMinutesInMs && msUntilKickoff > 0) || currentMeta.draft_status === 'LIVE') {
             setCanEnterDraftRoom(true);
           } else {
             setCanEnterDraftRoom(false);
@@ -176,31 +209,29 @@ export default function HomeDashboardScreen() {
         }
       }
 
-      // 5. Fetch real live standings from league_standings table
-      const { data: standingsData, error: standingsErr } = await supabase
+      // 4. Standings for Active League
+      const { data: standingsData } = await supabase
         .from('league_standings')
         .select('user_id, team_name, total_fantasy_points, league_points')
-        .eq('league_id', currentLeagueMeta.id)
+        .eq('league_id', currentMeta.id)
         .order('league_points', { ascending: false })
         .order('total_fantasy_points', { ascending: false });
 
-      if (standingsErr) {
-        console.error('Error fetching standings:', standingsErr);
-      } else if (standingsData) {
-        const rankedStandings: LeaderboardRow[] = standingsData.map((row, index) => ({
+      if (standingsData) {
+        const ranked: LeaderboardRow[] = standingsData.map((row, index) => ({
           ...row,
           rank: index + 1,
         }));
-        setLeaderboard(rankedStandings);
+        setLeaderboard(ranked);
       }
 
-      // 6. Fetch Real Live Gameweek Performance Metrics
-      const { data: liveMetrics, error: liveMetricsErr } = await supabase.rpc('get_live_dashboard_metrics', {
-        p_league_id: currentLeagueMeta.id,
+      // 5. Live Gameweek Metrics for Active League
+      const { data: liveMetrics } = await supabase.rpc('get_live_dashboard_metrics', {
+        p_league_id: currentMeta.id,
         p_user_id: user.id,
       });
 
-      if (!liveMetricsErr && liveMetrics && liveMetrics.length > 0) {
+      if (liveMetrics && liveMetrics.length > 0) {
         const metric = liveMetrics[0];
         setCurrentGameweek(metric.current_gameweek || 1);
         setMyLivePoints(metric.my_live_points || 0);
@@ -208,9 +239,9 @@ export default function HomeDashboardScreen() {
         setPtsDiff(metric.pts_diff || 0);
       }
 
-      // 7. Fetch Real Next Gameweek Deadline
-      const { data: deadlineData, error: deadlineErr } = await supabase.rpc('get_next_gameweek_deadline');
-      if (!deadlineErr && deadlineData && deadlineData.length > 0) {
+      // 6. Next Gameweek Deadline
+      const { data: deadlineData } = await supabase.rpc('get_next_gameweek_deadline');
+      if (deadlineData && deadlineData.length > 0) {
         const nextGw = deadlineData[0];
         setNextDeadlineGameweek(nextGw.gameweek || currentGameweek + 1);
         if (nextGw.deadline_time) {
@@ -255,30 +286,65 @@ export default function HomeDashboardScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* LEAGUE HEADER HUB */}
+        {/* LEAGUE HEADER HUB WITH MULTI-LEAGUE SWITCHER */}
         <View style={styles.leagueHeaderCard}>
-          <Text style={styles.metaLabel}>Active Context Room</Text>
-          <Text style={styles.leagueNameText}>{leagueMeta?.name || 'Loading League...'}</Text>
-          <View style={styles.phaseBadge}>
-            <Text style={styles.phaseBadgeText}>
-              STATUS: {isDraftCompleted ? '🟢 DRAFT COMPLETED' : leagueMeta?.draft_status === 'LIVE' ? '🔴 DRAFT IN PROGRESS' : '⚙️ ' + leagueMeta?.draft_status}
-            </Text>
+          <View style={styles.leagueHeaderTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.metaLabel}>Active Context Room</Text>
+              <TouchableOpacity 
+                style={styles.leagueSelectorTouch} 
+                onPress={() => userLeagues.length > 1 && setIsPickerModalOpen(true)}
+              >
+                <Text style={styles.leagueNameText}>{activeLeagueMeta?.name || 'Select League...'}</Text>
+                {userLeagues.length > 1 && (
+                  <Ionicons name="chevron-down" size={16} color="#00ff87" style={{ marginLeft: 6 }} />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* COMMISSIONER SETTINGS BUTTON */}
+            {isCommissioner && (
+              <TouchableOpacity 
+                style={styles.commissionerSettingsBtn} 
+                onPress={() => router.push({
+                  pathname: '/league/settings',
+                  params: { leagueId: activeLeagueId }
+                })}
+              >
+                <Ionicons name="settings-outline" size={14} color="#000" />
+                <Text style={styles.commissionerBtnText}>SETTINGS</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.badgeRow}>
+            <View style={styles.phaseBadge}>
+              <Text style={styles.phaseBadgeText}>
+                STATUS: {isDraftCompleted ? '🟢 DRAFT COMPLETED' : activeLeagueMeta?.draft_status === 'LIVE' ? '🔴 DRAFT IN PROGRESS' : '⚙️ ' + (activeLeagueMeta?.draft_status || 'PRE_DRAFT')}
+              </Text>
+            </View>
+
+            {isCommissioner && (
+              <View style={styles.commTag}>
+                <Text style={styles.commTagText}>COMMISSIONER</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* COMPLETION GUARD */}
+        {/* DRAFT ENTRY GUARD */}
         {!isDraftCompleted && (
           canEnterDraftRoom ? (
             <TouchableOpacity 
               style={styles.enterDraftRoomActionCard}
-              onPress={() => router.push('/draft-room')}
+              onPress={() => router.push({ pathname: '/draft-room', params: { leagueId: activeLeagueId } })}
               activeOpacity={0.8}
             >
               <View style={styles.liveIndicatorPulseContainer}>
                 <View style={styles.pulseDotElement} />
                 <Text style={styles.liveRoomBadgeText}>DRAFT WORKSPACE OPEN</Text>
               </View>
-              <Text style={styles.enterButtonPrimaryText}>ENTER LIVE WAITING ROOM</Text>
+              <Text style={styles.enterButtonPrimaryText}>ENTER LIVE DRAFT ROOM</Text>
               <Text style={styles.enterButtonSecondarySubtext}>Squad selection controls activate at schedule lock</Text>
             </TouchableOpacity>
           ) : (
@@ -321,7 +387,7 @@ export default function HomeDashboardScreen() {
         <View style={styles.leaderboardContainerCard}>
           <View style={styles.leaderboardHeader}>
             <Text style={styles.leaderboardTitleText}>League Standings</Text>
-            <TouchableOpacity onPress={() => router.push('(tabs)/league/matches')}>
+            <TouchableOpacity onPress={() => router.push({ pathname: '(tabs)/league/matches', params: { leagueId: activeLeagueId } })}>
               <Text style={styles.viewFixturesLinkText}>VIEW FIXTURES ➔</Text>
             </TouchableOpacity>
           </View>
@@ -382,6 +448,38 @@ export default function HomeDashboardScreen() {
         </View>
 
       </ScrollView>
+
+      {/* MULTI-LEAGUE SWITCHER MODAL */}
+      <Modal visible={isPickerModalOpen} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>SWITCH ACTIVE LEAGUE</Text>
+            <Text style={styles.modalSub}>Select which fantasy league context to display</Text>
+            <FlatList
+              data={userLeagues}
+              keyExtractor={(item) => item.league_id}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={[
+                    styles.leagueOptionRow, 
+                    item.league_id === activeLeagueId && styles.leagueOptionActive
+                  ]}
+                  onPress={() => {
+                    setActiveLeagueId(item.league_id);
+                    setIsPickerModalOpen(false);
+                  }}
+                >
+                  <Text style={styles.leagueOptionName}>{item.leagues.name}</Text>
+                  <Text style={styles.leagueOptionMeta}>{item.team_name} • {item.role}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setIsPickerModalOpen(false)}>
+              <Text style={styles.closeModalText}>CANCEL</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -392,10 +490,19 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 14, paddingBottom: 40 },
   
   leagueHeaderCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 4, marginBottom: 12 },
-  metaLabel: { fontSize: 9, color: '#555', textTransform: 'uppercase', fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  leagueHeaderTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  leagueSelectorTouch: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  metaLabel: { fontSize: 9, color: '#555', textTransform: 'uppercase', fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 },
   leagueNameText: { color: '#FFF', fontSize: 20, fontWeight: '900' },
-  phaseBadge: { alignSelf: 'flex-start', backgroundColor: '#000', borderWidth: 1, borderColor: '#333', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 2, marginTop: 10 },
+  
+  commissionerSettingsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#00ff87', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 2, gap: 4 },
+  commissionerBtnText: { color: '#000', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  phaseBadge: { backgroundColor: '#000', borderWidth: 1, borderColor: '#333', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 2 },
   phaseBadgeText: { color: '#00ff87', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  commTag: { backgroundColor: '#222', borderWidth: 1, borderColor: '#00ff8744', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 2 },
+  commTagText: { color: '#FFF', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 
   enterDraftRoomActionCard: { backgroundColor: '#111', borderRadius: 4, padding: 16, borderLeftWidth: 4, borderColor: '#00ff87', marginBottom: 14, borderWidth: 1, borderTopWidth: 1, borderBottomWidth: 1, borderRightWidth: 1, borderTopColor: '#222', borderBottomColor: '#222', borderRightColor: '#222' },
   liveIndicatorPulseContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
@@ -425,33 +532,10 @@ const styles = StyleSheet.create({
   leaderboardTitleText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
   viewFixturesLinkText: { color: '#00ff87', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   
-  tableHeaderRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#222',
-    paddingBottom: 6,
-    marginBottom: 4,
-  },
-  thText: {
-    color: '#666',
-    fontSize: 9,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  leaderboardRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingVertical: 10, 
-    borderBottomWidth: 0.5, 
-    borderBottomColor: '#1a1a1a' 
-  },
-  leaderboardRowTopSpot: { 
-    backgroundColor: '#121915', 
-    borderLeftWidth: 2, 
-    borderLeftColor: '#00ff87', 
-    paddingLeft: 4 
-  },
+  tableHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#222', paddingBottom: 6, marginBottom: 4 },
+  thText: { color: '#666', fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#1a1a1a' },
+  leaderboardRowTopSpot: { backgroundColor: '#121915', borderLeftWidth: 2, borderLeftColor: '#00ff87', paddingLeft: 4 },
   rankCol: { width: '10%', alignItems: 'flex-start' },
   rankText: { color: '#666', fontSize: 12, fontWeight: '800' },
   rankTextGold: { color: '#00ff87', fontWeight: '900' },
@@ -460,7 +544,7 @@ const styles = StyleSheet.create({
   fplPointsCol: { width: '20%', alignItems: 'center' },
   h2hPointsCol: { width: '20%', alignItems: 'flex-end' },
   pointsValueText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  h2hValueText: { color: '#00ff87', fontSize: 13, fontWeight: '900' },
+  h2hValueText: { color: '#00ff87', fontSize: 900 ? '900' : '900' },
 
   actionGrid: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { width: '48.5%', backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 4, alignItems: 'center', flexDirection: 'row' },
@@ -470,5 +554,16 @@ const styles = StyleSheet.create({
   devCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 4, marginTop: 20 },
   devTitle: { color: '#444', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.5 },
   syncBtn: { backgroundColor: '#00ff87', paddingVertical: 12, borderRadius: 2, alignItems: 'center' },
-  syncBtnText: { color: '#000', fontWeight: '900', fontSize: 11 }
+  syncBtnText: { color: '#000', fontWeight: '900', fontSize: 11 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#111', borderHeight: 1, borderColor: '#222', padding: 20, borderRadius: 4 },
+  modalTitle: { color: '#FFF', fontSize: 16, fontWeight: '900' },
+  modalSub: { color: '#666', fontSize: 11, marginBottom: 16 },
+  leagueOptionRow: { backgroundColor: '#000', padding: 14, borderRadius: 2, marginBottom: 8, borderWidth: 1, borderColor: '#222' },
+  leagueOptionActive: { borderColor: '#00ff87', backgroundColor: '#121915' },
+  leagueOptionName: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  leagueOptionMeta: { color: '#666', fontSize: 10, marginTop: 2 },
+  closeModalBtn: { backgroundColor: '#222', paddingVertical: 12, alignItems: 'center', borderRadius: 2, marginTop: 10 },
+  closeModalText: { color: '#888', fontSize: 11, fontWeight: '800' }
 });

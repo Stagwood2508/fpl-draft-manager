@@ -30,7 +30,7 @@ export default function JoinLeagueScreen() {
       }
       const user = session.user;
 
-      // 2. Fetch League by Invite Code (Checking both invite_code and code columns)
+      // 2. Fetch League by Invite Code
       const { data: league, error: lookupErr } = await supabase
         .from('leagues')
         .select('id, name, max_size, status')
@@ -68,9 +68,12 @@ export default function JoinLeagueScreen() {
         }
       }
 
-      // 5. Success Notification & Routing
+      // 5. Success Notification & Explicit Navigation to Newly Joined League
       Alert.alert('Welcome Aboard!', `You have joined "${league.name}" as manager of ${cleanTeamName}.`);
-      router.replace('/(tabs)/dashboard');
+      router.replace({
+        pathname: '/(tabs)/dashboard',
+        params: { leagueId: league.id }
+      });
 
     } catch (err: any) {
       console.error('Join League Crash:', JSON.stringify(err, null, 2));
