@@ -126,7 +126,7 @@ export default function RootLayout() {
     };
   }, [currentUserId]);
 
-  // 4. Reactive Routing Guard
+// 4. Reactive Routing Guard
   useEffect(() => {
     if (!authInitialized || (!fontsLoaded && !fontError) || hasLeague === null) return;
 
@@ -135,7 +135,6 @@ export default function RootLayout() {
     const currentSubSegment = segments[1] || '';
 
     const inAuthGroup = currentSegment === '(auth)';
-    const inTabsGroup = currentSegment === '(tabs)';
     
     const isActivelyOnboarding = 
       currentSubSegment === 'onboarding' || 
@@ -144,18 +143,19 @@ export default function RootLayout() {
       currentSubSegment === 'join-league';
 
     if (!sessionActive) {
+      // 🔒 Unauthenticated: Lock to Auth flow
       if (!inAuthGroup) {
         router.replace('/(auth)/login');
       }
     } else {
       if (!hasLeague) {
-        // Logged in but not in a league -> Hold inside onboarding screens
+        // 🔒 Authenticated but no league: Hold inside onboarding screens
         if (!isActivelyOnboarding) {
           router.replace('/(auth)/onboarding');
         }
       } else {
-        // Logged in AND in a league -> Move explicitly to Dashboard screen
-        if (!inTabsGroup) {
+        // ✅ Authenticated & in a league: Redirect ONLY if currently trapped on Auth screens
+        if (inAuthGroup) {
           router.replace('/(tabs)/dashboard');
         }
       }
@@ -175,41 +175,70 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <Stack
-          screenOptions={{
-            headerStyle: { 
-              backgroundColor: '#0A0A0A',
-            },
-            headerShadowVisible: false,
-            headerTintColor: '#FFF',
-            headerTitleStyle: { 
-              fontWeight: '900', 
-              fontSize: 15,
-            },
-            animation: 'slide_from_right', 
-          }}
-        >
-          {/* Layout groups & root screens only */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+  screenOptions={{
+    headerStyle: { 
+      backgroundColor: '#0A0A0A',
+    },
+    headerShadowVisible: false,
+    headerTintColor: '#FFF',
+    headerTitleStyle: { 
+      fontWeight: '900', 
+      fontSize: 15,
+    },
+    animation: 'slide_from_right', 
+  }}
+>
+  {/* 1. MAIN LAYOUT GROUPS */}
+  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+  <Stack.Screen name="(auth)" options={{ headerShown: false }} />
 
-          <Stack.Screen 
-            name="profile" 
-            options={{ 
-              title: "ACCOUNT IDENTITY",
-              headerBackTitle: "",
-              headerStyle: { backgroundColor: '#0A0A0A' },
-            }} 
-          />
+  {/* 2. LIVE DRAFT ROOMS */}
+  <Stack.Screen 
+    name="draft-room/index" 
+    options={{ 
+      title: "LIVE DRAFT ROOM",
+      headerShown: false,
+      animation: "slide_from_bottom",
+    }} 
+  />
+  <Stack.Screen 
+    name="draft/index" 
+    options={{ 
+      title: "DRAFT ROOM",
+      headerShown: false,
+      animation: "slide_from_bottom",
+    }} 
+  />
 
-          <Stack.Screen 
-            name="(admin)/league-settings" 
-            options={{ 
-              title: "COMMISSIONER RULES PANEL",
-              headerBackTitle: "",
-              headerStyle: { backgroundColor: '#0A0A0A' },
-            }} 
-          />
-        </Stack>
+  {/* 3. USER & PROFILE MODAL */}
+  <Stack.Screen 
+    name="profile" 
+    options={{ 
+      title: "ACCOUNT IDENTITY",
+      headerBackTitle: "",
+      headerStyle: { backgroundColor: '#0A0A0A' },
+      presentation: 'modal',
+    }} 
+  />
+
+  {/* 4. COMMISSIONER & ADMIN SCREENS */}
+  <Stack.Screen 
+    name="(admin)/league-settings" 
+    options={{ 
+      title: "COMMISSIONER RULES PANEL",
+      headerBackTitle: "",
+      headerStyle: { backgroundColor: '#0A0A0A' },
+    }} 
+  />
+  <Stack.Screen 
+    name="(admin)/cup-wizard" 
+    options={{ 
+      title: "CUP WIZARD",
+      headerBackTitle: "",
+      headerStyle: { backgroundColor: '#0A0A0A' },
+    }} 
+  />
+</Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
