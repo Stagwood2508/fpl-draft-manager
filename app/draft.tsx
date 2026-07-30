@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, ScrollView, Platform, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../utils/supabase';
+import { supabase } from 'utils/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getActiveManagerForPick, getPicksUntilMyTurn, PositionCounts } from '../utils/draftEngine';
+import { getActiveManagerForPick, getPicksUntilMyTurn, PositionCounts } from 'utils/draftEngine';
 
 interface Player {
   id: string;          // uuid
@@ -485,7 +485,7 @@ export default function DraftRoomScreen() {
             <Text style={styles.navHeaderBtnText}>← Exit Arena</Text>
           </TouchableOpacity>
           <Text style={{ color: '#555', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>DRAFT HUB ({rosterType})</Text>
-          <TouchableOpacity onPress={() => router.push('/league-settings')} style={[styles.navHeaderBtn, { borderColor: '#00ff87' }]}>
+          <TouchableOpacity onPress={() => router.push('/(admin)/league-settings')} style={[styles.navHeaderBtn, { borderColor: '#00ff87' }]}>
             <Text style={[styles.navHeaderBtnText, { color: '#00ff87' }]}>League Settings ⚙️</Text>
           </TouchableOpacity>
         </View>

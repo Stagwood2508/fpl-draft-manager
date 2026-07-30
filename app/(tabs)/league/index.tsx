@@ -9,7 +9,7 @@ import {
   Animated 
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 interface StandingRow {
   rank: number;

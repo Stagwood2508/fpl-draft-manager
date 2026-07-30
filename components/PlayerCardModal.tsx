@@ -26,7 +26,6 @@ interface PlayerDetails {
   team_id?: number;
   team_name: string;
   team_short_name?: string;
-  photo_code?: number;
   total_points: number;
   minutes: number;
   goals_scored: number;
@@ -124,9 +123,6 @@ export default function PlayerCardModal({
 
       if (pErr) throw pErr;
 
-      // Determine image code (prefer explicit photo_code or code over database primary key id)
-const imageCode = playerData.photo_code || playerData.code || playerData.id;
-
       let ownerDisplayName: string | null = null;
 
       if (leagueId) {
@@ -140,13 +136,13 @@ const imageCode = playerData.photo_code || playerData.code || playerData.id;
         if (rosterData?.user_id) {
           const { data: memberData } = await supabase
             .from('league_members')
-            .select('display_name')
+            .select('team_name') // Updated from display_name
             .eq('league_id', leagueId)
             .eq('user_id', rosterData.user_id)
             .maybeSingle();
 
-          if (memberData?.display_name) {
-            ownerDisplayName = memberData.display_name;
+          if (memberData?.team_name) {
+            ownerDisplayName = memberData.team_name;
           } else {
             const { data: profileData } = await supabase
               .from('profiles')

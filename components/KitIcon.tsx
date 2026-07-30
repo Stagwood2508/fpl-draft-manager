@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Path, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { PL_2026_27_KITS, TeamKitSpec } from '../constants/kits';
+import { PL_2026_27_KITS, TeamKitSpec } from '@/constants/kits';
 
 interface KitIconProps {
   teamId: number;

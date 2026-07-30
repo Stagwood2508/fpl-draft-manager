@@ -9,7 +9,7 @@ import {
   RefreshControl,
   SafeAreaView,
 } from 'react-native';
-import { supabase } from '../../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 interface WaiverTransaction {
   id: string;

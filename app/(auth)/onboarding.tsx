@@ -1,16 +1,36 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/utils/supabase';
 
 export default function OnboardingScreen() {
   const router = useRouter();
+
+  // 🛡️ Auto-forward if user is already assigned to a league
+  useEffect(() => {
+    const checkExistingLeague = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: member } = await supabase
+        .from('league_members')
+        .select('league_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (member?.league_id) {
+        router.replace('/(tabs)/dashboard');
+      }
+    };
+
+    checkExistingLeague();
+  }, []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Ecosystem Setup</Text>
       <Text style={styles.subtitle}>Initialize your draft framework target</Text>
 
-      {/* 🚀 CHANGED TO .replace() TO REMOVE THIS SCREEN FROM STACK HISTORY */}
       <TouchableOpacity 
         style={styles.choiceCard} 
         onPress={() => router.replace('/(auth)/create-league')}
@@ -19,7 +39,6 @@ export default function OnboardingScreen() {
         <Text style={styles.cardSub}>Set up a custom league, adjust configurations, and invite rivals.</Text>
       </TouchableOpacity>
 
-      {/* 🚀 CHANGED TO .replace() TO REMOVE THIS SCREEN FROM STACK HISTORY */}
       <TouchableOpacity 
         style={[styles.choiceCard, { borderColor: '#555' }]} 
         onPress={() => router.replace('/(auth)/join-league')}

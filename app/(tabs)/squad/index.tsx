@@ -11,7 +11,7 @@ import {
   Image
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { supabase } from '../../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 import KitIcon from '@/components/KitIcon'; // 🌟 Official 2026/27 Vector Kit Component
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

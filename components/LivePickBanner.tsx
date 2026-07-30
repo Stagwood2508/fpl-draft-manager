@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
-import { supabase } from '../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 interface LivePickBannerProps {
   leagueId: string;

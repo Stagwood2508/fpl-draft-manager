@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../utils/supabase';
-import SettingsDropdown from '../../components/SettingsDropdown'; 
+import { Home, Shirt, TrendingUp, Users, Trophy, BarChart3 } from 'lucide-react-native';
+import { supabase } from '@/utils/supabase';
+import SettingsDropdown from '@/components/SettingsDropdown'; 
 
 export default function RootTabsLayout() {
   const insets = useSafeAreaInsets(); 
@@ -17,7 +17,6 @@ export default function RootTabsLayout() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Query 'transactions' for incoming 'PENDING' trades
       const checkPendingTrades = async () => {
         try {
           const { count, error } = await supabase
@@ -38,7 +37,6 @@ export default function RootTabsLayout() {
 
       await checkPendingTrades();
 
-      // 2. Real-time channel: Listen to ALL transaction changes
       tradeChannel = supabase
         .channel(`root-tabs-transactions-badge-${user.id}`)
         .on(
@@ -52,7 +50,6 @@ export default function RootTabsLayout() {
             const newRow = payload.new as any;
             const oldRow = payload.old as any;
 
-            // Check if this transaction involved the current user (as receiver or sender)
             const isRelevantUser = 
               newRow?.receiver_id === user.id || 
               newRow?.sender_id === user.id ||
@@ -60,7 +57,6 @@ export default function RootTabsLayout() {
               oldRow?.sender_id === user.id;
 
             if (isRelevantUser) {
-              // 150ms buffer ensures PostgreSQL transaction completes before re-counting
               setTimeout(() => {
                 checkPendingTrades();
               }, 150);
@@ -83,13 +79,13 @@ export default function RootTabsLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#00ff87',
-        tabBarInactiveTintColor: '#888',
+        tabBarInactiveTintColor: '#888888',
         tabBarStyle: {
           backgroundColor: '#0F0F0F',
           borderTopWidth: 1,
           borderTopColor: '#1A1A1A',
-          height: 50 + insets.bottom, 
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 6, 
+          height: Platform.OS === 'web' ? 60 : 50 + insets.bottom, 
+          paddingBottom: Platform.OS === 'web' ? 8 : (insets.bottom > 0 ? insets.bottom : 6), 
           paddingTop: 6,
         },
         headerStyle: {
@@ -107,7 +103,9 @@ export default function RootTabsLayout() {
         options={{ 
           title: "HOME HUB", 
           tabBarLabel: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-sharp" size={size - 2} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Home size={size - 2} color={color} />
+          ),
         }} 
       />
       <Tabs.Screen 
@@ -115,7 +113,9 @@ export default function RootTabsLayout() {
         options={{ 
           title: "MY TEAM", 
           tabBarLabel: "Squad",
-          tabBarIcon: ({ color, size }) => <Ionicons name="shirt-sharp" size={size - 2} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Shirt size={size - 2} color={color} />
+          ),
         }} 
       />
       <Tabs.Screen 
@@ -125,10 +125,10 @@ export default function RootTabsLayout() {
           tabBarLabel: "Market",
           tabBarIcon: ({ color, size }) => (
             <View style={styles.iconContainer}>
-              <Ionicons name="trending-up-sharp" size={size - 2} color={color} />
+              <TrendingUp size={size - 2} color={color} />
               {hasPendingTrade && <View style={styles.notificationBadgeCircle} />}
             </View>
-          )
+          ),
         }} 
       />
       <Tabs.Screen 
@@ -136,7 +136,9 @@ export default function RootTabsLayout() {
         options={{ 
           title: "PLAYER POOL", 
           tabBarLabel: "Player Pool",
-          tabBarIcon: ({ color, size }) => <Ionicons name="people-sharp" size={size - 2} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Users size={size - 2} color={color} />
+          ),
         }} 
       />
       <Tabs.Screen 
@@ -144,14 +146,18 @@ export default function RootTabsLayout() {
         options={{ 
           title: "LEAGUE CENTRE", 
           tabBarLabel: "League",
-          tabBarIcon: ({ color, size }) => <Ionicons name="trophy-sharp" size={size - 2} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Trophy size={size - 2} color={color} />
+          ),
         }} 
       />
       <Tabs.Screen
         name="stats"
         options={{
           title: 'Stats',
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <BarChart3 size={size - 2} color={color} />
+          ),
         }}
       />
     </Tabs>

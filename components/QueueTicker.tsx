@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
-import { supabase } from '../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 interface QueueItem {
   pick_number: number;

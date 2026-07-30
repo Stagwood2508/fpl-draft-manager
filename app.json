@@ -12,6 +12,23 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "pwa": {
+        "name": "FPL Draft Manager",
+        "shortName": "FPL Draft",
+        "themeColor": "#0A0A0A",
+        "backgroundColor": "#0A0A0A",
+        "display": "standalone",
+        "orientation": "portrait",
+        "output": "single-page"
+      },
+      "meta": {
+        "apple-mobile-web-app-capable": "yes",
+        "apple-mobile-web-app-status-bar-style": "black-translucent",
+        "viewport": "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+      }
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.andy.fpldraftmanager"

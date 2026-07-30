@@ -12,8 +12,8 @@ import {
   TextInput
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { supabase } from '../../../utils/supabase';
-import TradeDeskModal from '../../../components/TradeDeskModal';
+import { supabase } from '@/utils/supabase';
+import TradeDeskModal from '@/components/TradeDeskModal';
 
 interface PlayerAsset {
   id: number;

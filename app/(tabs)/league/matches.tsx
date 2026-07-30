@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 const POSITION_ORDER: Record<string, number> = {
   GKP: 1,

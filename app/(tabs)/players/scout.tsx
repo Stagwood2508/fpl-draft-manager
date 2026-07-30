@@ -176,7 +176,7 @@ export default function PlayerPoolScreen() {
           // Fetch member names from league_members first, then fall back to profiles
           const { data: membersData } = await supabase
             .from('league_members')
-            .select('user_id, display_name')
+            .select('user_id')
             .eq('league_id', currentLeagueId);
 
           if (membersData) {

@@ -325,9 +325,9 @@ export default function LiveDraftRoomScreen() {
     return () => clearInterval(scrollTimer);
   }, [recentPicksFeed]);
 
-  // ⏱️ MANAGES PRE-LIVE WAITING ROOM COUNTDOWN & DRAFT KICKOFF TRIGGER
+  // ⏱️ MANAGES PRE-LIVE WAITING ROOM COUNTDOWN & DRAFT KICKOFF
   useEffect(() => {
-    if (!draftStartTimeStr || session?.draft_status === 'LIVE') return;
+    if (!draftStartTimeStr || session?.draft_status === 'LIVE' || session?.draft_status === 'DRAFTING') return;
 
     const calculateWaitingClock = async () => {
       const targetTime = new Date(draftStartTimeStr).getTime();
@@ -338,22 +338,44 @@ export default function LiveDraftRoomScreen() {
         clearInterval(waitingTimer);
 
         if (session?.draft_status === 'WAITING_ROOM' && leagueId) {
-          console.log("🚀 Kickoff time reached! Requesting LIVE status transition from database...");
+          console.log("🚀 Kickoff time reached! Launching draft via update_league_draft_status...");
           try {
-            const { error } = await supabase
-              .from('draft_sessions')
-              .update({
-                draft_status: 'LIVE',
-                pick_deadline: new Date(Date.now() + turnDurationSeconds * 1000).toISOString()
-              })
-              .eq('league_id', leagueId)
-              .eq('draft_status', 'WAITING_ROOM');
+            // Call actual database routine
+            const { data, error } = await supabase.rpc('update_league_draft_status', {
+              p_league_id: leagueId,
+              p_status: 'LIVE'
+            });
 
             if (error) {
-              console.error("Error transitioning draft status to LIVE:", error.message);
+              console.warn("update_league_draft_status RPC Error:", error.message);
+              
+              // Fallback to initialize_draft_session or direct status sync
+              const fallback = await supabase.rpc('initialize_draft_session', { p_league_id: leagueId });
+              
+              if (fallback.error) {
+                console.warn("RPC fallbacks failed. Performing direct table launch...", fallback.error.message);
+                const { data: { user } } = await supabase.auth.getUser();
+                await supabase
+                  .from('draft_sessions')
+                  .update({
+                    draft_status: 'LIVE',
+                    current_pick_index: 1,
+                    current_round: 1,
+                    current_picker_id: user?.id,
+                    pick_deadline: new Date(Date.now() + (turnDurationSeconds || 60) * 1000).toISOString()
+                  })
+                  .eq('league_id', leagueId);
+
+                await supabase
+                  .from('leagues')
+                  .update({ draft_status: 'DRAFTING', status: 'DRAFTING' })
+                  .eq('id', leagueId);
+              }
+            } else {
+              console.log("Draft successfully transitioned to LIVE:", data);
             }
-          } catch (err) {
-            console.error("Failed to execute live transition request:", err);
+          } catch (err: any) {
+            console.error("Failed to execute live draft launch:", err.message || err);
           }
         }
       } else {
@@ -637,9 +659,48 @@ export default function LiveDraftRoomScreen() {
     }
   };
 
+  // 🚨 TIMEOUT AUTO-PICK EXECUTOR: CALLS NATIVE DATABASE AUTO-PICK RPC WHEN CLOCK HITS 0
   const handleTurnTimeoutTrigger = useCallback(async () => {
-    console.log("⏱️ Client clock hit zero. Waiting for server broadcast update...");
-  }, []);
+    if (!session || !leagueId || isProcessingAutopick.current) return;
+    const activeStatus = session.draft_status;
+    if (activeStatus !== 'LIVE' && activeStatus !== 'DRAFTING') return;
+
+    try {
+      isProcessingAutopick.current = true;
+      const currentPicker = session.current_picker_id;
+      const currentPickNum = Number(session.current_pick_index);
+
+      console.log(`⏱️ Turn timer expired for Pick #${currentPickNum}. Triggering execute_draft_autopick...`);
+
+      if (!currentPicker) {
+        console.warn("No active current_picker_id found on timeout.");
+        return;
+      }
+
+      // Invoke native auto-pick routine
+      const { data, error } = await supabase.rpc('execute_draft_autopick', {
+        p_league_id: leagueId,
+        p_user_id: currentPicker,
+        p_pick_number: currentPickNum
+      });
+
+      if (error) {
+        console.error("execute_draft_autopick RPC Error:", error.message);
+        // Fallback call to execute_auto_pick
+        await supabase.rpc('execute_auto_pick', {
+          p_league_id: leagueId,
+          p_user_id: currentPicker,
+          p_pick_number: currentPickNum
+        });
+      } else {
+        console.log("Auto-pick committed successfully:", data);
+      }
+    } catch (err) {
+      console.error("Auto-pick execution failed:", err);
+    } finally {
+      isProcessingAutopick.current = false;
+    }
+  }, [session, leagueId]);
 
   const submitManualPick = async () => {
     if (!selectedPlayer || !session || !leagueId || !myUserId || localSyncing) return;
@@ -692,7 +753,7 @@ export default function LiveDraftRoomScreen() {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#00ff87" /></View>;
   }
 
-  const isLive = session?.draft_status === 'LIVE';
+  const isLive = session?.draft_status === 'LIVE' || session?.draft_status === 'DRAFTING';
   const isMyTurn = isLive && session?.draft_status !== 'COMPLETED' && session?.current_picker_id === myUserId;
   const watchlistPlayers = availablePlayers.filter(p => watchlistIds.includes(p.id)).sort((a,b) => watchlistIds.indexOf(a.id) - watchlistIds.indexOf(b.id));
 
@@ -700,7 +761,7 @@ export default function LiveDraftRoomScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <View style={{ flex: 1 }}>
         {/* 📢 DYNAMIC HEADER STATE ENGINE */}
-        {session?.draft_status === 'LIVE' || session?.draft_status === 'COMPLETED' ? (
+        {isLive || session?.draft_status === 'COMPLETED' ? (
           <React.Fragment>
             <IsolatedTurnClock 
               deadline={session?.pick_deadline || ''} 
@@ -713,7 +774,7 @@ export default function LiveDraftRoomScreen() {
               onTimeout={handleTurnTimeoutTrigger} 
             />
 
-            {/* Single Latest Pick Announcement Banner (Only show while live) */}
+            {/* Single Latest Pick Announcement Banner */}
             {isLive && latestPickAlert && (
               <View style={styles.latestPickBanner}>
                 <Ionicons name="flash" size={14} color="#00ff87" />
@@ -731,7 +792,7 @@ export default function LiveDraftRoomScreen() {
             )}
           </React.Fragment>
         ) : (
-          /* PRE-DRAFT WAITING ROOM HEADER (Only visible when status === 'WAITING_ROOM') */
+          /* PRE-DRAFT WAITING ROOM HEADER */
           <View style={styles.nonBlockingWaitingRoomHeader}>
             <View style={styles.waitingHeaderMetaCol}>
               <Text style={styles.waitingHeaderTitleText}>🔴 PRE-DRAFT PREPARATION ACTIVE</Text>
@@ -818,7 +879,7 @@ export default function LiveDraftRoomScreen() {
                   <View style={styles.penaltyBoxTopArcArea} />
                   <View style={styles.centerFieldCircleDivider} />
                   
-                  {/* FORWARDS ROW LINE (FWD) */}
+                  {/* FORWARDS */}
                   <View style={styles.pitchTacticalRowZone}>
                     <Text style={styles.pitchZoneIndicatorLabelText}>FORWARDS</Text>
                     <View style={styles.pitchPlayersHorizontalRowInline}>
@@ -831,7 +892,7 @@ export default function LiveDraftRoomScreen() {
                     </View>
                   </View>
 
-                  {/* MIDFIELDERS ROW LINE (MID) */}
+                  {/* MIDFIELDERS */}
                   <View style={styles.pitchTacticalRowZone}>
                     <Text style={styles.pitchZoneIndicatorLabelText}>MIDFIELDERS</Text>
                     <View style={styles.pitchPlayersHorizontalRowInline}>
@@ -844,7 +905,7 @@ export default function LiveDraftRoomScreen() {
                     </View>
                   </View>
 
-                  {/* DEFENDERS ROW LINE (DEF) */}
+                  {/* DEFENDERS */}
                   <View style={styles.pitchTacticalRowZone}>
                     <Text style={styles.pitchZoneIndicatorLabelText}>DEFENDERS</Text>
                     <View style={styles.pitchPlayersHorizontalRowInline}>
@@ -857,7 +918,7 @@ export default function LiveDraftRoomScreen() {
                     </View>
                   </View>
 
-                  {/* GOALKEEPER ROW LINE (GKP) */}
+                  {/* GOALKEEPERS */}
                   <View style={styles.pitchTacticalRowZone}>
                     <Text style={styles.pitchZoneIndicatorLabelText}>GOALKEEPERS</Text>
                     <View style={styles.pitchPlayersHorizontalRowInline}>
@@ -932,12 +993,12 @@ export default function LiveDraftRoomScreen() {
         </View>
       )}
 
-      {/* REORDER INDEX QUEUE BOARD SELECT PANEL MODAL */}
+      {/* REORDER INDEX QUEUE MODAL */}
       <Modal visible={dragMovingPlayer !== null} transparent animationType="fade">
         <View style={styles.modalBlurOverlay}>
           <View style={[styles.modalCardContainer, { maxHeight: '80%' }]}>
             <Text style={styles.modalPlayerTitle}>Reposition priority queue</Text>
-            <Text style={styles.modalPlayerSub}>Select the targeted priority index order number assignment for {dragMovingPlayer?.web_name}</Text>
+            <Text style={styles.modalPlayerSub}>Select the target priority rank index assignment for {dragMovingPlayer?.web_name}</Text>
             <ScrollView style={{ marginVertical: 14 }}>
               {watchlistIds.map((_, index) => (
                 <TouchableOpacity 
@@ -954,7 +1015,7 @@ export default function LiveDraftRoomScreen() {
         </View>
       </Modal>
 
-      {/* PLAYER CARD HOVER INSPECT EXPANSION PANEL DETAIL MODAL */}
+      {/* PLAYER CARD HOVER INSPECT MODAL */}
       <Modal visible={inspectingPlayer !== null} animationType="slide" transparent>
         <View style={styles.modalBlurOverlay}>
           <View style={styles.modalCardContainer}>
@@ -975,7 +1036,7 @@ export default function LiveDraftRoomScreen() {
         </View>
       </Modal>
 
-      {/* SLIDE-UP QUICK TARGET REFERENCE SLIDING COMPACT HUB SHEET */}
+      {/* QUICK TARGET SHEET */}
       <Modal 
         visible={isQuickRefVisible} 
         animationType="slide" 
@@ -1018,7 +1079,7 @@ export default function LiveDraftRoomScreen() {
         </View>
       </Modal>
 
-      {/* FULL SYSTEM PIPELINE AUTOMATION COUPLING DIAGNOSTICS DRAWER MODAL */}
+      {/* DIAGNOSTICS DRAWER */}
       <Modal 
         visible={isDebugDrawerOpen} 
         animationType="slide" 
@@ -1165,7 +1226,6 @@ const styles = StyleSheet.create({
   pitchNodeFilled: { backgroundColor: '#08170C', borderColor: '#00ff8744' },
   pitchNodeEmpty: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: '#4E6A54' },
   pitchPlayerNameLabelText: { color: '#FFF', fontSize: 10, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  pitchPlayerPtsSubText: { color: '#00ff87', fontSize: 9, fontWeight: '700', marginTop: 1 },
   prioritySelectorChipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A1A', padding: 14, borderRadius: 4, marginVertical: 4, borderWidth: 1, borderColor: '#222' },
   prioritySelectorRowLabelText: { color: '#DDD', fontSize: 12, fontWeight: '700' },
   workbenchActionSheet: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161616', borderTopWidth: 2, borderTopColor: '#00ff87', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#111' },

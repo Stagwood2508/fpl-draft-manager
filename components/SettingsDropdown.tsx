@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 export default function SettingsDropdown() {
   const router = useRouter();
@@ -35,35 +35,43 @@ export default function SettingsDropdown() {
 
       {menuOpen && (
         <View style={styles.dropdownBox}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/profile'); }}>
+          {/* 🚀 FIXED: Added leading slash for absolute route resolution */}
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => { 
+              setMenuOpen(false); 
+              router.push('/profile'); 
+            }}
+          >
             <Text style={styles.menuItemText}>👤 My Profile</Text>
           </TouchableOpacity>
 
           {isCommish && (
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/(admin)/league-settings'); }}>
+            <TouchableOpacity 
+              style={styles.menuItem} 
+              onPress={() => { 
+                setMenuOpen(false); 
+                router.push('/(admin)/league-settings'); 
+              }}
+            >
               <Text style={[styles.menuItemText, { color: '#00ff87' }]}>🛠️ Commissioner Settings</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity 
-  style={[styles.menuItem, { borderBottomWidth: 0 }]} 
-  onPress={async () => { 
-    setMenuOpen(false); 
-    try {
-      // 1. Terminate cloud server auth tokens
-      await supabase.auth.signOut(); 
-      
-      // 2. FORCE reset navigation back to the login screen cleanly
-      // This wipes out the unauthenticated navigation stack trace memory!
-      router.replace('/login'); 
-      
-    } catch (err) {
-      console.error("Error signing out:", err);
-    }
-  }}
->
-  <Text style={[styles.menuItemText, { color: '#FF453A' }]}>➔ Sign Out</Text>
-</TouchableOpacity>
+            style={[styles.menuItem, { borderBottomWidth: 0 }]} 
+            onPress={async () => { 
+              setMenuOpen(false); 
+              try {
+                await supabase.auth.signOut(); 
+                router.replace('/(auth)/login');
+              } catch (err) {
+                console.error("Error signing out:", err);
+              }
+            }}
+          >
+            <Text style={[styles.menuItemText, { color: '#FF453A' }]}>➔ Sign Out</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>

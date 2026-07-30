@@ -12,7 +12,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 
-import { supabase } from '../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 interface PlayerAsset {
   id: number;

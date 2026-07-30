@@ -13,7 +13,7 @@ import {
   Dimensions
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { supabase } from '../../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

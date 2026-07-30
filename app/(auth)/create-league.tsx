@@ -1,55 +1,84 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 export default function CreateLeagueScreen() {
   const router = useRouter();
   const [name, setName] = useState('');
+  const [teamName, setTeamName] = useState('');
   const [size, setSize] = useState('8');
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleCreateLeaguePipeline = async () => {
-    if (!name.trim()) return;
-    
+    const cleanName = name.trim();
+    const cleanTeamName = teamName.trim();
+
+    if (!cleanName || !cleanTeamName) {
+      Alert.alert('Missing Fields', 'Please provide both a League Name and your Team Name.');
+      return;
+    }
+
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Session framework missing.');
+      
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr || !session?.user) {
+        Alert.alert('Session Expired', 'Please sign out and log back in.');
+        router.replace('/(auth)/login');
+        return;
+      }
+      const user = session.user;
 
-      // 🔍 Fetch user's registered team name from profile metadata to satisfy the constraints
-      const { data: profileData, error: pErr } = await supabase
-        .from('profiles')
-        .select('team_name')
-        .eq('id', user.id)
-        .single();
-
-      if (pErr) throw new Error('Could not retrieve your manager profile details.');
-      const userTeamName = profileData?.team_name || 'Unnamed Team';
-
-      // 💡 Generate unique 6 digit alphanumeric invite token code
       const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
+      // 1. Insert new league
       const { data: league, error: lErr } = await supabase
         .from('leagues')
-        .insert({ name, commissioner_id: user.id, draft_status: 'PRE_DRAFT', invite_code: inviteCode })
-        .select().single();
+        .insert({ 
+          name: cleanName, 
+          commissioner_id: user.id, 
+          draft_status: 'PRE_DRAFT', 
+          invite_code: inviteCode,
+          max_size: parseInt(size) || 8
+        })
+        .select()
+        .single();
 
       if (lErr) throw lErr;
+      if (!league) throw new Error('League record could not be generated.');
 
-      // Seed downstream configurations dependencies automatically with team_name specified
-      await supabase.from('league_members').insert({ 
-        league_id: league.id, 
-        user_id: user.id,
-        team_name: userTeamName
-      });
+      // 2. Add commissioner to league_members
+      const { error: memberErr } = await supabase
+        .from('league_members')
+        .insert({ 
+          league_id: league.id, 
+          user_id: user.id,
+          team_name: cleanTeamName
+        });
+
+      if (memberErr) {
+        if (memberErr.code === '23505') {
+          throw new Error('That team name is already taken in this league.');
+        }
+        throw memberErr;
+      }
       
+      // 3. Seed configurations
       await supabase.from('league_settings').insert({ league_id: league.id });
+      await supabase.from('draft_sessions').insert({
+        league_id: league.id,
+        draft_status: 'WAITING_ROOM',
+        current_round: 1,
+        current_pick_index: 1
+      });
 
       setCreatedCode(inviteCode);
     } catch (err: any) {
-      Alert.alert('Ecosystem Setup Collapse', err.message);
+      console.error('League Creation Crash:', JSON.stringify(err, null, 2));
+      const exactErrorMsg = err?.message || err?.details || JSON.stringify(err);
+      Alert.alert('Database Rejection', exactErrorMsg);
     } finally {
       setLoading(false);
     }
@@ -62,10 +91,32 @@ export default function CreateLeagueScreen() {
       {!createdCode ? (
         <>
           <Text style={styles.label}>League Name</Text>
-          <TextInput style={styles.input} placeholder="e.g., The Elite Draft Group" placeholderTextColor="#444" value={name} onChangeText={setName} />
+          <TextInput 
+            style={styles.input} 
+            placeholder="e.g., The Elite Draft Group" 
+            placeholderTextColor="#444" 
+            value={name} 
+            onChangeText={setName} 
+            autoCapitalize="words"
+          />
+
+          <Text style={styles.label}>Your Team Name</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="e.g., Horsemen of Doom" 
+            placeholderTextColor="#444" 
+            value={teamName} 
+            onChangeText={setTeamName} 
+            autoCapitalize="words"
+          />
           
           <Text style={styles.label}>Max Size Constraints</Text>
-          <TextInput style={styles.input} keyboardType="numeric" value={size} onChangeText={setSize} />
+          <TextInput 
+            style={styles.input} 
+            keyboardType="numeric" 
+            value={size} 
+            onChangeText={setSize} 
+          />
 
           <TouchableOpacity style={styles.btn} onPress={handleCreateLeaguePipeline} disabled={loading}>
             <Text style={styles.btnText}>{loading ? 'INITIALIZING...' : 'GENERATE LEAGUE'}</Text>
@@ -78,7 +129,6 @@ export default function CreateLeagueScreen() {
           <Text style={styles.codeDisplay}>{createdCode}</Text>
           <Text style={styles.hint}>Share this token directly with your rival managers.</Text>
 
-          {/* 🚀 THE BREAKOUT REDIRECT PATHWAY LINK */}
           <TouchableOpacity 
             style={[styles.btn, { marginTop: 30 }]} 
             onPress={() => router.replace('/(tabs)/dashboard')}

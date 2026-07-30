@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
-import { supabase } from '../../utils/supabase';
-import { synchronizeFplPlayerPool } from '../../utils/fplSync'; 
-import DraftCountdownCard from '../../components/DraftCountdownCard';
+import { supabase } from '@/utils/supabase';
+import { synchronizeFplPlayerPool } from '@/utils/fplSync'; 
+import DraftCountdownCard from '@/components/DraftCountdownCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -321,7 +321,7 @@ export default function HomeDashboardScreen() {
         <View style={styles.leaderboardContainerCard}>
           <View style={styles.leaderboardHeader}>
             <Text style={styles.leaderboardTitleText}>League Standings</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/league/fixtures')}>
+            <TouchableOpacity onPress={() => router.push('(tabs)/league/matches')}>
               <Text style={styles.viewFixturesLinkText}>VIEW FIXTURES ➔</Text>
             </TouchableOpacity>
           </View>
@@ -354,12 +354,12 @@ export default function HomeDashboardScreen() {
         {/* ACTION SHORTCUTS */}
         <Text style={styles.sectionHeaderTitle}>Quick Action Framework</Text>
         <View style={styles.actionGrid}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(tabs)/players/scout')}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('(tabs)/players/scout')}>
             <Text style={styles.actionBtnIcon}>🔍</Text>
             <Text style={styles.actionBtnText}>Scout Recruitment</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(tabs)/players/watchlist')}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('(tabs)/players/watchlist')}>
             <Text style={styles.actionBtnIcon}>⭐</Text>
             <Text style={styles.actionBtnText}>Target Watchlist</Text>
           </TouchableOpacity>

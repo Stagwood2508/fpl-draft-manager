@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-// 🌟 NEW: Expo notification infrastructure libraries
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
-
-// 🌟 NEW: Isolated device registry logic to update the manager profile
-async function saveDeviceTokenToProfile(userId: string) {
-  if (!Device.isDevice) return; // Simulators cannot register device-bound tokens
+// Isolated device registry logic to update the manager profile
+export async function saveDeviceTokenToProfile(userId: string) {
+  if (!Device.isDevice) return;
 
   try {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -37,75 +35,59 @@ async function saveDeviceTokenToProfile(userId: string) {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState(''); 
-  const [lastName, setLastName] = useState('');   
-  const [teamName, setTeamName] = useState('');       
   const [loading, setLoading] = useState(false);
 
-  const handleAuthAction = async () => {
-    if (!email.trim() || !password.trim()) return;
-    
-    if (isRegistering && (!firstName.trim() || !lastName.trim() || !teamName.trim())) {
-      Alert.alert('Missing Info', 'Please provide a First Name, Last Name, and Team Name to register.');
+  const handleLogin = async () => {
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      Alert.alert('Missing Fields', 'Please enter both your email and password.');
       return;
     }
 
     setLoading(true);
 
     try {
-      if (isRegistering) {
-        const combinedDisplayName = `${firstName.trim()} ${lastName.trim()}`;
+      // 1. Authenticate with Supabase
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
+        email: cleanEmail, 
+        password: cleanPassword 
+      });
+      
+      if (signInError) throw signInError;
 
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ 
-          email, 
-          password,
-          options: {
-            data: {
-              first_name: firstName.trim(),   
-              last_name: lastName.trim(),     
-              display_name: combinedDisplayName, 
-              team_name: teamName.trim()
-            }
-          }
-        });
-
-        if (signUpError) throw signUpError;
-        
-        // 🌟 Save device token immediately on successful signup registration
-        if (signUpData?.user) {
-          await saveDeviceTokenToProfile(signUpData.user.id);
-        }
-
-        Alert.alert('Success', 'Account created! Proceeding to league onboarding...', [
-          { text: 'OK', onPress: () => router.replace('onboarding') }
-        ]);
-
-      } else {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        
-        if (signInError) throw signInError;
-        if (!signInData?.user) return;
-
-        // 🌟 Save device token on standard session login refresh
-        await saveDeviceTokenToProfile(signInData.user.id);
-
-        const { data: membership } = await supabase
-          .from('league_members')
-          .select('league_id')
-          .eq('user_id', signInData.user.id)
-          .maybeSingle();
-
-        if (membership?.league_id) {
-          router.replace('/(tabs)/dashboard');
-        } else {
-          router.replace('onboarding');
-        }
+      const user = signInData?.user;
+      if (!user) {
+        throw new Error('Authentication succeeded, but user data was not returned. Please check if your account requires email verification.');
       }
+
+      // 2. Save device token on successful login
+      await saveDeviceTokenToProfile(user.id);
+
+      // 3. Query league membership explicitly catching database errors
+      const { data: membership, error: memberError } = await supabase
+        .from('league_members')
+        .select('league_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (memberError) {
+        console.warn('Membership lookup error:', memberError.message);
+      }
+
+      // 4. Route accurately based on membership status
+      if (membership?.league_id) {
+        router.replace('/(tabs)/dashboard');
+      } else {
+        router.replace('/(auth)/onboarding');
+      }
+
     } catch (err: any) {
-      Alert.alert(isRegistering ? 'Registration Error' : 'Login Error', err.message);
+      console.error('Login Process Error:', err);
+      Alert.alert('Login Failed', err.message || 'Unable to log in. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -114,47 +96,34 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Draft FPL Hub</Text>
-      <Text style={styles.subtitle}>{isRegistering ? 'Create Manager Account' : 'Sign In To Squad'}</Text>
-      
-      {isRegistering && (
-        <>
-          <TextInput 
-            style={styles.input} 
-            placeholder="First Name" 
-            placeholderTextColor="#555" 
-            value={firstName} 
-            onChangeText={setFirstName} 
-            autoCapitalize="words" 
-          />
-          <TextInput 
-            style={styles.input} 
-            placeholder="Last Name" 
-            placeholderTextColor="#555" 
-            value={lastName} 
-            onChangeText={setLastName} 
-            autoCapitalize="words" 
-          />
-          <TextInput 
-            style={styles.input} 
-            placeholder="Team Name" 
-            placeholderTextColor="#555" 
-            value={teamName} 
-            onChangeText={setTeamName} 
-            autoCapitalize="words" 
-          />
-        </>
-      )}
+      <Text style={styles.subtitle}>Sign In To Squad</Text>
 
-      <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#555" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-      <TextInput style={styles.input} placeholder="Password" placeholderTextColor="#555" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Email" 
+        placeholderTextColor="#555" 
+        value={email} 
+        onChangeText={setEmail} 
+        autoCapitalize="none" 
+        keyboardType="email-address" 
+      />
+      <TextInput 
+        style={styles.input} 
+        placeholder="Password" 
+        placeholderTextColor="#555" 
+        value={password} 
+        onChangeText={setPassword} 
+        secureTextEntry 
+        autoCapitalize="none" 
+      />
 
-      <TouchableOpacity style={styles.btnPrimary} onPress={handleAuthAction} disabled={loading}>
-        <Text style={styles.btnText}>{loading ? 'Processing...' : isRegistering ? 'REGISTER' : 'LOG IN'}</Text>
+      <TouchableOpacity style={styles.btnPrimary} onPress={handleLogin} disabled={loading}>
+        <Text style={styles.btnText}>{loading ? 'PROCESSING...' : 'LOG IN'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.switchLink} onPress={() => setIsRegistering(!isRegistering)}>
+      <TouchableOpacity style={styles.switchLink} onPress={() => router.push('/(auth)/register')}>
         <Text style={styles.switchText}>
-          {isRegistering ? 'Already have an account? Sign In' : "Don't have an account? Create one"}
+          Don't have an account? Create one
         </Text>
       </TouchableOpacity>
     </View>

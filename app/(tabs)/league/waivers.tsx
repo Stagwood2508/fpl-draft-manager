@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { supabase } from '../../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 export default function WaiverTestCenterScreen({ leagueId: propLeagueId, gameweek = 1 }: { leagueId?: string; gameweek?: number }) {
   const [loading, setLoading] = useState(false);

@@ -11,7 +11,7 @@ import {
   Alert
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 type TournamentFormat = 'PURE' | 'TWO_LEG' | 'GROUP_KO' | 'EXECUTIONER' | 'DOUBLE_ELIM';
 type SeedingMethod = 'RANDOM' | 'RANK_WEIGHTED';

@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -51,7 +51,10 @@ export default function UnifiedLeagueSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [savingMatrix, setSavingMatrix] = useState(false);
   const [leagueId, setLeagueId] = useState<string | null>(null);
+  const [leagueName, setLeagueName] = useState<string>('');
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isCommissioner, setIsCommissioner] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
   
   // Roster Limits Configuration State
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
@@ -122,31 +125,34 @@ export default function UnifiedLeagueSettingsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: memberData } = await supabase
+      const { data: memberData, error: memErr } = await supabase
         .from('league_members')
-        .select('league_id, leagues(commissioner_id, roster_type, status)')
+        .select('league_id, leagues(name, invite_code, commissioner_id, roster_type, draft_status, status)')
+        .eq('user_id', user.id)
         .limit(1)
         .single();
 
+      if (memErr) throw memErr;
       if (!memberData) return;
+
       const league = memberData.leagues as any;
       setLeagueId(memberData.league_id);
+      setLeagueName(league.name || 'Your League');
+      setInviteCode(league.invite_code || null);
       setIsCommissioner(league.commissioner_id === user.id);
 
-      // Fetch active roster_type and league draft status
       if (league.roster_type) {
         setRosterType(league.roster_type as 'STRICT' | 'FLEXIBLE');
       }
 
-      if (league.status) {
-        setDraftStatus(league.status);
-      }
+      const activeStatus = league.draft_status || league.status || 'PRE_DRAFT';
+      setDraftStatus(activeStatus);
 
       const { data: settingsData } = await supabase
         .from('league_settings')
         .select('*')
         .eq('league_id', memberData.league_id)
-        .single();
+        .maybeSingle();
 
       if (settingsData) {
         setSettings(settingsData as LeagueSettings);
@@ -193,6 +199,18 @@ export default function UnifiedLeagueSettingsScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const copyInviteToken = () => {
+    if (!inviteCode) return;
+    
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(inviteCode);
+    }
+    
+    setCopiedToken(true);
+    setTimeout(() => setCopiedToken(false), 2500);
+    Alert.alert('Invite Token Copied! 📋', `Code: ${inviteCode}\nShare this token with managers to join ${leagueName}.`);
   };
 
   const handleUpdateFieldState = (key: keyof LeagueSettings, value: any) => {
@@ -243,16 +261,20 @@ export default function UnifiedLeagueSettingsScreen() {
       
       const localTimestampString = `${schedYear}-${mm}-${dd}T${hh}:${min}:00`;
 
-      // 1. Update Leagues table with roster_type
+      // 1. Update LEAGUES table directly with roster_type
       const { error: leagueErr } = await supabase
         .from('leagues')
         .update({ roster_type: rosterType })
         .eq('id', leagueId);
 
-      if (leagueErr) throw leagueErr;
+      if (leagueErr) {
+        console.error('Leagues Table Update Error:', leagueErr);
+        throw new Error(`Failed to update roster mode: ${leagueErr.message}`);
+      }
 
-      // 2. Update League Settings table
+      // 2. Upsert LEAGUE_SETTINGS table
       const payload = {
+        league_id: leagueId,
         ...settings,
         draft_start_time: localTimestampString, 
         defcon_thresholds_def: defTiers,
@@ -261,17 +283,20 @@ export default function UnifiedLeagueSettingsScreen() {
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      const { error: settingsErr } = await supabase
         .from('league_settings')
-        .update(payload)
-        .eq('league_id', leagueId);
+        .upsert(payload, { onConflict: 'league_id' });
 
-      if (error) throw error;
+      if (settingsErr) {
+        console.error('League Settings Upsert Error:', settingsErr);
+        throw new Error(`Failed to save scoring rules: ${settingsErr.message}`);
+      }
       
       setSettings(payload);
-      Alert.alert('Configuration Saved', 'All scoring variables, roster limits, and draft timetables successfully committed.');
+      Alert.alert('Configuration Saved 🎉', 'All scoring variables, roster limits, and draft timetables successfully committed.');
     } catch (err: any) {
-      Alert.alert('Save Interrupted', err.message);
+      console.error('Full Settings Save Crash:', err);
+      Alert.alert('Save Interrupted', err.message || 'An unexpected error occurred during save.');
     } finally {
       setSavingMatrix(false);
     }
@@ -303,6 +328,7 @@ export default function UnifiedLeagueSettingsScreen() {
       if (selectedWorkbenchPlayer && selectedWorkbenchPlayer.id === playerId) {
         setSelectedWorkbenchPlayer({ ...selectedWorkbenchPlayer, element_type: targetPosition });
       }
+      Alert.alert('Position Overridden 🎯', `Updated position to ${targetPosition}.`);
     } catch (err: any) {
       Alert.alert('Override Interrupted', err.message);
     } finally {
@@ -366,6 +392,26 @@ export default function UnifiedLeagueSettingsScreen() {
               </View>
             )}
           </View>
+
+          {/* COMMISSIONER LEAGUE INVITATION DECK */}
+          {inviteCode && (
+            <View style={styles.inviteDeckCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inviteDeckHeading}>🔑 League Invitation Token</Text>
+                  <Text style={styles.inviteDeckSub}>Share this token with new managers to join {leagueName}</Text>
+                </View>
+                <TouchableOpacity style={styles.copyTokenBtn} onPress={copyInviteToken}>
+                  <Ionicons name={copiedToken ? "checkmark-circle" : "copy-outline"} size={16} color={copiedToken ? "#00ff87" : "#000"} />
+                  <Text style={styles.copyTokenBtnText}>{copiedToken ? 'COPIED' : 'COPY CODE'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inviteCodeDisplayRow}>
+                <Text style={styles.inviteCodeText}>{inviteCode}</Text>
+              </View>
+            </View>
+          )}
 
           {/* BLOCK 1: DRAFT & ROSTER OPERATION RULESET */}
           <View style={styles.sectionCard}>
@@ -662,6 +708,14 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
   scrollContainer: { padding: 16, paddingBottom: 50 },
   title: { fontSize: 22, fontWeight: '900', color: '#FFF', textTransform: 'uppercase' },
+
+  inviteDeckCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#00ff87', padding: 16, borderRadius: 4, marginBottom: 16 },
+  inviteDeckHeading: { color: '#00ff87', fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
+  inviteDeckSub: { color: '#888', fontSize: 11, marginTop: 2, fontWeight: '600' },
+  copyTokenBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#00ff87', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 2 },
+  copyTokenBtnText: { color: '#000', fontWeight: '900', fontSize: 11, marginLeft: 4 },
+  inviteCodeDisplayRow: { backgroundColor: '#000', borderWidth: 1, borderColor: '#222', borderRadius: 2, paddingVertical: 12, marginTop: 12, alignItems: 'center' },
+  inviteCodeText: { color: '#FFF', fontSize: 28, fontWeight: '900', letterSpacing: 6 },
 
   lockedGlobalBadge: { backgroundColor: '#1F1113', borderWidth: 1, borderColor: '#e63946', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
   lockedGlobalBadgeText: { color: '#e63946', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
