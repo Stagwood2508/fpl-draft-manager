@@ -307,12 +307,12 @@ export default function HomeDashboardScreen() {
               <TouchableOpacity 
                 style={styles.commissionerSettingsBtn} 
                 onPress={() => router.push({
-                  pathname: '/league/settings',
+                  pathname: '/league-settings',
                   params: { leagueId: activeLeagueId }
                 })}
               >
                 <Ionicons name="settings-outline" size={14} color="#000" />
-                <Text style={styles.commissionerBtnText}>SETTINGS</Text>
+                <Text style={styles.commissionerBtnText}>LEAGUE SETTINGS</Text>
               </TouchableOpacity>
             )}
           </View>
