@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { supabase } from '@/utils/supabase';
+
+// Helper function to render alerts reliably across Web and Mobile
+const notifyUser = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 // Isolated device registry logic to update the manager profile
 export async function saveDeviceTokenToProfile(userId: string) {
@@ -38,30 +48,33 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async () => {
     const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
 
-    if (!cleanEmail || !cleanPassword) {
-      Alert.alert('Missing Fields', 'Please enter both your email and password.');
+    if (!cleanEmail || !password) {
+      const msg = 'Please enter both your email and password.';
+      setErrorMessage(msg);
+      notifyUser('Missing Fields', msg);
       return;
     }
 
     setLoading(true);
+    setErrorMessage(null);
 
     try {
       // 1. Authenticate with Supabase
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
         email: cleanEmail, 
-        password: cleanPassword 
+        password: password
       });
       
       if (signInError) throw signInError;
 
       const user = signInData?.user;
       if (!user) {
-        throw new Error('Authentication succeeded, but user data was not returned. Please check if your account requires email verification.');
+        throw new Error('Authentication succeeded, but user session payload was missing. Please verify your email address.');
       }
 
       // 2. Save device token on successful login
@@ -87,7 +100,16 @@ export default function LoginScreen() {
 
     } catch (err: any) {
       console.error('Login Process Error:', err);
-      Alert.alert('Login Failed', err.message || 'Unable to log in. Please check your credentials.');
+
+      let userMsg = err.message || 'Unable to log in. Please check your credentials.';
+      if (err.message?.includes('Invalid login credentials')) {
+        userMsg = 'Invalid email or password. Please check your details and try again.';
+      } else if (err.message?.includes('Email not confirmed')) {
+        userMsg = 'Please verify your email address before logging in.';
+      }
+
+      setErrorMessage(userMsg);
+      notifyUser('Login Failed', userMsg);
     } finally {
       setLoading(false);
     }
@@ -98,12 +120,23 @@ export default function LoginScreen() {
       <Text style={styles.title}>Draft FPL Hub</Text>
       <Text style={styles.subtitle}>Sign In To Squad</Text>
 
+      {/* INLINE ERROR BANNER */}
+      {errorMessage && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle-outline" size={16} color="#FF453A" />
+          <Text style={styles.errorBannerText}>{errorMessage}</Text>
+        </View>
+      )}
+
       <TextInput 
         style={styles.input} 
         placeholder="Email" 
         placeholderTextColor="#555" 
         value={email} 
-        onChangeText={setEmail} 
+        onChangeText={(txt) => {
+          setEmail(txt);
+          if (errorMessage) setErrorMessage(null);
+        }} 
         autoCapitalize="none" 
         keyboardType="email-address" 
       />
@@ -112,12 +145,19 @@ export default function LoginScreen() {
         placeholder="Password" 
         placeholderTextColor="#555" 
         value={password} 
-        onChangeText={setPassword} 
+        onChangeText={(txt) => {
+          setPassword(txt);
+          if (errorMessage) setErrorMessage(null);
+        }} 
         secureTextEntry 
         autoCapitalize="none" 
       />
 
-      <TouchableOpacity style={styles.btnPrimary} onPress={handleLogin} disabled={loading}>
+      <TouchableOpacity 
+        style={[styles.btnPrimary, loading && { opacity: 0.6 }]} 
+        onPress={handleLogin} 
+        disabled={loading}
+      >
         <Text style={styles.btnText}>{loading ? 'PROCESSING...' : 'LOG IN'}</Text>
       </TouchableOpacity>
 
@@ -134,6 +174,25 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#0A0A0A' },
   title: { fontSize: 28, fontWeight: '900', color: '#fff', textAlign: 'center' },
   subtitle: { fontSize: 13, color: '#00ff87', textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
+  
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3A1412',
+    borderWidth: 1,
+    borderColor: '#FF453A',
+    padding: 12,
+    borderRadius: 4,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorBannerText: {
+    color: '#FF453A',
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+
   input: { backgroundColor: '#111', color: '#fff', padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: '#222' },
   btnPrimary: { backgroundColor: '#00ff87', padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
   btnText: { color: '#000', fontWeight: '900', fontSize: 14 },

@@ -1,8 +1,18 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { saveDeviceTokenToProfile } from './login';
+
+// Helper function to render alerts reliably across Web and Mobile
+const notifyUser = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -11,36 +21,43 @@ export default function RegisterScreen() {
   const [firstName, setFirstName] = useState(''); 
   const [lastName, setLastName] = useState('');   
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleRegister = async () => {
     const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
     const cleanFirst = firstName.trim();
     const cleanLast = lastName.trim();
 
     if (!cleanFirst || !cleanLast) {
-      Alert.alert('Missing Info', 'Please enter both your First Name and Last Name.');
+      const msg = 'Please enter both your First Name and Last Name.';
+      setErrorMessage(msg);
+      notifyUser('Missing Info', msg);
       return;
     }
 
-    if (!cleanEmail || !cleanPassword) {
-      Alert.alert('Missing Info', 'Please enter an Email and Password.');
+    if (!cleanEmail || !password) {
+      const msg = 'Please enter both an Email address and Password.';
+      setErrorMessage(msg);
+      notifyUser('Missing Info', msg);
       return;
     }
 
-    if (cleanPassword.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters long.');
+    if (password.length < 6) {
+      const msg = 'Password must be at least 6 characters long.';
+      setErrorMessage(msg);
+      notifyUser('Weak Password', msg);
       return;
     }
 
     setLoading(true);
+    setErrorMessage(null);
 
     try {
       const combinedDisplayName = `${cleanFirst} ${cleanLast}`;
 
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ 
         email: cleanEmail, 
-        password: cleanPassword,
+        password: password,
         options: {
           data: {
             first_name: cleanFirst,   
@@ -61,18 +78,29 @@ export default function RegisterScreen() {
       // Try registering device push token safely
       await saveDeviceTokenToProfile(user.id);
 
-      // 🚀 Direct replacement ensures web router transitions immediately
+      // Direct replacement ensures web router transitions immediately
       router.replace('/(auth)/onboarding');
 
     } catch (err: any) {
       console.error('Registration Error Details:', err);
-      Alert.alert(
-        'Registration Failed', 
-        err.message || 'An unexpected error occurred during account creation.'
-      );
+
+      let userMsg = err.message || 'An unexpected error occurred during account creation.';
+      if (err.message?.includes('User already registered')) {
+        userMsg = 'An account with this email already exists. Try signing in instead.';
+      } else if (err.message?.includes('Password should be at least')) {
+        userMsg = 'Password must be at least 6 characters long.';
+      }
+
+      setErrorMessage(userMsg);
+      notifyUser('Registration Failed', userMsg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTextChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+    setter(value);
+    if (errorMessage) setErrorMessage(null);
   };
 
   return (
@@ -80,12 +108,20 @@ export default function RegisterScreen() {
       <Text style={styles.title}>Draft FPL Hub</Text>
       <Text style={styles.subtitle}>Create Manager Account</Text>
 
+      {/* INLINE ERROR BANNER FOR BROWSER / MOBILE FEEDBACK */}
+      {errorMessage && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle-outline" size={16} color="#FF453A" />
+          <Text style={styles.errorBannerText}>{errorMessage}</Text>
+        </View>
+      )}
+
       <TextInput 
         style={styles.input} 
         placeholder="First Name" 
         placeholderTextColor="#555" 
         value={firstName} 
-        onChangeText={setFirstName} 
+        onChangeText={(txt) => handleTextChange(setFirstName, txt)} 
         autoCapitalize="words" 
       />
       <TextInput 
@@ -93,7 +129,7 @@ export default function RegisterScreen() {
         placeholder="Last Name" 
         placeholderTextColor="#555" 
         value={lastName} 
-        onChangeText={setLastName} 
+        onChangeText={(txt) => handleTextChange(setLastName, txt)} 
         autoCapitalize="words" 
       />
 
@@ -102,7 +138,7 @@ export default function RegisterScreen() {
         placeholder="Email" 
         placeholderTextColor="#555" 
         value={email} 
-        onChangeText={setEmail} 
+        onChangeText={(txt) => handleTextChange(setEmail, txt)} 
         autoCapitalize="none" 
         keyboardType="email-address" 
       />
@@ -111,12 +147,16 @@ export default function RegisterScreen() {
         placeholder="Password" 
         placeholderTextColor="#555" 
         value={password} 
-        onChangeText={setPassword} 
+        onChangeText={(txt) => handleTextChange(setPassword, txt)} 
         secureTextEntry 
         autoCapitalize="none" 
       />
 
-      <TouchableOpacity style={styles.btnPrimary} onPress={handleRegister} disabled={loading}>
+      <TouchableOpacity 
+        style={[styles.btnPrimary, loading && { opacity: 0.6 }]} 
+        onPress={handleRegister} 
+        disabled={loading}
+      >
         <Text style={styles.btnText}>{loading ? 'PROCESSING...' : 'REGISTER'}</Text>
       </TouchableOpacity>
 
@@ -133,6 +173,25 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#0A0A0A' },
   title: { fontSize: 28, fontWeight: '900', color: '#fff', textAlign: 'center' },
   subtitle: { fontSize: 13, color: '#00ff87', textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
+  
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3A1412',
+    borderWidth: 1,
+    borderColor: '#FF453A',
+    padding: 12,
+    borderRadius: 4,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorBannerText: {
+    color: '#FF453A',
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+
   input: { backgroundColor: '#111', color: '#fff', padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: '#222' },
   btnPrimary: { backgroundColor: '#00ff87', padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
   btnText: { color: '#000', fontWeight: '900', fontSize: 14 },
