@@ -9,6 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 
 const POSITION_ORDER: Record<string, number> = {
@@ -104,19 +105,27 @@ export default function MatchesScreen() {
     try {
       setLoading(true);
       
-      const { data: memberData } = await supabase
-        .from('league_members')
-        .select('league_id')
-        .limit(1)
-        .maybeSingle();
+      // 1. Resolve Active League ID from AsyncStorage
+      const storedLeagueId = await AsyncStorage.getItem('active_league_id');
+      let targetLeagueId = storedLeagueId;
 
-      if (memberData?.league_id) {
-        cachedLeagueId.current = memberData.league_id;
+      if (!targetLeagueId) {
+        const { data: memberData } = await supabase
+          .from('league_members')
+          .select('league_id')
+          .limit(1)
+          .maybeSingle();
+        targetLeagueId = memberData?.league_id || null;
+      }
+
+      if (targetLeagueId) {
+        cachedLeagueId.current = targetLeagueId;
+        await AsyncStorage.setItem('active_league_id', targetLeagueId);
 
         const { data: teamsData } = await supabase
           .from('league_members')
           .select('user_id, team_name')
-          .eq('league_id', memberData.league_id);
+          .eq('league_id', targetLeagueId);
 
         if (teamsData) {
           setLeagueTeams(teamsData.map(t => ({
@@ -172,8 +181,6 @@ export default function MatchesScreen() {
         query = query
           .eq('gameweek', selectedGameweek)
           .or(`home_user_id.eq.${selectedTeamUserId},away_user_id.eq.${selectedTeamUserId}`);
-      } else if (viewMode !== 'LIVE') {
-        query = query.eq('gameweek', selectedGameweek);
       } else {
         query = query.eq('gameweek', selectedGameweek);
       }
@@ -191,7 +198,7 @@ export default function MatchesScreen() {
         }
       }
 
-      // BATCH FETCH ALL ROSTERS FOR ENTIRE LEAGUE IN 1 SINGLE QUERY
+      // BATCH FETCH ALL ROSTERS FOR ACTIVE LEAGUE IN 1 SINGLE QUERY
       const userIds = Array.from(new Set(
         (fixturesData || []).flatMap((f: any) => [f.home_user_id, f.away_user_id]).filter(Boolean)
       ));
@@ -237,7 +244,7 @@ export default function MatchesScreen() {
             userSquadsMap.set(r.user_id, existing);
           });
 
-          userSquadsMap.forEach((squad, uId) => {
+          userSquadsMap.forEach((squad) => {
             squad.sort((a, b) => (POSITION_ORDER[a.element_type] || 99) - (POSITION_ORDER[b.element_type] || 99));
           });
         }

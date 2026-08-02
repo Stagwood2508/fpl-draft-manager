@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import TradeDeskModal from '@/components/TradeDeskModal';
@@ -99,23 +100,31 @@ export default function PlayerPoolScreen() {
 
   const loadScoutEngineContext = async () => {
     try {
+      setLoading(true);
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
       if (authErr || !user) throw new Error('User authentication token invalid.');
       setCurrentUserId(user.id);
 
-      const { data: memberData, error: memberErr } = await supabase
-        .from('league_members')
-        .select('league_id')
-        .limit(1)
-        .single();
+      // 1. Read Active League ID from AsyncStorage
+      let currentLeagueId = await AsyncStorage.getItem('active_league_id');
 
-      let currentLeagueId: string | null = null;
-      if (!memberErr && memberData) {
-        currentLeagueId = memberData.league_id;
-        setActiveLeagueId(currentLeagueId);
+      if (!currentLeagueId) {
+        const { data: memberData, error: memberErr } = await supabase
+          .from('league_members')
+          .select('league_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!memberErr && memberData?.league_id) {
+          currentLeagueId = memberData.league_id;
+          await AsyncStorage.setItem('active_league_id', currentLeagueId);
+        }
       }
 
-      // Fetch Market Window Status & Active Gameweek
+      setActiveLeagueId(currentLeagueId);
+
+      // 2. Fetch Market Window Status & Active Gameweek
       if (currentLeagueId) {
         const { data: leagueGwData } = await supabase
           .from('league_gameweeks')
@@ -176,13 +185,13 @@ export default function PlayerPoolScreen() {
           // Fetch member names from league_members first, then fall back to profiles
           const { data: membersData } = await supabase
             .from('league_members')
-            .select('user_id')
+            .select('user_id, team_name')
             .eq('league_id', currentLeagueId);
 
           if (membersData) {
             const memberMap: Record<string, string> = {};
             membersData.forEach((m: any) => {
-              if (m.display_name) memberMap[m.user_id] = m.display_name;
+              if (m.team_name) memberMap[m.user_id] = m.team_name;
             });
 
             Object.keys(owners).forEach((key: any) => {
@@ -205,10 +214,7 @@ export default function PlayerPoolScreen() {
 
             Object.keys(owners).forEach((key: any) => {
               const ownerUserId = owners[key].userId;
-              if (!owners[key].display_name.startsWith('Manager') && profileMap[ownerUserId]) {
-                return;
-              }
-              if (profileMap[ownerUserId]) {
+              if (owners[key].display_name.startsWith('Manager') && profileMap[ownerUserId]) {
                 owners[key].display_name = profileMap[ownerUserId].full;
                 owners[key].short_initials = profileMap[ownerUserId].short;
               }
@@ -278,7 +284,12 @@ export default function PlayerPoolScreen() {
       setSelectedRosterPlayerId(null);
       setLoading(true);
       
-      const { data: rosterData } = await supabase.from('rosters').select('player_id, players(id, first_name, second_name, web_name, element_type, team_name)').eq('user_id', currentUserId).eq('league_id', activeLeagueId);
+      const { data: rosterData } = await supabase
+        .from('rosters')
+        .select('player_id, players(id, first_name, second_name, web_name, element_type, team_name)')
+        .eq('user_id', currentUserId)
+        .eq('league_id', activeLeagueId);
+
       const structured = (rosterData || []).map((r: any) => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean);
       setEligibleRosterPlayers(structured.filter((p: any) => p.element_type === poolPlayer.element_type));
       setIsWaiverModalVisible(true);

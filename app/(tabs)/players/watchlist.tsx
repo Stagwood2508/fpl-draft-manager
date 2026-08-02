@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
 
@@ -33,6 +34,7 @@ const POSITION_COLORS: Record<string, string> = {
 export default function WatchlistScreen() {
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
   const [currentGameweek, setCurrentGameweek] = useState<number>(1);
   
@@ -66,17 +68,27 @@ export default function WatchlistScreen() {
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
       if (authErr || !user) throw new Error('User authentication token invalid.');
 
-      const { data: memberData, error: memberErr } = await supabase
-        .from('league_members')
-        .select('league_id')
-        .limit(1)
-        .single();
+      // 1. Resolve Active League ID from AsyncStorage
+      let currentLeagueId = await AsyncStorage.getItem('active_league_id');
 
-      if (memberErr || !memberData) throw new Error('No assigned league membership identified.');
-      const currentLeagueId = memberData.league_id;
+      if (!currentLeagueId) {
+        const { data: memberData, error: memberErr } = await supabase
+          .from('league_members')
+          .select('league_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!memberErr && memberData?.league_id) {
+          currentLeagueId = memberData.league_id;
+          await AsyncStorage.setItem('active_league_id', currentLeagueId);
+        }
+      }
+
+      if (!currentLeagueId) throw new Error('No assigned active league identified.');
       setActiveLeagueId(currentLeagueId);
 
-      // Fetch active gameweek
+      // 2. Fetch active gameweek
       const { data: leagueGwData } = await supabase
         .from('league_gameweeks')
         .select('gameweek')
@@ -89,7 +101,7 @@ export default function WatchlistScreen() {
         setCurrentGameweek(leagueGwData.gameweek);
       }
 
-      // Fetch positional overrides
+      // 3. Fetch positional overrides for this active league
       let overridesMap: Record<number, string> = {};
       const { data: overridesData } = await supabase
         .from('league_player_overrides')
@@ -100,7 +112,7 @@ export default function WatchlistScreen() {
         overridesData.forEach(o => { overridesMap[o.player_id] = o.custom_position; });
       }
 
-      // Query Watchlist records joined with players
+      // 4. Query Watchlist records joined with players strictly for current active league
       const { data: wlData, error: wlErr } = await supabase
         .from('watchlists')
         .select(`
@@ -131,8 +143,14 @@ export default function WatchlistScreen() {
       Alert.alert('Watchlist Sync Error', err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadWatchlistEngine();
+  }, []);
 
   const handleRemoveItem = async (playerId: number) => {
     try {
@@ -213,7 +231,7 @@ export default function WatchlistScreen() {
       </View>
 
       {/* WATCHLIST FEED */}
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={styles.centered}><ActivityIndicator size="large" color="#00ff87" /></View>
       ) : (
         <FlatList
@@ -221,6 +239,14 @@ export default function WatchlistScreen() {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderPlayerItem}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#00ff87"
+              colors={['#00ff87']}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="bookmark-outline" size={48} color="#222" style={{ marginBottom: 12 }} />

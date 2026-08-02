@@ -11,9 +11,11 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import { supabase } from '@/utils/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/utils/supabase';
 
 interface LeagueSettings {
   draft_clock_duration: number;
@@ -45,6 +47,9 @@ interface TierSetting {
 }
 
 export default function UnifiedLeagueSettingsScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ leagueId?: string }>();
+
   const scrollRef = useRef<ScrollView>(null);
   const searchInputY = useRef<number>(0);
 
@@ -91,7 +96,7 @@ export default function UnifiedLeagueSettingsScreen() {
   const positionOptions = ['GKP', 'DEF', 'MID', 'FWD'];
 
   // Universal Season Lock Helper
-  const isLocked = draftStatus !== 'PRE_DRAFT';
+  const isLocked = draftStatus !== 'PRE_DRAFT' && draftStatus !== 'WAITING_ROOM';
 
   const monthNames = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -100,7 +105,7 @@ export default function UnifiedLeagueSettingsScreen() {
 
   useEffect(() => {
     loadMasterSettingsFramework();
-  }, []);
+  }, [params?.leagueId]);
 
   useEffect(() => {
     if (!searchQuery.trim() || isLocked) {
@@ -125,18 +130,37 @@ export default function UnifiedLeagueSettingsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // 1. Resolve Active League ID from Params > AsyncStorage
+      let targetLid = params?.leagueId;
+      if (!targetLid) {
+        targetLid = (await AsyncStorage.getItem('active_league_id')) || undefined;
+      }
+
+      if (!targetLid) {
+        const { data: firstMember } = await supabase
+          .from('league_members')
+          .select('league_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+        targetLid = firstMember?.league_id;
+      }
+
+      if (!targetLid) return;
+      setLeagueId(targetLid);
+
+      // 2. Fetch League & Membership Info for this specific league
       const { data: memberData, error: memErr } = await supabase
         .from('league_members')
-        .select('league_id, leagues(name, invite_code, commissioner_id, roster_type, draft_status, status)')
+        .select('league_id, leagues(id, name, invite_code, commissioner_id, roster_type, draft_status, status)')
+        .eq('league_id', targetLid)
         .eq('user_id', user.id)
-        .limit(1)
-        .single();
+        .maybeSingle();
 
       if (memErr) throw memErr;
       if (!memberData) return;
 
-      const league = memberData.leagues as any;
-      setLeagueId(memberData.league_id);
+      const league = Array.isArray(memberData.leagues) ? memberData.leagues[0] : memberData.leagues as any;
       setLeagueName(league.name || 'Your League');
       setInviteCode(league.invite_code || null);
       setIsCommissioner(league.commissioner_id === user.id);
@@ -148,10 +172,11 @@ export default function UnifiedLeagueSettingsScreen() {
       const activeStatus = league.draft_status || league.status || 'PRE_DRAFT';
       setDraftStatus(activeStatus);
 
+      // 3. Fetch Settings for this specific league
       const { data: settingsData } = await supabase
         .from('league_settings')
         .select('*')
-        .eq('league_id', memberData.league_id)
+        .eq('league_id', targetLid)
         .maybeSingle();
 
       if (settingsData) {
@@ -160,16 +185,19 @@ export default function UnifiedLeagueSettingsScreen() {
         setMidTiers(settingsData.defcon_thresholds_mid || createDefaultTiers());
         setFwdTiers(settingsData.defcon_thresholds_fwd || createDefaultTiers());
 
-        if (settingsData.draft_start_time) {
-          const [datePart, timePart] = settingsData.draft_start_time.split('T');
-          const [yr, mo, dy] = datePart.split('-');
-          const [hr, mn] = timePart.split(':');
+        if (settingsData.roster_type) {
+          setRosterType(settingsData.roster_type as 'STRICT' | 'FLEXIBLE');
+        }
 
-          setSchedYear(parseInt(yr, 10));
-          setSchedMonth(parseInt(mo, 10));
-          setSchedDay(parseInt(dy, 10));
-          setSchedHour(parseInt(hr, 10));
-          setSchedMinute(parseInt(mn, 10));
+        if (settingsData.draft_start_time) {
+          const date = new Date(settingsData.draft_start_time);
+          if (!isNaN(date.getTime())) {
+            setSchedYear(date.getFullYear());
+            setSchedMonth(date.getMonth() + 1);
+            setSchedDay(date.getDate());
+            setSchedHour(date.getHours());
+            setSchedMinute(date.getMinutes());
+          }
         }
       } else {
         setDefTiers(createDefaultTiers());
@@ -177,10 +205,11 @@ export default function UnifiedLeagueSettingsScreen() {
         setFwdTiers(createDefaultTiers());
       }
 
+      // 4. Fetch Position Overrides for this league
       const { data: existingOverrides } = await supabase
         .from('league_player_overrides')
         .select('player_id, custom_position')
-        .eq('league_id', memberData.league_id);
+        .eq('league_id', targetLid);
 
       if (existingOverrides) {
         const overrideMap: Record<string, string> = {};
@@ -190,10 +219,12 @@ export default function UnifiedLeagueSettingsScreen() {
         setPositionOverrides(overrideMap);
       }
 
+      // 5. Fetch Player Master Data
       const { data: playersDb } = await supabase
         .from('players')
         .select('id, web_name, team_name, element_type');
       if (playersDb) setMasterCachePlayers(playersDb as any);
+
     } catch (err: any) {
       console.error('[SETTINGS BOOT FAULT]', err.message);
     } finally {
@@ -259,7 +290,7 @@ export default function UnifiedLeagueSettingsScreen() {
       const hh = String(schedHour).padStart(2, '0');
       const min = String(schedMinute).padStart(2, '0');
       
-      const localTimestampString = `${schedYear}-${mm}-${dd}T${hh}:${min}:00`;
+      const localTimestampString = `${schedYear}-${mm}-${dd}T${hh}:${min}:00.000Z`;
 
       // 1. Update LEAGUES table directly with roster_type
       const { error: leagueErr } = await supabase
@@ -269,13 +300,13 @@ export default function UnifiedLeagueSettingsScreen() {
 
       if (leagueErr) {
         console.error('Leagues Table Update Error:', leagueErr);
-        throw new Error(`Failed to update roster mode: ${leagueErr.message}`);
       }
 
       // 2. Upsert LEAGUE_SETTINGS table
       const payload = {
         league_id: leagueId,
         ...settings,
+        roster_type: rosterType,
         draft_start_time: localTimestampString, 
         defcon_thresholds_def: defTiers,
         defcon_thresholds_mid: midTiers,
@@ -385,11 +416,16 @@ export default function UnifiedLeagueSettingsScreen() {
           
           {/* SCREEN HEADER ROW */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ paddingRight: 10 }}>
+              <Ionicons name="chevron-back" size={24} color="#FFF" />
+            </TouchableOpacity>
             <Text style={styles.title}>League Settings</Text>
-            {isLocked && (
+            {isLocked ? (
               <View style={styles.lockedGlobalBadge}>
                 <Text style={styles.lockedGlobalBadgeText}>🔒 SEASON LOCKED</Text>
               </View>
+            ) : (
+              <View style={{ width: 24 }} />
             )}
           </View>
 
@@ -707,7 +743,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0A' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
   scrollContainer: { padding: 16, paddingBottom: 50 },
-  title: { fontSize: 22, fontWeight: '900', color: '#FFF', textTransform: 'uppercase' },
+  title: { fontSize: 20, fontWeight: '900', color: '#FFF', textTransform: 'uppercase' },
 
   inviteDeckCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#00ff87', padding: 16, borderRadius: 4, marginBottom: 16 },
   inviteDeckHeading: { color: '#00ff87', fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -752,8 +788,8 @@ const styles = StyleSheet.create({
   numberInput: { backgroundColor: '#000', borderWidth: 1, borderColor: '#222', color: '#FFF', width: 56, padding: 6, borderRadius: 2, textAlign: 'center', fontWeight: '800', fontSize: 13 },
   disabledInput: { color: '#444', borderColor: '#181818', backgroundColor: '#09090B' },
 
-  saveBtn: { backgroundColor: '#222', borderWidth: 1, borderColor: '#333', padding: 14, borderRadius: 2, alignItems: 'center', marginTop: 16 },
-  saveBtnText: { color: '#FFF', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
+  saveBtn: { backgroundColor: '#00ff87', borderWidth: 1, borderColor: '#00ff87', padding: 14, borderRadius: 2, alignItems: 'center', marginTop: 16 },
+  saveBtnText: { color: '#000', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
   sectionExplanationText: { color: '#444', fontSize: 11, fontWeight: '600', marginBottom: 12, lineHeight: 15 },
   positionSubBlock: { marginBottom: 14, borderBottomWidth: 1, borderBottomColor: '#161616', paddingBottom: 10 },
   positionSubHeader: { color: '#00ff87', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.5 },
