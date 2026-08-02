@@ -11,7 +11,7 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 
 interface PlayerAsset {
@@ -69,35 +69,54 @@ export default function TradeDeskModal({
   };
 
   useEffect(() => {
-    if (visible && targetPlayer && tradePartner && leagueId && currentUserId) {
+    if (visible && targetPlayer && tradePartner) {
       loadTradeModalContext();
     }
-  }, [visible, targetPlayer, tradePartner]);
+  }, [visible, targetPlayer, tradePartner, leagueId]);
 
   const loadTradeModalContext = async () => {
-    if (!targetPlayer || !tradePartner || !leagueId) return;
+    if (!targetPlayer || !tradePartner) return;
     try {
       setModalLoading(true);
       setRivalSelectedTradeIds([targetPlayer.id]);
       setMySelectedTradeIds([]);
 
-      // 1. Fetch League Configuration (roster_type)
+      // 1. Resolve Active League ID (Prop > AsyncStorage fallback)
+      let resolvedLeagueId = leagueId;
+      if (!resolvedLeagueId) {
+        resolvedLeagueId = await AsyncStorage.getItem('active_league_id');
+      }
+
+      if (!resolvedLeagueId) throw new Error('No active league context found.');
+
+      // 2. Resolve Active User ID if missing
+      let resolvedUserId = currentUserId;
+      if (!resolvedUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        resolvedUserId = user?.id || null;
+      }
+
+      if (!resolvedUserId) throw new Error('Authentication frame unverified.');
+
+      // 3. Fetch League Configuration (roster_type)
       const { data: leagueData } = await supabase
         .from('leagues')
         .select('roster_type')
-        .eq('id', leagueId)
+        .eq('id', resolvedLeagueId)
         .maybeSingle();
 
       if (leagueData?.roster_type) {
         setRosterType(leagueData.roster_type as 'STRICT' | 'FLEXIBLE');
       }
 
-      // 2. Fetch Both Roster Packages
-      const { data: myData } = await supabase.from('rosters').select('players(*)').eq('league_id', leagueId).eq('user_id', currentUserId);
-      const { data: rivalData } = await supabase.from('rosters').select('players(*)').eq('league_id', leagueId).eq('user_id', tradePartner.userId);
+      // 4. Fetch Both Roster Packages strictly for the resolved active league
+      const [myDataRes, rivalDataRes] = await Promise.all([
+        supabase.from('rosters').select('players(*)').eq('league_id', resolvedLeagueId).eq('user_id', resolvedUserId),
+        supabase.from('rosters').select('players(*)').eq('league_id', resolvedLeagueId).eq('user_id', tradePartner.userId)
+      ]);
 
-      const parsedMy = (myData?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
-      const parsedRival = (rivalData?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
+      const parsedMy = (myDataRes.data?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
+      const parsedRival = (rivalDataRes.data?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
 
       setMyTradeRoster(sortRosterByPosition(parsedMy));
       setRivalTradeRoster(sortRosterByPosition(parsedRival));
@@ -209,7 +228,7 @@ export default function TradeDeskModal({
     });
   };
 
-  const handleProposeBilateralTrade = () => {
+  const handleProposeBilateralTrade = async () => {
     const myTradePlayers = sortRosterByPosition(myTradeRoster.filter(p => mySelectedTradeIds.includes(p.id)));
     const rivalTradePlayers = sortRosterByPosition(rivalTradeRoster.filter(p => rivalSelectedTradeIds.includes(p.id)));
 
@@ -221,6 +240,13 @@ export default function TradeDeskModal({
     if (myTradePlayers.length !== rivalTradePlayers.length) {
       Alert.alert('Asymmetric Trade', 'Trades must be equal-size player swaps (e.g. 1-for-1, 2-for-2).');
       return;
+    }
+
+    let resolvedLeagueId = leagueId || (await AsyncStorage.getItem('active_league_id'));
+    let resolvedUserId = currentUserId;
+    if (!resolvedUserId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      resolvedUserId = user?.id || null;
     }
 
     Alert.alert(
@@ -238,8 +264,8 @@ export default function TradeDeskModal({
 
               for (let i = 0; i < myTradePlayers.length; i++) {
                 tradePayload.push({
-                  league_id: leagueId,
-                  sender_id: currentUserId,
+                  league_id: resolvedLeagueId,
+                  sender_id: resolvedUserId,
                   receiver_id: tradePartner?.userId,
                   type: 'TRADE',
                   status: 'PENDING',

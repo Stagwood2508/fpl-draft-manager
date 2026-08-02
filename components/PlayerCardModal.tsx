@@ -12,6 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import KitIcon from '@/components/KitIcon';
 
@@ -107,14 +108,20 @@ export default function PlayerCardModal({
       setSchedule([]);
       setImageError(false);
     }
-  }, [visible, playerId]);
+  }, [visible, playerId, leagueId]);
 
   const loadPlayerData = async () => {
     if (!playerId) return;
     try {
       setLoading(true);
 
-      // 1. Fetch Player Base Info & Ownership Status in League
+      // Resolve Active League ID from prop > AsyncStorage fallback
+      let activeLid = leagueId;
+      if (!activeLid) {
+        activeLid = await AsyncStorage.getItem('active_league_id');
+      }
+
+      // 1. Fetch Player Base Info
       const { data: playerData, error: pErr } = await supabase
         .from('players')
         .select('*')
@@ -124,20 +131,34 @@ export default function PlayerCardModal({
       if (pErr) throw pErr;
 
       let ownerDisplayName: string | null = null;
+      let effectivePosition = playerData.element_type;
 
-      if (leagueId) {
+      if (activeLid) {
+        // Fetch positional override for active league
+        const { data: overrideData } = await supabase
+          .from('league_player_overrides')
+          .select('custom_position')
+          .eq('league_id', activeLid)
+          .eq('player_id', playerId)
+          .maybeSingle();
+
+        if (overrideData?.custom_position) {
+          effectivePosition = overrideData.custom_position;
+        }
+
+        // Fetch ownership in active league
         const { data: rosterData } = await supabase
           .from('rosters')
           .select('user_id')
-          .eq('league_id', leagueId)
+          .eq('league_id', activeLid)
           .eq('player_id', Number(playerId))
           .maybeSingle();
 
         if (rosterData?.user_id) {
           const { data: memberData } = await supabase
             .from('league_members')
-            .select('team_name') // Updated from display_name
-            .eq('league_id', leagueId)
+            .select('team_name')
+            .eq('league_id', activeLid)
             .eq('user_id', rosterData.user_id)
             .maybeSingle();
 
@@ -163,6 +184,7 @@ export default function PlayerCardModal({
 
       setPlayer({
         ...playerData,
+        element_type: effectivePosition,
         team_short_name: playerData.team_short_name || (playerData.team_name ? playerData.team_name.slice(0, 3).toUpperCase() : 'PL'),
         owner_name: ownerDisplayName,
       });
@@ -242,14 +264,12 @@ export default function PlayerCardModal({
 
   if (!visible) return null;
 
-  const photoCode = player?.photo_code || player?.id;
-
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.cardContainer}>
           
-          {/* TOP BAR / CLOSE BUTTON */}
+          {/* TOP BAR / OWNERSHIP BADGE */}
           <View style={styles.topBar}>
             <View style={styles.ownershipBadge}>
               <Ionicons
@@ -263,40 +283,40 @@ export default function PlayerCardModal({
             </View>
           </View>
 
-{/* HERO HEADER WITH PLAYER HEADSHOT */}
-{player && (
-  <View style={styles.heroSection}>
-    <View style={styles.avatarWrapper}>
-      {(player.photo_code || player.code || player.id) && !imageError ? (
-        <Image
-          source={{
-            uri: `https://resources.premierleague.com/premierleague/photos/players/250x250/p${player.photo_code || player.code || player.id}.png`,
-          }}
-          style={styles.playerPhoto}
-          resizeMode="contain"
-          onError={() => setImageError(true)}
-        />
-      ) : (
-        <KitIcon teamId={player.team_id || 0} size={42} />
-      )}
-    </View>
+          {/* HERO HEADER WITH PLAYER HEADSHOT */}
+          {player && (
+            <View style={styles.heroSection}>
+              <View style={styles.avatarWrapper}>
+                {(player.photo_code || player.code || player.id) && !imageError ? (
+                  <Image
+                    source={{
+                      uri: `https://resources.premierleague.com/premierleague/photos/players/250x250/p${player.photo_code || player.code || player.id}.png`,
+                    }}
+                    style={styles.playerPhoto}
+                    resizeMode="contain"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <KitIcon teamId={player.team_id || 0} size={42} />
+                )}
+              </View>
 
-    <View style={styles.heroMain}>
-      <Text style={styles.playerName}>{player.web_name}</Text>
-      <Text style={styles.playerMeta}>
-        {player.first_name} {player.second_name} • {player.team_name}
-      </Text>
-    </View>
-    <View
-      style={[
-        styles.positionBadge,
-        { backgroundColor: POSITION_COLORS[player.element_type] || '#222' },
-      ]}
-    >
-      <Text style={styles.positionBadgeText}>{player.element_type}</Text>
-    </View>
-  </View>
-)}
+              <View style={styles.heroMain}>
+                <Text style={styles.playerName}>{player.web_name}</Text>
+                <Text style={styles.playerMeta}>
+                  {player.first_name} {player.second_name} • {player.team_name}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.positionBadge,
+                  { backgroundColor: POSITION_COLORS[player.element_type] || '#222' },
+                ]}
+              >
+                <Text style={styles.positionBadgeText}>{player.element_type}</Text>
+              </View>
+            </View>
+          )}
 
           {/* TAB NAVIGATION HEADER */}
           <View style={styles.tabBar}>
@@ -500,7 +520,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justify: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },

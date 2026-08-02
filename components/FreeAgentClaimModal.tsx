@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 
 interface PlayerAsset {
@@ -21,7 +22,7 @@ interface PlayerAsset {
 
 interface FreeAgentClaimModalProps {
   visible: boolean;
-  leagueId: string;
+  leagueId: string | null;
   currentGameweek: number;
   targetPlayer: PlayerAsset | null; // The Free Agent player to ADD
   onClose: () => void;
@@ -45,12 +46,13 @@ export default function FreeAgentClaimModal({
 }: FreeAgentClaimModalProps) {
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resolvedLid, setResolvedLid] = useState<string | null>(null);
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
   const [myRoster, setMyRoster] = useState<PlayerAsset[]>([]);
   const [selectedDropPlayerId, setSelectedDropPlayerId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (visible && leagueId) {
+    if (visible) {
       fetchUserRoster();
     } else {
       setSelectedDropPlayerId(null);
@@ -65,17 +67,26 @@ export default function FreeAgentClaimModal({
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr || !authData?.user) throw new Error('User authentication error.');
 
+      // Resolve Active League ID from Prop > AsyncStorage
+      let activeLid = leagueId;
+      if (!activeLid) {
+        activeLid = await AsyncStorage.getItem('active_league_id');
+      }
+
+      if (!activeLid) throw new Error('No active league context identified.');
+      setResolvedLid(activeLid);
+
       // Fetch League Configuration (roster_type)
       const { data: leagueData } = await supabase
         .from('leagues')
         .select('roster_type')
-        .eq('id', leagueId)
+        .eq('id', activeLid)
         .maybeSingle();
 
       const activeRosterType = leagueData?.roster_type || 'STRICT';
       setRosterType(activeRosterType as 'STRICT' | 'FLEXIBLE');
 
-      // Fetch User Roster
+      // Fetch User Roster strictly for active league
       const { data: rosterData, error: rosterErr } = await supabase
         .from('rosters')
         .select(`
@@ -87,7 +98,7 @@ export default function FreeAgentClaimModal({
             team_name
           )
         `)
-        .eq('league_id', leagueId)
+        .eq('league_id', activeLid)
         .eq('user_id', authData.user.id);
 
       if (rosterErr) throw rosterErr;
@@ -144,6 +155,12 @@ export default function FreeAgentClaimModal({
       return;
     }
 
+    const targetLeagueId = resolvedLid || leagueId || (await AsyncStorage.getItem('active_league_id'));
+    if (!targetLeagueId) {
+      Alert.alert('Context Missing', 'Could not verify active league ID.');
+      return;
+    }
+
     const dropPlayer = myRoster.find((p) => p.id === selectedDropPlayerId);
 
     // Validate using dynamic roster rules
@@ -162,7 +179,7 @@ export default function FreeAgentClaimModal({
 
       // Call Atomic Postgres RPC Function (validates final squad counts)
       const { data, error } = await supabase.rpc('claim_free_agent', {
-        p_league_id: leagueId,
+        p_league_id: targetLeagueId,
         p_add_player_id: targetPlayer.id,
         p_drop_player_id: selectedDropPlayerId,
         p_gameweek: currentGameweek,
@@ -308,7 +325,7 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',
-    justify: 'center',
+    justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
   },
@@ -354,7 +371,7 @@ const styles = StyleSheet.create({
   },
   playerCardAdd: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   playerInfoLeft: {
@@ -385,7 +402,7 @@ const styles = StyleSheet.create({
 
   loadingBox: {
     height: 160,
-    justify: 'center',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   rosterScroll: {
@@ -394,7 +411,7 @@ const styles = StyleSheet.create({
   },
   dropPlayerCard: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
     borderWidth: 1,
