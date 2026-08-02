@@ -90,6 +90,26 @@ export default function HomeDashboardScreen() {
     }
   }, [isFocused, params?.leagueId]);
 
+  // 📡 REALTIME DASHBOARD CHANNEL LISTENER WITH SAFE CLEANUP
+  useEffect(() => {
+    if (!activeLeagueId) return;
+
+    const channel = supabase
+      .channel(`dashboard-sync-${activeLeagueId}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'league_standings', filter: `league_id=eq.${activeLeagueId}` },
+        () => {
+          syncDashboardEngine(activeLeagueId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeLeagueId]);
+
   // LIVE GAMEWEEK DEADLINE COUNTDOWN TIMER TICK
   useEffect(() => {
     if (!targetDeadline) return;
@@ -143,38 +163,25 @@ export default function HomeDashboardScreen() {
     return () => clearInterval(checkGateInterval);
   }, [isFocused, activeLeagueId, activeLeagueMeta, isDraftCompleted]);
 
-const syncDashboardEngine = async (forcedLeagueId?: string) => {
-  console.log('🏁 [DASHBOARD MOUNT] syncDashboardEngine started.');
-  console.log('🏁 [DASHBOARD MOUNT] params.leagueId:', params?.leagueId);
-  console.log('🏁 [DASHBOARD MOUNT] forcedLeagueId:', forcedLeagueId);
+  const syncDashboardEngine = async (forcedLeagueId?: string) => {
+    try {
+      setLoading(true);
 
-  try {
-    setLoading(true);
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) {
+        router.replace('/(auth)/login');
+        return;
+      }
 
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    console.log('🏁 [DASHBOARD MOUNT] Authenticated User ID:', user?.id);
+      const { data: members, error: memberErr } = await supabase
+        .from('league_members')
+        .select('league_id, team_name, role, leagues ( id, name, commissioner_id, draft_status )')
+        .eq('user_id', user.id);
 
-    if (authErr || !user) {
-      console.warn('⚠️ [DASHBOARD EJECT] No auth user found -> redirecting to login');
-      router.replace('/(auth)/login');
-      return;
-    }
-
-    const { data: members, error: memberErr } = await supabase
-      .from('league_members')
-      .select('league_id, team_name, role, leagues ( id, name, commissioner_id, draft_status )')
-      .eq('user_id', user.id);
-
-    console.log('🏁 [DASHBOARD MOUNT] Raw league_members response:', members);
-    console.log('🏁 [DASHBOARD MOUNT] Query error if any:', memberErr);
-
-    if (memberErr || !members || members.length === 0) {
-      console.warn('⚠️ [DASHBOARD EJECT] No membership rows returned from Supabase -> redirecting to onboarding!');
-      router.replace('/(auth)/onboarding');
-      return;
-    }
-
-    // ... rest of dashboard logic
+      if (memberErr || !members || members.length === 0) {
+        router.replace('/(auth)/onboarding');
+        return;
+      }
 
       const formattedMembers = members.map((m: any) => ({
         league_id: m.league_id,
@@ -190,7 +197,6 @@ const syncDashboardEngine = async (forcedLeagueId?: string) => {
 
       setUserLeagues(formattedMembers);
 
-      // 3. Resolve Active League Priority: Forced > Params > Storage > State > First Available
       let storedLid = await AsyncStorage.getItem('active_league_id');
       if (!storedLid && Platform.OS === 'web') {
         storedLid = window.localStorage.getItem('active_league_id');
@@ -200,7 +206,6 @@ const syncDashboardEngine = async (forcedLeagueId?: string) => {
       const activeMember = formattedMembers.find(m => m.league_id === targetLid) || formattedMembers[0];
       const currentMeta = activeMember.leagues;
 
-      // Persist chosen active league to Storage & State
       await AsyncStorage.setItem('active_league_id', currentMeta.id);
       if (Platform.OS === 'web') {
         window.localStorage.setItem('active_league_id', currentMeta.id);
@@ -208,11 +213,8 @@ const syncDashboardEngine = async (forcedLeagueId?: string) => {
 
       setActiveLeagueId(currentMeta.id);
       setActiveLeagueMeta(currentMeta);
-      
-      // Determine Commissioner Privilege
       setIsCommissioner(currentMeta.commissioner_id === user.id);
 
-      // 4. Fetch Draft Status for Active League
       const { data: draftSessionData } = await supabase
         .from('draft_sessions')
         .select('draft_status')
@@ -246,7 +248,6 @@ const syncDashboardEngine = async (forcedLeagueId?: string) => {
         }
       }
 
-      // 5. Standings for Active League
       const { data: standingsData } = await supabase
         .from('league_standings')
         .select('user_id, team_name, total_fantasy_points, league_points')
@@ -264,7 +265,6 @@ const syncDashboardEngine = async (forcedLeagueId?: string) => {
         setLeaderboard([]);
       }
 
-      // 6. Live Gameweek Metrics for Active League
       const { data: liveMetrics, error: metricsErr } = await supabase.rpc('get_live_dashboard_metrics', {
         p_league_id: currentMeta.id,
         p_user_id: user.id,
@@ -283,7 +283,6 @@ const syncDashboardEngine = async (forcedLeagueId?: string) => {
         setPtsDiff(0);
       }
 
-      // 7. Next Gameweek Deadline
       const { data: deadlineData } = await supabase.rpc('get_next_gameweek_deadline');
       if (deadlineData && deadlineData.length > 0) {
         const nextGw = deadlineData[0];
