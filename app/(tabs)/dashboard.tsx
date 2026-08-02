@@ -9,7 +9,8 @@ import {
   Alert,
   Modal,
   FlatList,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
@@ -20,6 +21,15 @@ import { synchronizeFplPlayerPool } from '@/utils/fplSync';
 import DraftCountdownCard from '@/components/DraftCountdownCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Helper function to handle alerts safely on both Web and Native
+const notifyUser = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 interface LeagueMetadata {
   id: string;
@@ -139,7 +149,10 @@ export default function HomeDashboardScreen() {
 
       // 1. Resolve Auth User
       const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) throw new Error('User authentication token lost.');
+      if (authErr || !user) {
+        router.replace('/(auth)/login');
+        return;
+      }
 
       // 2. Fetch ALL Leagues User Belongs To
       const { data: members, error: memberErr } = await supabase
@@ -153,7 +166,9 @@ export default function HomeDashboardScreen() {
         .eq('user_id', user.id);
 
       if (memberErr || !members || members.length === 0) {
-        throw new Error('No assigned league membership profile identified.');
+        console.warn('[DASHBOARD] User has no active league membership. Redirecting to onboarding.');
+        router.replace('/(auth)/onboarding');
+        return;
       }
 
       const formattedMembers = members.map((m: any) => ({
@@ -161,18 +176,30 @@ export default function HomeDashboardScreen() {
         team_name: m.team_name,
         role: m.role,
         leagues: Array.isArray(m.leagues) ? m.leagues[0] : m.leagues
-      })) as UserLeagueMembership[];
+      })).filter(m => m.leagues) as UserLeagueMembership[];
+
+      if (formattedMembers.length === 0) {
+        router.replace('/(auth)/onboarding');
+        return;
+      }
 
       setUserLeagues(formattedMembers);
 
-      // Determine active league selection (Forced > URL params > AsyncStorage > State > First League)
+      // 3. Resolve Active League Priority: Forced > Params > Storage > State > First Available
       let storedLid = await AsyncStorage.getItem('active_league_id');
+      if (!storedLid && Platform.OS === 'web') {
+        storedLid = window.localStorage.getItem('active_league_id');
+      }
+
       const targetLid = forcedLeagueId || params?.leagueId || storedLid || activeLeagueId || formattedMembers[0].league_id;
       const activeMember = formattedMembers.find(m => m.league_id === targetLid) || formattedMembers[0];
       const currentMeta = activeMember.leagues;
 
-      // Persist chosen active league to AsyncStorage
+      // Persist chosen active league to Storage & State
       await AsyncStorage.setItem('active_league_id', currentMeta.id);
+      if (Platform.OS === 'web') {
+        window.localStorage.setItem('active_league_id', currentMeta.id);
+      }
 
       setActiveLeagueId(currentMeta.id);
       setActiveLeagueMeta(currentMeta);
@@ -180,7 +207,7 @@ export default function HomeDashboardScreen() {
       // Determine Commissioner Privilege
       setIsCommissioner(currentMeta.commissioner_id === user.id);
 
-      // 3. Fetch Draft Status for Active League
+      // 4. Fetch Draft Status for Active League
       const { data: draftSessionData } = await supabase
         .from('draft_sessions')
         .select('draft_status')
@@ -214,7 +241,7 @@ export default function HomeDashboardScreen() {
         }
       }
 
-      // 4. Standings for Active League
+      // 5. Standings for Active League
       const { data: standingsData } = await supabase
         .from('league_standings')
         .select('user_id, team_name, total_fantasy_points, league_points')
@@ -232,7 +259,7 @@ export default function HomeDashboardScreen() {
         setLeaderboard([]);
       }
 
-      // 5. Live Gameweek Metrics for Active League
+      // 6. Live Gameweek Metrics for Active League
       const { data: liveMetrics, error: metricsErr } = await supabase.rpc('get_live_dashboard_metrics', {
         p_league_id: currentMeta.id,
         p_user_id: user.id,
@@ -251,7 +278,7 @@ export default function HomeDashboardScreen() {
         setPtsDiff(0);
       }
 
-      // 6. Next Gameweek Deadline
+      // 7. Next Gameweek Deadline
       const { data: deadlineData } = await supabase.rpc('get_next_gameweek_deadline');
       if (deadlineData && deadlineData.length > 0) {
         const nextGw = deadlineData[0];
@@ -262,7 +289,8 @@ export default function HomeDashboardScreen() {
       }
 
     } catch (err: any) {
-      Alert.alert('Dashboard Sync Interrupted', err.message);
+      console.error('❌ [DASHBOARD SYNC ERROR]:', err);
+      notifyUser('Dashboard Sync Interrupted', err.message || 'Unable to sync league data.');
     } finally {
       setLoading(false);
     }
@@ -271,6 +299,9 @@ export default function HomeDashboardScreen() {
   const handleSelectLeague = async (selectedLeagueId: string) => {
     setIsPickerModalOpen(false);
     await AsyncStorage.setItem('active_league_id', selectedLeagueId);
+    if (Platform.OS === 'web') {
+      window.localStorage.setItem('active_league_id', selectedLeagueId);
+    }
     setActiveLeagueId(selectedLeagueId);
     syncDashboardEngine(selectedLeagueId);
   };
@@ -281,12 +312,12 @@ export default function HomeDashboardScreen() {
       const result = await synchronizeFplPlayerPool();
       
       if (result.success) {
-        Alert.alert('Data Ingest Complete', `Successfully upserted ${result.count} Premier League assets into Supabase.`);
+        notifyUser('Data Ingest Complete', `Successfully upserted ${result.count} Premier League assets into Supabase.`);
       } else {
-        Alert.alert('Sync Process Failure', result.error);
+        notifyUser('Sync Process Failure', result.error || 'Sync failed.');
       }
     } catch (err: any) {
-      Alert.alert('Exception Intercepted', err.message);
+      notifyUser('Exception Intercepted', err.message || 'Error occurred during sync.');
     } finally {
       setSyncingPool(false);
     }
