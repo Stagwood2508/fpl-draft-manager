@@ -119,27 +119,25 @@ export default function CreateLeagueScreen() {
   };
 
 const handleEnterDashboard = async () => {
-  console.log('📌 [DEBUG 1] "ENTER MY SQUAD DASHBOARD" clicked.');
-  console.log('📌 [DEBUG 2] createdLeagueId in state:', createdLeagueId);
-
-  if (!createdLeagueId) {
-    console.error('❌ [DEBUG ERROR] createdLeagueId is null in state!');
-    notifyUser('Navigation Error', 'League ID missing from component state.');
-    return;
-  }
-
-  try {
-    // Write synchronously to both storage mechanisms
-    await AsyncStorage.setItem('active_league_id', createdLeagueId);
-    if (Platform.OS === 'web') {
-      window.localStorage.setItem('active_league_id', createdLeagueId);
+    if (createdLeagueId) {
+      await AsyncStorage.setItem('active_league_id', createdLeagueId);
+      if (Platform.OS === 'web') {
+        window.localStorage.setItem('active_league_id', createdLeagueId);
+      }
     }
-    console.log('📌 [DEBUG 3] Successfully wrote active_league_id to storage:', createdLeagueId);
 
-    console.log('📌 [DEBUG 4] Executing router.replace to dashboard...');
-    router.replace(`/(tabs)/dashboard?leagueId=${createdLeagueId}`);
-  } catch (err: any) {
-    console.error('❌ [DEBUG ROUTE ERROR]:', err);
+    console.log('🚀 [ROUTING] Entering dashboard cleanly...');
+    
+    // Use simple root replacement to break out of the auth group layout stack
+    router.replace('/(tabs)');
+  };
+    // 2. 🔥 FIX ROUTE PATH: Use `/(tabs)` or `/dashboard` without parenthesis in path
+    router.replace({
+      pathname: '/(tabs)',
+      params: { leagueId: createdLeagueId }
+    });
+  } catch (err) {
+    console.error('Navigation Error:', err);
   }
 };
 
