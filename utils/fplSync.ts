@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 // Official FPL API Endpoints
@@ -13,6 +14,7 @@ interface FPLRawElement {
   web_name: string;
   total_points: number;
   draft_rank?: number;
+  code?: number;
 }
 
 interface FPLRawTeam {
@@ -67,6 +69,33 @@ const PL_TEAMS_STATIC: Record<number, { id: number; name: string; short: string 
 };
 
 /**
+ * Platform-Aware API Dispatcher
+ * On Web browsers, routes calls through the Supabase `fpl-proxy` Edge Function to bypass CORS.
+ * On Native iOS/Android apps, fetches directly from official FPL endpoints.
+ */
+async function fetchFplEndpoint(endpointKey: string, nativeUrl: string) {
+  if (Platform.OS === 'web') {
+    const { data, error } = await supabase.functions.invoke('fpl-proxy', {
+      body: {},
+      queryParams: { endpoint: endpointKey },
+    });
+    if (error) throw new Error(`Supabase Edge Proxy Error (${endpointKey}): ${error.message}`);
+    return data;
+  }
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Custom FPL Draft App Sync Engine)',
+    'Accept': 'application/json',
+  };
+
+  const response = await fetch(nativeUrl, { method: 'GET', headers });
+  if (!response.ok) {
+    throw new Error(`FPL API Endpoint rejected connection. Status: ${response.status}`);
+  }
+  return await response.json();
+}
+
+/**
  * Orchestrates a complete real-time ingestion loop, pulling data from official 
  * FPL Draft & FPL Fixtures endpoints and committing clean upserts into PostgreSQL.
  */
@@ -74,23 +103,11 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
   console.log('[FPL-SYNC] Initializing executive data synchronization sequence...');
 
   try {
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Custom FPL Draft App Sync Engine)',
-      'Accept': 'application/json',
-    };
-
     // 1. Fetch live payload configurations in parallel
-    const [response, fixturesResponse] = await Promise.all([
-      fetch(FPL_DRAFT_BOOTSTRAP_API, { method: 'GET', headers }),
-      fetch(FPL_FIXTURES_API, { method: 'GET', headers }),
+    const [data, fixturesData] = await Promise.all([
+      fetchFplEndpoint('bootstrap-static', FPL_DRAFT_BOOTSTRAP_API),
+      fetchFplEndpoint('fixtures', FPL_FIXTURES_API) as Promise<FPLRawFixture[]>,
     ]);
-
-    if (!response.ok || !fixturesResponse.ok) {
-      throw new Error(`FPL API Endpoint rejected connection. Bootstrap: ${response.status}, Fixtures: ${fixturesResponse.status}`);
-    }
-
-    const data = await response.json();
-    const fixturesData: FPLRawFixture[] = await fixturesResponse.json();
 
     const rawElements: FPLRawElement[] = data.elements || [];
     const rawTeams: FPLRawTeam[] = data.teams || [];
@@ -126,8 +143,8 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
         web_name: player.web_name,
         photo_code: player.code,
         team_id: teamInfo.id,
-        team_name: teamInfo.name,        // 👈 Explicit verified club name
-        team_short_name: teamInfo.short, // 👈 Explicit verified short tag
+        team_name: teamInfo.name,        // Explicit verified club name
+        team_short_name: teamInfo.short, // Explicit verified short tag
         element_type: POSITION_MAP[player.element_type] || 'MID',
         total_points: player.total_points || 0,
         draft_rank: player.draft_rank || 999,
@@ -136,7 +153,7 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
     });
 
     // 4. Map Fixtures using PL_TEAMS_STATIC
-    const mappedFixtures = fixturesData
+    const mappedFixtures = (fixturesData || [])
       .filter((f) => f.event !== null)
       .map((f) => {
         const homeTeam = PL_TEAMS_STATIC[f.team_h] || teamLookupById[f.team_h] || { id: f.team_h, name: 'Unknown', short: 'UNK' };
@@ -145,8 +162,8 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
         return {
           id: f.id,
           gameweek: f.event,
-          home_team_id: homeTeam.id,       // 👈 Explicit Home Team ID
-          away_team_id: awayTeam.id,       // 👈 Explicit Away Team ID
+          home_team_id: homeTeam.id,       // Explicit Home Team ID
+          away_team_id: awayTeam.id,       // Explicit Away Team ID
           home_team_name: homeTeam.name,
           away_team_name: awayTeam.name,
           home_team_short: homeTeam.short,
@@ -180,12 +197,14 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
     }
 
     // 6. Upsert Fixtures
-    const { error: fixturesError } = await supabase
-      .from('fixtures')
-      .upsert(mappedFixtures, { onConflict: 'id' });
-      
-    if (fixturesError) {
-      console.warn('[FPL-SYNC] Fixtures upsert alert:', fixturesError.message);
+    if (mappedFixtures.length > 0) {
+      const { error: fixturesError } = await supabase
+        .from('fixtures')
+        .upsert(mappedFixtures, { onConflict: 'id' });
+        
+      if (fixturesError) {
+        console.warn('[FPL-SYNC] Fixtures upsert alert:', fixturesError.message);
+      }
     }
 
     // 7. Resolve Current Active Gameweek cleanly
@@ -209,11 +228,11 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
       await Promise.all(
         currentChunkGws.map(async (gw) => {
           try {
-            const liveRes = await fetch(`https://draft.premierleague.com/api/event/${gw}/live`, { method: 'GET', headers });
-            if (!liveRes.ok) return;
-
-            const liveData = await liveRes.json();
-            const elementsMap = liveData.elements || {};
+            const endpointKey = `event/${gw}/live`;
+            const nativeUrl = `https://draft.premierleague.com/api/event/${gw}/live`;
+            
+            const liveData = await fetchFplEndpoint(endpointKey, nativeUrl);
+            const elementsMap = liveData?.elements || {};
             const elementKeys = Object.keys(elementsMap);
 
             if (elementKeys.length === 0) return;

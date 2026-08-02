@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
@@ -64,6 +65,14 @@ export default function TradeDeskModal({
   const [mySelectedTradeIds, setMySelectedTradeIds] = useState<number[]>([]);
   const [rivalSelectedTradeIds, setRivalSelectedTradeIds] = useState<number[]>([]);
 
+  const notifyUser = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const sortRosterByPosition = (roster: PlayerAsset[]) => {
     return [...roster].sort((a, b) => POSITION_ORDER.indexOf(a.element_type) - POSITION_ORDER.indexOf(b.element_type));
   };
@@ -77,6 +86,7 @@ export default function TradeDeskModal({
   const loadTradeModalContext = async () => {
     if (!targetPlayer || !tradePartner) return;
     try {
+      console.log('🔄 [TRADE MODAL] Loading context for target player:', targetPlayer.web_name, 'partner:', tradePartner.display_name);
       setModalLoading(true);
       setRivalSelectedTradeIds([targetPlayer.id]);
       setMySelectedTradeIds([]);
@@ -118,10 +128,13 @@ export default function TradeDeskModal({
       const parsedMy = (myDataRes.data?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
       const parsedRival = (rivalDataRes.data?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
 
+      console.log(`[TRADE MODAL] Roster loaded. My count: ${parsedMy.length}, Rival count: ${parsedRival.length}`);
+
       setMyTradeRoster(sortRosterByPosition(parsedMy));
       setRivalTradeRoster(sortRosterByPosition(parsedRival));
     } catch (err: any) {
-      Alert.alert('Trade Load Error', err.message);
+      console.error('❌ [TRADE MODAL LOAD ERROR]:', err);
+      notifyUser('Trade Load Error', err.message);
     } finally {
       setModalLoading(false);
     }
@@ -142,7 +155,7 @@ export default function TradeDeskModal({
         const selectedOfThisPos = myTradeRoster.filter(p => prev.includes(p.id) && p.element_type === pos).length;
 
         if (selectedOfThisPos >= totalDemandedOfThisPos) {
-          Alert.alert('Position Lock (Strict Mode)', `You must request another ${pos} from your trading partner before offering an additional ${pos}.`);
+          notifyUser('Position Lock (Strict Mode)', `You must request another ${pos} from your trading partner before offering an additional ${pos}.`);
           return prev;
         }
       } else {
@@ -151,14 +164,14 @@ export default function TradeDeskModal({
           const demandedGKP = demandedPlayers.filter(p => p.element_type === 'GKP').length;
           const selectedGKP = myTradeRoster.filter(p => prev.includes(p.id) && p.element_type === 'GKP').length;
           if (selectedGKP >= demandedGKP) {
-            Alert.alert('Goalkeeper Lock', 'Goalkeepers must be traded 1-to-1 for Goalkeepers.');
+            notifyUser('Goalkeeper Lock', 'Goalkeepers must be traded 1-to-1 for Goalkeepers.');
             return prev;
           }
         } else {
           const demandedOutfield = demandedPlayers.filter(p => p.element_type !== 'GKP').length;
           const selectedOutfield = myTradeRoster.filter(p => prev.includes(p.id) && p.element_type !== 'GKP').length;
           if (selectedOutfield >= demandedOutfield) {
-            Alert.alert('Outfield Trade Cap', `You have requested ${demandedOutfield} outfield player(s). Request another player before adding more to your offer.`);
+            notifyUser('Outfield Trade Cap', `You have requested ${demandedOutfield} outfield player(s). Request another player before adding more to your offer.`);
             return prev;
           }
         }
@@ -229,67 +242,85 @@ export default function TradeDeskModal({
   };
 
   const handleProposeBilateralTrade = async () => {
+    console.log('🚀 [TRADE] Submit Offer clicked. My Selected IDs:', mySelectedTradeIds, 'Rival Selected IDs:', rivalSelectedTradeIds);
+
     const myTradePlayers = sortRosterByPosition(myTradeRoster.filter(p => mySelectedTradeIds.includes(p.id)));
     const rivalTradePlayers = sortRosterByPosition(rivalTradeRoster.filter(p => rivalSelectedTradeIds.includes(p.id)));
 
     if (myTradePlayers.length === 0 || rivalTradePlayers.length === 0) {
-      Alert.alert('Trade Setup Error', 'Select at least one player to give and receive.');
+      notifyUser('Trade Setup Error', 'Select at least one player to give and receive.');
       return;
     }
 
     if (myTradePlayers.length !== rivalTradePlayers.length) {
-      Alert.alert('Asymmetric Trade', 'Trades must be equal-size player swaps (e.g. 1-for-1, 2-for-2).');
+      notifyUser('Asymmetric Trade', 'Trades must be equal-size player swaps (e.g. 1-for-1, 2-for-2).');
       return;
     }
 
-    let resolvedLeagueId = leagueId || (await AsyncStorage.getItem('active_league_id'));
-    let resolvedUserId = currentUserId;
-    if (!resolvedUserId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      resolvedUserId = user?.id || null;
-    }
+    const executeDispatch = async () => {
+      try {
+        setModalLoading(true);
+        console.log('📦 [TRADE] Packaging trade proposal payload...');
 
-    Alert.alert(
-      'Initialize Trade Proposal',
-      `Dispatch trade offer to ${tradePartner?.display_name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Send Offer', 
-          onPress: async () => {
-            try {
-              setModalLoading(true);
-              const batchId = uuidv4();
-              const tradePayload: any[] = [];
-
-              for (let i = 0; i < myTradePlayers.length; i++) {
-                tradePayload.push({
-                  league_id: resolvedLeagueId,
-                  sender_id: resolvedUserId,
-                  receiver_id: tradePartner?.userId,
-                  type: 'TRADE',
-                  status: 'PENDING',
-                  player_out_id: myTradePlayers[i].id,
-                  player_in_id: rivalTradePlayers[i].id,
-                  parent_transaction_id: batchId
-                });
-              }
-
-              const { error } = await supabase.from('transactions').insert(tradePayload);
-              if (error) throw error;
-              
-              Alert.alert('Success', 'Trade proposal successfully dispatched!');
-              if (onSuccess) onSuccess();
-              onClose();
-            } catch (err: any) {
-              Alert.alert('Error Dispatching Offer', err.message);
-            } finally {
-              setModalLoading(false);
-            }
-          } 
+        let resolvedLeagueId = leagueId || (await AsyncStorage.getItem('active_league_id'));
+        let resolvedUserId = currentUserId;
+        if (!resolvedUserId) {
+          const { data: { user } } = await supabase.auth.getUser();
+          resolvedUserId = user?.id || null;
         }
-      ]
-    );
+
+        if (!resolvedLeagueId || !resolvedUserId || !tradePartner?.userId) {
+          throw new Error('Missing required authentication or league parameters.');
+        }
+
+        const batchId = uuidv4();
+        const tradePayload: any[] = [];
+
+        for (let i = 0; i < myTradePlayers.length; i++) {
+          tradePayload.push({
+            league_id: resolvedLeagueId,
+            sender_id: resolvedUserId,
+            receiver_id: tradePartner.userId,
+            type: 'TRADE',
+            status: 'PENDING',
+            player_out_id: myTradePlayers[i].id,
+            player_in_id: rivalTradePlayers[i].id,
+            parent_transaction_id: batchId
+          });
+        }
+
+        console.log('⚡ [TRADE] Inserting transaction rows into Supabase:', tradePayload);
+
+        const { error } = await supabase.from('transactions').insert(tradePayload);
+        if (error) throw error;
+        
+        console.log('✅ [TRADE] Trade dispatched successfully!');
+        notifyUser('Success', 'Trade proposal successfully dispatched!');
+        if (onSuccess) onSuccess();
+        onClose();
+      } catch (err: any) {
+        console.error('❌ [TRADE DISPATCH ERROR]:', err);
+        notifyUser('Error Dispatching Offer', err.message || 'Failed to send trade proposal.');
+      } finally {
+        setModalLoading(false);
+      }
+    };
+
+    // Platform-Aware Execution Handler to bypass Web Alert.alert Suppression
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Dispatch trade offer to ${tradePartner?.display_name || 'Manager'}?`)) {
+        await executeDispatch();
+      }
+    } else {
+      Alert.alert(
+        'Initialize Trade Proposal',
+        `Dispatch trade offer to ${tradePartner?.display_name}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Send Offer', onPress: executeDispatch }
+        ]
+      );
+    }
   };
 
   const getShortTeamCode = (name: string) => (name ? name.slice(0, 3).toUpperCase() : 'FA');
@@ -392,12 +423,16 @@ export default function TradeDeskModal({
           </Text>
 
           <View style={styles.modalActionRow}>
-            <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} onPress={onClose}>
+            <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} onPress={onClose} disabled={modalLoading}>
               <Text style={styles.modalButtonCancelText}>Cancel</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.modalButton, styles.modalButtonConfirm]} onPress={handleProposeBilateralTrade}>
-              <Text style={styles.modalButtonConfirmText}>Submit Offer</Text>
+            <TouchableOpacity style={[styles.modalButton, styles.modalButtonConfirm, modalLoading && { opacity: 0.6 }]} onPress={handleProposeBilateralTrade} disabled={modalLoading}>
+              {modalLoading ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={styles.modalButtonConfirmText}>Submit Offer</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
