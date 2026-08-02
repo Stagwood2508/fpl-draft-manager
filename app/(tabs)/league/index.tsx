@@ -9,6 +9,7 @@ import {
   Animated 
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 
 interface StandingRow {
@@ -33,9 +34,8 @@ export default function StandingsScreen() {
   const [currentGW, setCurrentGW] = useState(1);
   const [standings, setStandings] = useState<StandingRow[]>([]);
   
-  // Cache League ID to avoid repeated lookup
+  // Cache League ID to avoid unnecessary re-lookups
   const cachedLeagueId = useRef<string | null>(null);
-
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
@@ -53,6 +53,7 @@ export default function StandingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Re-evaluate context on focus to ensure active league changes apply
       fetchData(isLive);
     }, [isLive])
   );
@@ -61,9 +62,11 @@ export default function StandingsScreen() {
     try {
       if (!refreshing && standings.length === 0) setLoading(true);
 
-      let leagueId = cachedLeagueId.current;
+      // 1. Resolve Active League ID from AsyncStorage
+      const storedLeagueId = await AsyncStorage.getItem('active_league_id');
+      let targetLeagueId = storedLeagueId;
 
-      if (!leagueId) {
+      if (!targetLeagueId) {
         const { data: authData } = await supabase.auth.getUser();
         if (!authData?.user) return;
 
@@ -78,11 +81,13 @@ export default function StandingsScreen() {
           return;
         }
 
-        leagueId = membership.league_id;
-        cachedLeagueId.current = leagueId;
+        targetLeagueId = membership.league_id;
+        await AsyncStorage.setItem('active_league_id', targetLeagueId);
       }
 
-      // 1. Fetch current active Gameweek
+      cachedLeagueId.current = targetLeagueId;
+
+      // 2. Fetch current active Gameweek
       const { data: gwData } = await supabase
         .from('player_gameweek_stats')
         .select('gameweek')
@@ -93,16 +98,16 @@ export default function StandingsScreen() {
       const activeGW = gwData?.gameweek || 1;
       setCurrentGW(activeGW);
 
-      // 2. Fetch Active Standings & Baseline Standings in PARALLEL
+      // 3. Fetch Active Standings & Baseline Standings in PARALLEL (Scoped to targetLeagueId)
       const [activeRes, lastGwRes] = await Promise.all([
         supabase.rpc('get_league_standings', {
-          p_league_id: leagueId,
+          p_league_id: targetLeagueId,
           p_gameweek: activeGW,
           p_is_live: liveMode,
         }),
         liveMode
           ? supabase.rpc('get_league_standings', {
-              p_league_id: leagueId,
+              p_league_id: targetLeagueId,
               p_gameweek: activeGW,
               p_is_live: false,
             })
@@ -256,7 +261,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#666', fontSize: 13, textAlign: 'center' },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justify: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -280,7 +285,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#551111',
+    borderColor: '#5551111',
     gap: 6,
   },
   pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },

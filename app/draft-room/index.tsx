@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../utils/supabase';
 
 interface DraftSession {
@@ -399,9 +400,24 @@ export default function LiveDraftRoomScreen() {
         const currentUid = authData.user.id;
         setMyUserId(currentUid);
 
-        const { data: member } = await supabase.from('league_members').select('league_id').limit(1).single();
-        if (!member) return;
-        const currentLid = member.league_id;
+        // 1. Resolve Active League ID from AsyncStorage
+        let currentLid = await AsyncStorage.getItem('active_league_id');
+
+        if (!currentLid) {
+          const { data: member } = await supabase
+            .from('league_members')
+            .select('league_id')
+            .eq('user_id', currentUid)
+            .limit(1)
+            .maybeSingle();
+
+          if (member?.league_id) {
+            currentLid = member.league_id;
+            await AsyncStorage.setItem('active_league_id', currentLid);
+          }
+        }
+
+        if (!currentLid) return;
         setLeagueId(currentLid);
 
         const { data: settingsData } = await supabase
@@ -423,7 +439,7 @@ export default function LiveDraftRoomScreen() {
           .eq('league_id', currentLid);
         if (teamsProfiles) setManagersList(teamsProfiles);
 
-        // Register Realtime Listener
+        // Register Realtime Listener strictly for active league
         activeChannel = supabase
           .channel(`live-draft-room-${currentLid}`)
           .on(
