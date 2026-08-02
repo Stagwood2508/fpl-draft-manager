@@ -118,20 +118,30 @@ export default function CreateLeagueScreen() {
     }
   };
 
-  const handleEnterDashboard = async () => {
-    if (createdLeagueId) {
-      await AsyncStorage.setItem('active_league_id', createdLeagueId);
-      if (Platform.OS === 'web') {
-        window.localStorage.setItem('active_league_id', createdLeagueId);
-      }
-    }
+const handleEnterDashboard = async () => {
+  console.log('📌 [DEBUG 1] "ENTER MY SQUAD DASHBOARD" clicked.');
+  console.log('📌 [DEBUG 2] createdLeagueId in state:', createdLeagueId);
 
-    console.log('🚀 [ROUTING] Entering dashboard for league:', createdLeagueId);
-    router.replace({
-      pathname: '/(tabs)/dashboard',
-      params: { leagueId: createdLeagueId || undefined }
-    });
-  };
+  if (!createdLeagueId) {
+    console.error('❌ [DEBUG ERROR] createdLeagueId is null in state!');
+    notifyUser('Navigation Error', 'League ID missing from component state.');
+    return;
+  }
+
+  try {
+    // Write synchronously to both storage mechanisms
+    await AsyncStorage.setItem('active_league_id', createdLeagueId);
+    if (Platform.OS === 'web') {
+      window.localStorage.setItem('active_league_id', createdLeagueId);
+    }
+    console.log('📌 [DEBUG 3] Successfully wrote active_league_id to storage:', createdLeagueId);
+
+    console.log('📌 [DEBUG 4] Executing router.replace to dashboard...');
+    router.replace(`/(tabs)/dashboard?leagueId=${createdLeagueId}`);
+  } catch (err: any) {
+    console.error('❌ [DEBUG ROUTE ERROR]:', err);
+  }
+};
 
   return (
     <View style={styles.container}>

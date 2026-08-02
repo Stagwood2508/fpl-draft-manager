@@ -143,33 +143,38 @@ export default function HomeDashboardScreen() {
     return () => clearInterval(checkGateInterval);
   }, [isFocused, activeLeagueId, activeLeagueMeta, isDraftCompleted]);
 
-  const syncDashboardEngine = async (forcedLeagueId?: string) => {
-    try {
-      setLoading(true);
+const syncDashboardEngine = async (forcedLeagueId?: string) => {
+  console.log('🏁 [DASHBOARD MOUNT] syncDashboardEngine started.');
+  console.log('🏁 [DASHBOARD MOUNT] params.leagueId:', params?.leagueId);
+  console.log('🏁 [DASHBOARD MOUNT] forcedLeagueId:', forcedLeagueId);
 
-      // 1. Resolve Auth User
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) {
-        router.replace('/(auth)/login');
-        return;
-      }
+  try {
+    setLoading(true);
 
-      // 2. Fetch ALL Leagues User Belongs To
-      const { data: members, error: memberErr } = await supabase
-        .from('league_members')
-        .select(`
-          league_id,
-          team_name,
-          role,
-          leagues ( id, name, commissioner_id, draft_status )
-        `)
-        .eq('user_id', user.id);
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    console.log('🏁 [DASHBOARD MOUNT] Authenticated User ID:', user?.id);
 
-      if (memberErr || !members || members.length === 0) {
-        console.warn('[DASHBOARD] User has no active league membership. Redirecting to onboarding.');
-        router.replace('/(auth)/onboarding');
-        return;
-      }
+    if (authErr || !user) {
+      console.warn('⚠️ [DASHBOARD EJECT] No auth user found -> redirecting to login');
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    const { data: members, error: memberErr } = await supabase
+      .from('league_members')
+      .select('league_id, team_name, role, leagues ( id, name, commissioner_id, draft_status )')
+      .eq('user_id', user.id);
+
+    console.log('🏁 [DASHBOARD MOUNT] Raw league_members response:', members);
+    console.log('🏁 [DASHBOARD MOUNT] Query error if any:', memberErr);
+
+    if (memberErr || !members || members.length === 0) {
+      console.warn('⚠️ [DASHBOARD EJECT] No membership rows returned from Supabase -> redirecting to onboarding!');
+      router.replace('/(auth)/onboarding');
+      return;
+    }
+
+    // ... rest of dashboard logic
 
       const formattedMembers = members.map((m: any) => ({
         league_id: m.league_id,
