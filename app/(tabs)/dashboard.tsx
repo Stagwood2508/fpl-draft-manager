@@ -14,6 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { synchronizeFplPlayerPool } from '@/utils/fplSync'; 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
@@ -77,7 +78,7 @@ export default function HomeDashboardScreen() {
     if (isFocused) {
       syncDashboardEngine();
     }
-  }, [isFocused, params?.leagueId, activeLeagueId]);
+  }, [isFocused, params?.leagueId]);
 
   // LIVE GAMEWEEK DEADLINE COUNTDOWN TIMER TICK
   useEffect(() => {
@@ -132,7 +133,7 @@ export default function HomeDashboardScreen() {
     return () => clearInterval(checkGateInterval);
   }, [isFocused, activeLeagueId, activeLeagueMeta, isDraftCompleted]);
 
-  const syncDashboardEngine = async () => {
+  const syncDashboardEngine = async (forcedLeagueId?: string) => {
     try {
       setLoading(true);
 
@@ -164,10 +165,14 @@ export default function HomeDashboardScreen() {
 
       setUserLeagues(formattedMembers);
 
-      // Determine active league selection (URL params > state selection > first league)
-      const targetLid = params?.leagueId || activeLeagueId || formattedMembers[0].league_id;
+      // Determine active league selection (Forced > URL params > AsyncStorage > State > First League)
+      let storedLid = await AsyncStorage.getItem('active_league_id');
+      const targetLid = forcedLeagueId || params?.leagueId || storedLid || activeLeagueId || formattedMembers[0].league_id;
       const activeMember = formattedMembers.find(m => m.league_id === targetLid) || formattedMembers[0];
       const currentMeta = activeMember.leagues;
+
+      // Persist chosen active league to AsyncStorage
+      await AsyncStorage.setItem('active_league_id', currentMeta.id);
 
       setActiveLeagueId(currentMeta.id);
       setActiveLeagueMeta(currentMeta);
@@ -223,27 +228,34 @@ export default function HomeDashboardScreen() {
           rank: index + 1,
         }));
         setLeaderboard(ranked);
+      } else {
+        setLeaderboard([]);
       }
 
       // 5. Live Gameweek Metrics for Active League
-      const { data: liveMetrics } = await supabase.rpc('get_live_dashboard_metrics', {
+      const { data: liveMetrics, error: metricsErr } = await supabase.rpc('get_live_dashboard_metrics', {
         p_league_id: currentMeta.id,
         p_user_id: user.id,
       });
 
-      if (liveMetrics && liveMetrics.length > 0) {
+      if (!metricsErr && liveMetrics && liveMetrics.length > 0) {
         const metric = liveMetrics[0];
         setCurrentGameweek(metric.current_gameweek || 1);
         setMyLivePoints(metric.my_live_points || 0);
         setLeagueAveragePoints(metric.league_avg_points || 0);
         setPtsDiff(metric.pts_diff || 0);
+      } else {
+        setCurrentGameweek(1);
+        setMyLivePoints(0);
+        setLeagueAveragePoints(0);
+        setPtsDiff(0);
       }
 
       // 6. Next Gameweek Deadline
       const { data: deadlineData } = await supabase.rpc('get_next_gameweek_deadline');
       if (deadlineData && deadlineData.length > 0) {
         const nextGw = deadlineData[0];
-        setNextDeadlineGameweek(nextGw.gameweek || currentGameweek + 1);
+        setNextDeadlineGameweek(nextGw.gameweek || 1);
         if (nextGw.deadline_time) {
           setTargetDeadline(new Date(nextGw.deadline_time));
         }
@@ -254,6 +266,13 @@ export default function HomeDashboardScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectLeague = async (selectedLeagueId: string) => {
+    setIsPickerModalOpen(false);
+    await AsyncStorage.setItem('active_league_id', selectedLeagueId);
+    setActiveLeagueId(selectedLeagueId);
+    syncDashboardEngine(selectedLeagueId);
   };
 
   const handleManualFplSync = async () => {
@@ -294,6 +313,7 @@ export default function HomeDashboardScreen() {
               <TouchableOpacity 
                 style={styles.leagueSelectorTouch} 
                 onPress={() => userLeagues.length > 1 && setIsPickerModalOpen(true)}
+                activeOpacity={userLeagues.length > 1 ? 0.7 : 1}
               >
                 <Text style={styles.leagueNameText}>{activeLeagueMeta?.name || 'Select League...'}</Text>
                 {userLeagues.length > 1 && (
@@ -348,7 +368,7 @@ export default function HomeDashboardScreen() {
               <Text style={styles.enterButtonSecondarySubtext}>Squad selection controls activate at schedule lock</Text>
             </TouchableOpacity>
           ) : (
-            <DraftCountdownCard />
+            <DraftCountdownCard leagueId={activeLeagueId} />
           )
         )}
 
@@ -399,22 +419,26 @@ export default function HomeDashboardScreen() {
             <Text style={[styles.thText, { width: '20%', textAlign: 'right' }]}>H2H Pts</Text>
           </View>
 
-          {leaderboard.map((row) => (
-            <View key={row.user_id} style={[styles.leaderboardRow, row.rank === 1 && styles.leaderboardRowTopSpot]}>
-              <View style={styles.rankCol}>
-                <Text style={[styles.rankText, row.rank === 1 && styles.rankTextGold]}>#{row.rank}</Text>
+          {leaderboard.length === 0 ? (
+            <Text style={styles.emptyNoticeText}>No standings computed for this league yet.</Text>
+          ) : (
+            leaderboard.map((row) => (
+              <View key={row.user_id} style={[styles.leaderboardRow, row.rank === 1 && styles.leaderboardRowTopSpot]}>
+                <View style={styles.rankCol}>
+                  <Text style={[styles.rankText, row.rank === 1 && styles.rankTextGold]}>#{row.rank}</Text>
+                </View>
+                <View style={styles.managerNameCol}>
+                  <Text style={styles.mNameText} numberOfLines={1}>{row.team_name}</Text>
+                </View>
+                <View style={styles.fplPointsCol}>
+                  <Text style={styles.pointsValueText}>{row.total_fantasy_points}</Text>
+                </View>
+                <View style={styles.h2hPointsCol}>
+                  <Text style={styles.h2hValueText}>{row.league_points}</Text>
+                </View>
               </View>
-              <View style={styles.managerNameCol}>
-                <Text style={styles.mNameText} numberOfLines={1}>{row.team_name}</Text>
-              </View>
-              <View style={styles.fplPointsCol}>
-                <Text style={styles.pointsValueText}>{row.total_fantasy_points}</Text>
-              </View>
-              <View style={styles.h2hPointsCol}>
-                <Text style={styles.h2hValueText}>{row.league_points}</Text>
-              </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         {/* ACTION SHORTCUTS */}
@@ -450,7 +474,7 @@ export default function HomeDashboardScreen() {
       </ScrollView>
 
       {/* MULTI-LEAGUE SWITCHER MODAL */}
-      <Modal visible={isPickerModalOpen} transparent animationType="fade">
+      <Modal visible={isPickerModalOpen} transparent animationType="fade" onRequestClose={() => setIsPickerModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>SWITCH ACTIVE LEAGUE</Text>
@@ -464,10 +488,7 @@ export default function HomeDashboardScreen() {
                     styles.leagueOptionRow, 
                     item.league_id === activeLeagueId && styles.leagueOptionActive
                   ]}
-                  onPress={() => {
-                    setActiveLeagueId(item.league_id);
-                    setIsPickerModalOpen(false);
-                  }}
+                  onPress={() => handleSelectLeague(item.league_id)}
                 >
                   <Text style={styles.leagueOptionName}>{item.leagues.name}</Text>
                   <Text style={styles.leagueOptionMeta}>{item.team_name} • {item.role}</Text>
@@ -531,7 +552,8 @@ const styles = StyleSheet.create({
   leaderboardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#1c1c1c', paddingBottom: 10, marginBottom: 8 },
   leaderboardTitleText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
   viewFixturesLinkText: { color: '#00ff87', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  
+  emptyNoticeText: { color: '#444', fontSize: 11, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
+
   tableHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#222', paddingBottom: 6, marginBottom: 4 },
   thText: { color: '#666', fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
   leaderboardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#1a1a1a' },
@@ -544,7 +566,7 @@ const styles = StyleSheet.create({
   fplPointsCol: { width: '20%', alignItems: 'center' },
   h2hPointsCol: { width: '20%', alignItems: 'flex-end' },
   pointsValueText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  h2hValueText: { color: '#00ff87', fontSize: 900 ? '900' : '900' },
+  h2hValueText: { color: '#00ff87', fontSize: 13, fontWeight: '900' },
 
   actionGrid: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { width: '48.5%', backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 4, alignItems: 'center', flexDirection: 'row' },
@@ -557,7 +579,7 @@ const styles = StyleSheet.create({
   syncBtnText: { color: '#000', fontWeight: '900', fontSize: 11 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#111', borderHeight: 1, borderColor: '#222', padding: 20, borderRadius: 4 },
+  modalCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 20, borderRadius: 4 },
   modalTitle: { color: '#FFF', fontSize: 16, fontWeight: '900' },
   modalSub: { color: '#666', fontSize: 11, marginBottom: 16 },
   leagueOptionRow: { backgroundColor: '#000', padding: 14, borderRadius: 2, marginBottom: 8, borderWidth: 1, borderColor: '#222' },
