@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+
+// Helper function for web & native alert safety
+const notifyUser = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 export default function CreateLeagueScreen() {
   const router = useRouter();
@@ -18,7 +28,7 @@ export default function CreateLeagueScreen() {
     const cleanTeamName = teamName.trim();
 
     if (!cleanName || !cleanTeamName) {
-      Alert.alert('Missing Fields', 'Please provide both a League Name and your Team Name.');
+      notifyUser('Missing Fields', 'Please provide both a League Name and your Team Name.');
       return;
     }
 
@@ -27,7 +37,7 @@ export default function CreateLeagueScreen() {
       
       const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
       if (sessionErr || !session?.user) {
-        Alert.alert('Session Expired', 'Please sign out and log back in.');
+        notifyUser('Session Expired', 'Please sign out and log back in.');
         router.replace('/(auth)/login');
         return;
       }
@@ -91,15 +101,36 @@ export default function CreateLeagueScreen() {
         pick_deadline: new Date().toISOString()
       });
 
+      // 5. 🌟 PERSIST NEW LEAGUE AS ACTIVE IN ASYNC STORAGE & LOCAL STORAGE
+      await AsyncStorage.setItem('active_league_id', league.id);
+      if (Platform.OS === 'web') {
+        window.localStorage.setItem('active_league_id', league.id);
+      }
+
       setCreatedLeagueId(league.id);
       setCreatedCode(inviteCode);
     } catch (err: any) {
       console.error('League Creation Crash:', JSON.stringify(err, null, 2));
       const exactErrorMsg = err?.message || err?.details || err?.hint || JSON.stringify(err);
-      Alert.alert('Database Rejection', exactErrorMsg);
+      notifyUser('Database Rejection', exactErrorMsg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEnterDashboard = async () => {
+    if (createdLeagueId) {
+      await AsyncStorage.setItem('active_league_id', createdLeagueId);
+      if (Platform.OS === 'web') {
+        window.localStorage.setItem('active_league_id', createdLeagueId);
+      }
+    }
+
+    console.log('🚀 [ROUTING] Entering dashboard for league:', createdLeagueId);
+    router.replace({
+      pathname: '/(tabs)/dashboard',
+      params: { leagueId: createdLeagueId || undefined }
+    });
   };
 
   return (
@@ -178,10 +209,7 @@ export default function CreateLeagueScreen() {
 
           <TouchableOpacity 
             style={[styles.btn, { marginTop: 30 }]} 
-            onPress={() => router.replace({
-              pathname: '/(tabs)/dashboard',
-              params: { leagueId: createdLeagueId }
-            })}
+            onPress={handleEnterDashboard}
           >
             <Text style={styles.btnText}>ENTER MY SQUAD DASHBOARD</Text>
           </TouchableOpacity>

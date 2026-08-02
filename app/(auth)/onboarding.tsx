@@ -12,11 +12,12 @@ export default function OnboardingScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: member } = await supabase
-        .from('league_members')
-        .select('league_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+const { data: member } = await supabase
+  .from('league_members')
+  .select('league_id')
+  .eq('user_id', user.id)
+  .limit(1) // 👈 Safe query for single or multi-league accounts
+  .maybeSingle();
 
       if (member?.league_id) {
         router.replace('/(tabs)/dashboard');
