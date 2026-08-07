@@ -1,0 +1,1613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Draft Player Card</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Draft Player Card" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Draft Player Card&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: var(--border-radius-lg, 12.5px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: 16px !important;
+  height: 16px !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;draft-player-card-preview&quot;&gt;
+  &lt;style&gt;
+    #draft-player-card-preview {
+      --draft-screen: light-dark(#f5f8f7, #060b10);
+      --draft-surface: light-dark(#ffffff, #11171d);
+      --draft-surface-alt: light-dark(#edf3f0, #171d22);
+      --draft-text: light-dark(#132019, #f7fafc);
+      --draft-muted: light-dark(#66766e, #83909a);
+      --draft-border: light-dark(#cfdad4, #29333b);
+      --draft-green: light-dark(#007d42, #00ff87);
+      --draft-green-soft: light-dark(rgba(0,125,66,.10), rgba(0,255,135,.09));
+      --draft-overlay: light-dark(rgba(11,20,16,.75), rgba(0,0,0,.78));
+      --draft-yellow: light-dark(#8a6500, #ffc107);
+      width: 100%;
+      color: var(--draft-text);
+    }
+
+    #draft-player-card-preview .draft-card-controls {
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+
+    #draft-player-card-preview .draft-card-phone {
+      width: min(100%, 390px);
+      min-height: 720px;
+      margin: 0 auto;
+      overflow: hidden;
+      position: relative;
+      background: var(--draft-screen);
+      border: 1px solid var(--draft-border);
+      border-radius: 24px;
+    }
+
+    #draft-player-card-preview .draft-card-appbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px;
+      border-bottom: 1px solid var(--draft-border);
+      background: var(--draft-screen);
+      font-weight: 500;
+      letter-spacing: .06em;
+    }
+
+    #draft-player-card-preview .draft-card-live {
+      color: var(--draft-green);
+    }
+
+    #draft-player-card-preview .draft-card-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      margin: 10px;
+      padding: 4px;
+      border: 1px solid var(--draft-border);
+      border-radius: 10px;
+      background: var(--draft-surface);
+      color: var(--draft-muted);
+      text-align: center;
+    }
+
+    #draft-player-card-preview .draft-card-tabs span {
+      padding: 8px 3px;
+    }
+
+    #draft-player-card-preview .draft-card-tabs .is-active {
+      color: var(--draft-green);
+      background: var(--draft-green-soft);
+      border-radius: 7px;
+    }
+
+    #draft-player-card-preview .draft-card-pool {
+      display: grid;
+      gap: 7px;
+      padding: 0 10px;
+    }
+
+    #draft-player-card-preview .draft-card-row {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto auto;
+      align-items: center;
+      gap: 10px;
+      padding: 11px;
+      border: 1px solid var(--draft-border);
+      border-radius: 10px;
+      background: var(--draft-surface);
+    }
+
+    #draft-player-card-preview .draft-card-row strong,
+    #draft-player-card-preview .draft-card-row span {
+      display: block;
+    }
+
+    #draft-player-card-preview .draft-card-row span {
+      color: var(--draft-muted);
+    }
+
+    #draft-player-card-preview .draft-card-position,
+    #draft-player-card-preview .draft-card-info {
+      color: var(--draft-green);
+    }
+
+    #draft-player-card-preview .draft-card-modal-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      background: var(--draft-overlay);
+    }
+
+    #draft-player-card-preview .draft-card-modal-layer.is-hidden {
+      display: none;
+    }
+
+    #draft-player-card-preview .draft-card-modal {
+      width: 100%;
+      max-height: 680px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 14px;
+      border: 1px solid var(--draft-border);
+      border-radius: 14px;
+      background: var(--draft-surface);
+      box-shadow: 0 18px 50px light-dark(rgba(23,44,33,.20), rgba(0,0,0,.5));
+      animation: draft-player-card-rise 280ms ease-out both;
+    }
+
+    #draft-player-card-preview .draft-card-statusbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    #draft-player-card-preview .draft-card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 7px;
+      border: 1px solid var(--draft-border);
+      border-radius: 5px;
+      color: var(--draft-green);
+      background: var(--draft-surface-alt);
+    }
+
+    #draft-player-card-preview .draft-card-sample {
+      color: var(--draft-muted);
+      letter-spacing: .06em;
+    }
+
+    #draft-player-card-preview .draft-card-hero {
+      display: grid;
+      grid-template-columns: 50px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 11px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--draft-border);
+    }
+
+    #draft-player-card-preview .draft-card-avatar {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--draft-green);
+      border-radius: 50%;
+      color: var(--draft-green);
+      background: var(--draft-green-soft);
+    }
+
+    #draft-player-card-preview .draft-card-name {
+      margin: 0 0 3px;
+      font-weight: 500;
+      letter-spacing: .03em;
+    }
+
+    #draft-player-card-preview .draft-card-club {
+      color: var(--draft-muted);
+    }
+
+    #draft-player-card-preview .draft-card-posbadge {
+      padding: 6px 8px;
+      border-radius: 5px;
+      color: var(--draft-screen);
+      background: var(--draft-green);
+      font-weight: 500;
+    }
+
+    #draft-player-card-preview .draft-card-season {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 7px;
+      margin: 12px 0;
+      padding: 9px;
+      border: 1px solid var(--draft-green);
+      border-radius: 7px;
+      color: var(--draft-green);
+      background: var(--draft-green-soft);
+      letter-spacing: .05em;
+    }
+
+    #draft-player-card-preview .draft-card-scroll {
+      flex: 1;
+      min-height: 0;
+      max-height: 485px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    #draft-player-card-preview .draft-card-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 6px;
+      margin-bottom: 13px;
+    }
+
+    #draft-player-card-preview .draft-card-kpi {
+      min-width: 0;
+      padding: 9px 3px;
+      border: 1px solid var(--draft-border);
+      border-radius: 7px;
+      background: var(--draft-surface-alt);
+      text-align: center;
+    }
+
+    #draft-player-card-preview .draft-card-kpi strong {
+      display: block;
+      color: var(--draft-green);
+      font-weight: 500;
+    }
+
+    #draft-player-card-preview .draft-card-kpi span {
+      display: block;
+      margin-top: 2px;
+      color: var(--draft-muted);
+    }
+
+    #draft-player-card-preview .draft-card-section-title {
+      margin: 12px 0 7px;
+      letter-spacing: .05em;
+      font-weight: 500;
+    }
+
+    #draft-player-card-preview .draft-card-statbox {
+      padding: 5px 11px;
+      border: 1px solid var(--draft-border);
+      border-radius: 8px;
+      background: var(--draft-surface-alt);
+    }
+
+    #draft-player-card-preview .draft-card-statline {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--draft-border);
+    }
+
+    #draft-player-card-preview .draft-card-statline:last-child {
+      border-bottom: 0;
+    }
+
+    #draft-player-card-preview .draft-card-statline span {
+      color: var(--draft-muted);
+    }
+
+    #draft-player-card-preview .draft-card-statline strong {
+      font-weight: 500;
+    }
+
+    #draft-player-card-preview .draft-card-ict {
+      padding: 11px;
+      border: 1px solid var(--draft-green);
+      border-radius: 8px;
+      background: var(--draft-green-soft);
+    }
+
+    #draft-player-card-preview .draft-card-ict-total span {
+      display: block;
+      color: var(--draft-muted);
+    }
+
+    #draft-player-card-preview .draft-card-ict-total strong {
+      display: block;
+      color: var(--draft-green);
+      font-weight: 500;
+    }
+
+    #draft-player-card-preview .draft-card-ict-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid var(--draft-border);
+      text-align: center;
+    }
+
+    #draft-player-card-preview .draft-card-ict-grid strong,
+    #draft-player-card-preview .draft-card-ict-grid span {
+      display: block;
+    }
+
+    #draft-player-card-preview .draft-card-ict-grid strong {
+      font-weight: 500;
+    }
+
+    #draft-player-card-preview .draft-card-ict-grid span {
+      color: var(--draft-muted);
+    }
+
+    #draft-player-card-preview .draft-card-close {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid var(--draft-border);
+      border-radius: 7px;
+      color: var(--draft-text);
+      background: var(--draft-surface-alt);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    @keyframes draft-player-card-rise {
+      from { opacity: 0; transform: translateY(16px) scale(.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (max-width: 360px) {
+      #draft-player-card-preview .draft-card-phone { min-height: 690px; }
+      #draft-player-card-preview .draft-card-kpis { grid-template-columns: repeat(2, 1fr); }
+      #draft-player-card-preview .draft-card-scroll { max-height: 440px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #draft-player-card-preview .draft-card-modal { animation: none; }
+    }
+  &lt;/style&gt;
+
+  &lt;div class=&quot;viz-controls draft-card-controls&quot; aria-label=&quot;Choose a sample player&quot;&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn btn-primary&quot; data-player-choice=&quot;saka&quot;&gt;Saka&lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn&quot; data-player-choice=&quot;watkins&quot;&gt;Watkins&lt;/button&gt;
+    &lt;button type=&quot;button&quot; class=&quot;btn&quot; data-player-choice=&quot;pickford&quot;&gt;Pickford&lt;/button&gt;
+  &lt;/div&gt;
+
+  &lt;section class=&quot;draft-card-phone&quot; aria-label=&quot;Mobile draft-room player card preview&quot;&gt;
+    &lt;header class=&quot;draft-card-appbar&quot;&gt;&lt;span&gt;DRAFT ROOM&lt;/span&gt;&lt;span class=&quot;draft-card-live&quot;&gt;● LIVE&lt;/span&gt;&lt;/header&gt;
+    &lt;div class=&quot;draft-card-tabs&quot;&gt;&lt;span class=&quot;is-active&quot;&gt;PLAYER POOL&lt;/span&gt;&lt;span&gt;WATCHLIST&lt;/span&gt;&lt;span&gt;MY SQUAD&lt;/span&gt;&lt;/div&gt;
+    &lt;div class=&quot;draft-card-pool&quot;&gt;
+      &lt;button type=&quot;button&quot; class=&quot;draft-card-row&quot; data-reopen-card&gt;
+        &lt;span&gt;&lt;strong data-pool-name&gt;Bukayo Saka&lt;/strong&gt;&lt;span data-pool-club&gt;Arsenal&lt;/span&gt;&lt;/span&gt;
+        &lt;span class=&quot;draft-card-position&quot; data-pool-position&gt;MID · #3&lt;/span&gt;
+        &lt;i class=&quot;draft-card-info&quot; data-lucide=&quot;info&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;
+      &lt;/button&gt;
+      &lt;div class=&quot;draft-card-row&quot;&gt;&lt;span&gt;&lt;strong&gt;Virgil&lt;/strong&gt;&lt;span&gt;Liverpool&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;draft-card-position&quot;&gt;DEF · #12&lt;/span&gt;&lt;i class=&quot;draft-card-info&quot; data-lucide=&quot;info&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/div&gt;
+      &lt;div class=&quot;draft-card-row&quot;&gt;&lt;span&gt;&lt;strong&gt;João Pedro&lt;/strong&gt;&lt;span&gt;Chelsea&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;draft-card-position&quot;&gt;FWD · #18&lt;/span&gt;&lt;i class=&quot;draft-card-info&quot; data-lucide=&quot;info&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=&quot;draft-card-modal-layer&quot; data-player-modal&gt;
+      &lt;article class=&quot;draft-card-modal&quot; aria-label=&quot;Previous-season player statistics&quot;&gt;
+        &lt;div class=&quot;draft-card-statusbar&quot;&gt;
+          &lt;span class=&quot;draft-card-badge&quot;&gt;&lt;i data-lucide=&quot;users&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;FREE AGENT&lt;/span&gt;
+          &lt;span class=&quot;draft-card-sample&quot;&gt;SAMPLE DATA&lt;/span&gt;
+        &lt;/div&gt;
+
+        &lt;div class=&quot;draft-card-hero&quot;&gt;
+          &lt;div class=&quot;draft-card-avatar&quot;&gt;&lt;i data-lucide=&quot;user&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;h3 class=&quot;draft-card-name&quot; data-card-name&gt;Bukayo Saka&lt;/h3&gt;&lt;div class=&quot;draft-card-club&quot; data-card-club&gt;Arsenal&lt;/div&gt;&lt;/div&gt;
+          &lt;span class=&quot;draft-card-posbadge&quot; data-card-position&gt;MID&lt;/span&gt;
+        &lt;/div&gt;
+
+        &lt;div class=&quot;draft-card-season&quot;&gt;&lt;i data-lucide=&quot;chart-no-axes-combined&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;2025/26 LAST-SEASON STATS&lt;/div&gt;
+
+        &lt;div class=&quot;draft-card-scroll&quot;&gt;
+          &lt;div class=&quot;draft-card-kpis&quot;&gt;
+            &lt;div class=&quot;draft-card-kpi&quot;&gt;&lt;strong data-stat=&quot;points&quot;&gt;192&lt;/strong&gt;&lt;span&gt;TOTAL PTS&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;draft-card-kpi&quot;&gt;&lt;strong data-stat=&quot;ppm&quot;&gt;5.5&lt;/strong&gt;&lt;span&gt;AVG / MATCH&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;draft-card-kpi&quot;&gt;&lt;strong data-stat=&quot;starts&quot;&gt;34&lt;/strong&gt;&lt;span&gt;STARTS&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;draft-card-kpi&quot;&gt;&lt;strong data-stat=&quot;minutes&quot;&gt;2,915&#x27;&lt;/strong&gt;&lt;span&gt;MINUTES&lt;/span&gt;&lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;div class=&quot;draft-card-section-title&quot; data-position-title&gt;MATCHDAY RETURN METRICS&lt;/div&gt;
+          &lt;div class=&quot;draft-card-statbox&quot; data-position-returns&gt;&lt;/div&gt;
+
+          &lt;div class=&quot;draft-card-section-title&quot;&gt;FPL SCOUTING INDEXES&lt;/div&gt;
+          &lt;div class=&quot;draft-card-ict&quot;&gt;
+            &lt;div class=&quot;draft-card-ict-total&quot;&gt;&lt;span&gt;ICT INDEX&lt;/span&gt;&lt;strong data-stat=&quot;ict&quot;&gt;231.8&lt;/strong&gt;&lt;/div&gt;
+            &lt;div class=&quot;draft-card-ict-grid&quot;&gt;
+              &lt;div&gt;&lt;strong data-stat=&quot;influence&quot;&gt;742.4&lt;/strong&gt;&lt;span&gt;INFLUENCE&lt;/span&gt;&lt;/div&gt;
+              &lt;div&gt;&lt;strong data-stat=&quot;creativity&quot;&gt;889.1&lt;/strong&gt;&lt;span&gt;CREATIVITY&lt;/span&gt;&lt;/div&gt;
+              &lt;div&gt;&lt;strong data-stat=&quot;threat&quot;&gt;686.5&lt;/strong&gt;&lt;span&gt;THREAT&lt;/span&gt;&lt;/div&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;div class=&quot;draft-card-section-title&quot;&gt;ADDITIONAL RETURNS&lt;/div&gt;
+          &lt;div class=&quot;draft-card-statbox&quot; data-additional-returns&gt;&lt;/div&gt;
+        &lt;/div&gt;
+
+        &lt;button type=&quot;button&quot; class=&quot;draft-card-close&quot; data-close-card&gt;CLOSE&lt;/button&gt;
+      &lt;/article&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;script&gt;
+    (() =&gt; {
+      const root = document.getElementById(&#x27;draft-player-card-preview&#x27;);
+      const modal = root.querySelector(&#x27;[data-player-modal]&#x27;);
+      const choices = [...root.querySelectorAll(&#x27;[data-player-choice]&#x27;)];
+      const players = {
+        saka: { name: &#x27;Bukayo Saka&#x27;, club: &#x27;Arsenal&#x27;, position: &#x27;MID&#x27;, rank: 3, points: &#x27;192&#x27;, ppm: &#x27;5.5&#x27;, starts: &#x27;34&#x27;, minutes: &quot;2,915&#x27;&quot;, goals: &#x27;12&#x27;, assists: &#x27;14&#x27;, cleanSheets: &#x27;11&#x27;, cards: &#x27;4 / 0&#x27;, ict: &#x27;231.8&#x27;, influence: &#x27;742.4&#x27;, creativity: &#x27;889.1&#x27;, threat: &#x27;686.5&#x27;, expected: &#x27;11.8 / 12.6&#x27;, defcon: &#x27;12&#x27;, bonus: &#x27;24&#x27; },
+        watkins: { name: &#x27;Ollie Watkins&#x27;, club: &#x27;Aston Villa&#x27;, position: &#x27;FWD&#x27;, rank: 15, points: &#x27;176&#x27;, ppm: &#x27;4.9&#x27;, starts: &#x27;32&#x27;, minutes: &quot;2,704&#x27;&quot;, goals: &#x27;16&#x27;, assists: &#x27;9&#x27;, cleanSheets: &#x27;—&#x27;, cards: &#x27;3 / 0&#x27;, ict: &#x27;218.3&#x27;, influence: &#x27;698.7&#x27;, creativity: &#x27;502.8&#x27;, threat: &#x27;981.5&#x27;, expected: &#x27;15.2 / 7.8&#x27;, defcon: &#x27;4&#x27;, bonus: &#x27;22&#x27; },
+        pickford: { name: &#x27;Jordan Pickford&#x27;, club: &#x27;Everton&#x27;, position: &#x27;GKP&#x27;, rank: 21, points: &#x27;158&#x27;, ppm: &#x27;4.4&#x27;, starts: &#x27;36&#x27;, minutes: &quot;3,240&#x27;&quot;, cleanSheets: &#x27;13&#x27;, cards: &#x27;2 / 0&#x27;, saves: &#x27;118&#x27;, penaltiesSaved: &#x27;1&#x27;, goalsConceded: &#x27;42&#x27;, ict: &#x27;121.4&#x27;, influence: &#x27;1,018.2&#x27;, creativity: &#x27;55.4&#x27;, threat: &#x27;0.0&#x27;, bonus: &#x27;18&#x27; }
+      };
+
+      const statLine = (label, value) =&gt; `&lt;div class=&quot;draft-card-statline&quot;&gt;&lt;span&gt;${label}&lt;/span&gt;&lt;strong&gt;${value}&lt;/strong&gt;&lt;/div&gt;`;
+
+      function showPlayer(key) {
+        const player = players[key];
+        root.querySelector(&#x27;[data-card-name]&#x27;).textContent = player.name;
+        root.querySelector(&#x27;[data-card-club]&#x27;).textContent = player.club;
+        root.querySelector(&#x27;[data-card-position]&#x27;).textContent = player.position;
+        root.querySelector(&#x27;[data-pool-name]&#x27;).textContent = player.name;
+        root.querySelector(&#x27;[data-pool-club]&#x27;).textContent = player.club;
+        root.querySelector(&#x27;[data-pool-position]&#x27;).textContent = `${player.position} · #${player.rank}`;
+        Object.entries(player).forEach(([stat, value]) =&gt; {
+          const target = root.querySelector(`[data-stat=&quot;${stat}&quot;]`);
+          if (target) target.textContent = value;
+        });
+
+        const positionTitle = root.querySelector(&#x27;[data-position-title]&#x27;);
+        const positionReturns = root.querySelector(&#x27;[data-position-returns]&#x27;);
+        const additionalReturns = root.querySelector(&#x27;[data-additional-returns]&#x27;);
+
+        if (player.position === &#x27;GKP&#x27;) {
+          positionTitle.textContent = &#x27;GOALKEEPING PERFORMANCE&#x27;;
+          positionReturns.innerHTML = [
+            statLine(&#x27;Clean sheets&#x27;, player.cleanSheets),
+            statLine(&#x27;Saves&#x27;, player.saves),
+            statLine(&#x27;Penalties saved&#x27;, player.penaltiesSaved),
+            statLine(&#x27;Goals conceded&#x27;, player.goalsConceded),
+            statLine(&#x27;Yellow / red cards&#x27;, player.cards)
+          ].join(&#x27;&#x27;);
+          additionalReturns.innerHTML = statLine(&#x27;Bonus points&#x27;, player.bonus);
+        } else {
+          positionTitle.textContent = &#x27;MATCHDAY RETURN METRICS&#x27;;
+          const returnRows = [
+            statLine(&#x27;Goals scored&#x27;, player.goals),
+            statLine(&#x27;Assists&#x27;, player.assists)
+          ];
+          if (player.position !== &#x27;FWD&#x27;) returnRows.push(statLine(&#x27;Clean sheets&#x27;, player.cleanSheets));
+          returnRows.push(statLine(&#x27;Yellow / red cards&#x27;, player.cards));
+          positionReturns.innerHTML = returnRows.join(&#x27;&#x27;);
+          additionalReturns.innerHTML = [
+            statLine(&#x27;Expected goals / assists&#x27;, player.expected),
+            statLine(&#x27;FPL DEFCON points&#x27;, player.defcon),
+            statLine(&#x27;Bonus points&#x27;, player.bonus)
+          ].join(&#x27;&#x27;);
+        }
+        choices.forEach(button =&gt; {
+          const selected = button.dataset.playerChoice === key;
+          button.classList.toggle(&#x27;btn-primary&#x27;, selected);
+          button.setAttribute(&#x27;aria-pressed&#x27;, String(selected));
+        });
+        modal.classList.remove(&#x27;is-hidden&#x27;);
+      }
+
+      choices.forEach(button =&gt; button.addEventListener(&#x27;click&#x27;, () =&gt; showPlayer(button.dataset.playerChoice)));
+      root.querySelector(&#x27;[data-close-card]&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; modal.classList.add(&#x27;is-hidden&#x27;));
+      root.querySelector(&#x27;[data-reopen-card]&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; modal.classList.remove(&#x27;is-hidden&#x27;));
+      showPlayer(&#x27;saka&#x27;);
+    })();
+  &lt;/script&gt;
+&lt;/div&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>

@@ -1,0 +1,1836 @@
+import React, { useEffect, useState } from 'react';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Dimensions,
+  Platform,
+} from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
+import { supabase } from '@/utils/supabase';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
+import {
+  appColors,
+  appRadius,
+  appSpacing,
+  appTypography,
+} from '@/constants/theme';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+interface PlayerAsset {
+  id: number;
+  first_name: string;
+  second_name: string;
+  web_name: string;
+  element_type: string;
+  team_name: string;
+}
+
+interface TransactionRecord {
+  id: string;
+  type: 'WAIVER' | 'TRADE';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'CANCELLED';
+  created_at: string;
+  sender_id: string;
+  receiver_id: string | null;
+  player_in_id: number;
+  player_out_id: number;
+  player_in: PlayerAsset;
+  player_out: PlayerAsset | null;
+  sender_profile?: { display_name: string };
+  receiver_profile?: { display_name: string };
+  parent_transaction_id: string | null;
+}
+
+interface GroupedTradePackage {
+  batchKey: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'CANCELLED';
+  created_at: string;
+  sender_id: string;
+  receiver_id: string;
+  sender_display_name: string;
+  receiver_display_name: string;
+  playersIn: PlayerAsset[];   // Stacked array of all players YOU receive (Requested)
+  playersOut: PlayerAsset[];  // Stacked array of all players YOU give away (Offered)
+  originalRowIds: string[];   // Underlying database entry record keys
+  rawTransactionObject: TransactionRecord; // Context mirror reference
+}
+
+interface WaiverClaim {
+  id: string;
+  priority_order: number;
+  add_player: PlayerAsset;
+  drop_player: PlayerAsset;
+}
+
+interface WaiverStatusSummary {
+  priority: number | null;
+  manager_count: number;
+  gameweek: number | null;
+  waiver_deadline: string | null;
+  gameweek_deadline: string | null;
+  market_status: string | null;
+  trade_cutoff_rule: 'WAIVER_DEADLINE' | 'GAMEWEEK_DEADLINE';
+  dropped_player_rule: 'NEXT_WAIVER' | 'IMMEDIATE_FREE_AGENT';
+  priority_source?: 'REVERSE_DRAFT' | 'DRAFT_ORDER' | 'LEAGUE_POSITION';
+}
+
+const POSITION_COLORS: Record<string, string> = {
+  GKP: '#FFC107',
+  DEF: '#00A2FF',
+  MID: '#00FF87',
+  FWD: '#FF0055',
+};
+
+export default function TransactionsScreen() {
+  const isFocused = useIsFocused();
+  const { tab } = useLocalSearchParams<{ tab?: string | string[] }>();
+
+  const {
+    currentUserId,
+    activeLeagueId,
+  } = useAppSession();
+
+  const userId = currentUserId;
+  const leagueId = activeLeagueId;
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'WAIVERS' | 'OFFERS' | 'HISTORY'>('WAIVERS');
+
+  useEffect(() => {
+    const requestedTab = Array.isArray(tab) ? tab[0] : tab;
+    const normalizedTab = String(requestedTab || '').toUpperCase();
+    if (normalizedTab === 'WAIVERS' || normalizedTab === 'OFFERS' || normalizedTab === 'HISTORY') {
+      setActiveTab(normalizedTab);
+    }
+  }, [tab]);
+
+  const [myRoster, setMyRoster] = useState<PlayerAsset[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<TransactionRecord[]>([]);
+
+  const [pendingWaiverClaims, setPendingWaiverClaims] = useState<WaiverClaim[]>([]);
+  const [selectedWaiverClaimId, setSelectedWaiverClaimId] = useState<string | null>(null);
+  const [waiverStatus, setWaiverStatus] = useState<WaiverStatusSummary | null>(null);
+
+  // INLINE COUNTER MODAL STATE ENGINE
+  const [isCounterModalVisible, setIsCounterModalVisible] = useState(false);
+ const [activeCounterTrade, setActiveCounterTrade] =
+  useState<GroupedTradePackage | null>(null);
+  const [myCounterRoster, setMyCounterRoster] = useState<PlayerAsset[]>([]);
+  const [rivalCounterRoster, setRivalCounterRoster] = useState<PlayerAsset[]>([]);
+  const [mySelectedTradeIds, setMySelectedTradeIds] = useState<number[]>([]);
+  const [rivalSelectedTradeIds, setRivalSelectedTradeIds] = useState<number[]>([]);
+
+  const confirmAction = (
+  title: string,
+  message: string,
+  confirmText: string,
+  onConfirm: () => void | Promise<void>,
+  destructive = false
+) => {
+  if (Platform.OS === 'web') {
+    const confirmed = window.confirm(`${title}\n\n${message}`);
+
+    if (confirmed) {
+      void onConfirm();
+    }
+
+    return;
+  }
+
+  Alert.alert(title, message, [
+    {
+      text: 'Cancel',
+      style: 'cancel',
+    },
+    {
+      text: confirmText,
+      style: destructive ? 'destructive' : 'default',
+      onPress: () => {
+        void onConfirm();
+      },
+    },
+  ]);
+};
+
+  const POSITION_ORDER = ['GKP', 'DEF', 'MID', 'FWD'];
+  const sortRosterByPosition = (roster: PlayerAsset[]) => {
+    return [...roster].sort((a, b) => POSITION_ORDER.indexOf(a.element_type) - POSITION_ORDER.indexOf(b.element_type));
+  };
+
+useEffect(() => {
+  if (isFocused && userId && leagueId) {
+    void fetchTransactionContext();
+  }
+}, [isFocused, activeTab, userId, leagueId]);
+
+  const fetchTransactionContext = async () => {
+    try {
+      setLoading(true);
+      
+if (!userId) {
+  throw new Error('Authentication failure.');
+}
+
+if (!leagueId) {
+  throw new Error('Active league context lost.');
+}
+
+const currentLeagueId = leagueId;
+
+      const { data: waiverStatusData, error: waiverStatusError } = await supabase.rpc(
+        'get_my_waiver_status',
+        { p_league_id: currentLeagueId }
+      );
+
+      if (!waiverStatusError && waiverStatusData?.success) {
+        setWaiverStatus(waiverStatusData as WaiverStatusSummary);
+      } else if (waiverStatusError?.code === 'PGRST202') {
+        const [memberResponse, memberCountResponse, gameweekResponse, settingsResponse] = await Promise.all([
+          supabase.from('league_members').select('draft_order').eq('league_id', currentLeagueId).eq('user_id', userId).maybeSingle(),
+          supabase.from('league_members').select('*', { count: 'exact', head: true }).eq('league_id', currentLeagueId),
+          supabase.from('league_gameweeks').select('gameweek, waiver_deadline, gw_deadline, status').eq('league_id', currentLeagueId).gt('gw_deadline', new Date().toISOString()).order('gw_deadline').limit(1).maybeSingle(),
+          supabase.from('league_settings').select('trade_cutoff_rule, dropped_player_rule').eq('league_id', currentLeagueId).maybeSingle(),
+        ]);
+        const managerCount = memberCountResponse.count || 0;
+        const draftOrder = memberResponse.data?.draft_order || null;
+        setWaiverStatus({
+          priority: draftOrder ? managerCount - draftOrder + 1 : null,
+          manager_count: managerCount,
+          gameweek: gameweekResponse.data?.gameweek || null,
+          waiver_deadline: gameweekResponse.data?.waiver_deadline || null,
+          gameweek_deadline: gameweekResponse.data?.gw_deadline || null,
+          market_status: gameweekResponse.data?.status || null,
+          trade_cutoff_rule: settingsResponse.data?.trade_cutoff_rule || 'WAIVER_DEADLINE',
+          dropped_player_rule: settingsResponse.data?.dropped_player_rule || 'NEXT_WAIVER',
+        });
+      }
+
+      const { data: myRosterData } = await supabase
+        .from('rosters')
+        .select('players(*)')
+        .eq('league_id', currentLeagueId)
+        .eq('user_id', userId);
+      setMyRoster((myRosterData?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as unknown as PlayerAsset[]);
+
+      const { data: txnData } = await supabase
+        .from('transactions')
+        .select(`
+          id, type, status, created_at, sender_id, receiver_id, player_in_id, player_out_id,
+          parent_transaction_id,
+          player_in:players!transactions_player_in_id_fkey(*),
+          player_out:players!transactions_player_out_id_fkey(*),
+          sender_profile:profiles!transactions_sender_id_fkey(display_name),
+          receiver_profile:profiles!transactions_receiver_id_fkey(display_name)
+        `)
+        .eq('league_id', currentLeagueId)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+      setPendingRequests((txnData || []) as unknown as TransactionRecord[]);
+
+      if (activeTab === 'WAIVERS') {
+        const { data: claimsData, error: claimsErr } = await supabase
+          .from('waiver_claims')
+          .select(`
+            id, priority_order,
+            add_player:player_to_add (id, first_name, second_name, web_name, team_name, element_type),
+            drop_player:player_to_drop (id, first_name, second_name, web_name, team_name, element_type)
+          `)
+          .eq('user_id', userId)
+          .eq('league_id', currentLeagueId)
+          .eq('status', 'pending')
+          .order('priority_order', { ascending: true });
+
+        if (claimsErr) throw claimsErr;
+
+        const formatted = (claimsData || []).map((item: any) => ({
+          id: item.id,
+          priority_order: item.priority_order,
+          add_player: Array.isArray(item.add_player) ? item.add_player[0] : item.add_player,
+          drop_player: Array.isArray(item.drop_player) ? item.drop_player[0] : item.drop_player,
+        })) as WaiverClaim[];
+
+        setPendingWaiverClaims(formatted);
+      }
+    } catch (err: any) {
+      Alert.alert('Context Pipeline Interrupted', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getGroupedTrades = (tradesList: TransactionRecord[]): GroupedTradePackage[] => {
+    const map: Record<string, GroupedTradePackage> = {};
+
+    tradesList.forEach(item => {
+      if (item.type !== 'TRADE') return;
+      
+      const batchKey = item.parent_transaction_id || item.id; 
+
+      if (!map[batchKey]) {
+        map[batchKey] = {
+          batchKey: batchKey,
+          status: item.status,
+          created_at: item.created_at,
+          sender_id: item.sender_id,
+          receiver_id: item.receiver_id || '',
+          sender_display_name: item.sender_profile?.display_name || 'Manager',
+          receiver_display_name: item.receiver_profile?.display_name || 'Manager',
+          playersIn: [],
+          playersOut: [],
+          originalRowIds: [],
+          rawTransactionObject: item
+        };
+      }
+
+      map[batchKey].originalRowIds.push(item.id);
+      
+      const isViewingAsSender = item.sender_id === userId;
+      const targetIncomingPlayer = isViewingAsSender ? item.player_in : item.player_out;
+      const targetOutgoingPlayer = isViewingAsSender ? item.player_out : item.player_in;
+
+      if (targetIncomingPlayer && !map[batchKey].playersIn.some(p => p.id === targetIncomingPlayer.id)) {
+        map[batchKey].playersIn.push(targetIncomingPlayer);
+      }
+      if (targetOutgoingPlayer && !map[batchKey].playersOut.some(p => p.id === targetOutgoingPlayer.id)) {
+        map[batchKey].playersOut.push(targetOutgoingPlayer);
+      }
+    });
+
+    return Object.values(map);
+  };
+
+const handleBatchAcceptTrade = async (
+  packageData: GroupedTradePackage
+) => {
+  confirmAction(
+    'Accept Trade Proposal',
+    `Finalize this package swap with ${packageData.sender_display_name}?`,
+    'Accept Package',
+    async () => {
+      try {
+        setProcessing(true);
+
+        const targetTxnId =
+          packageData.batchKey ||
+          packageData.originalRowIds[0];
+
+        const { data, error } = await supabase.rpc(
+          'accept_trade_transaction',
+          {
+            p_transaction_id: targetTxnId,
+          }
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        if (data && data.success === false) {
+          throw new Error(
+            data.error || 'The trade could not be accepted.'
+          );
+        }
+
+        const involvedPlayerIds = [
+          ...packageData.playersIn.map((player) => player.id),
+          ...packageData.playersOut.map((player) => player.id),
+        ];
+
+        if (involvedPlayerIds.length > 0 && leagueId) {
+          const { error: waiverDeleteError } = await supabase
+            .from('waiver_claims')
+            .delete()
+            .eq('league_id', leagueId)
+            .eq('status', 'pending')
+            .or(
+              `player_to_drop.in.(${involvedPlayerIds.join(
+                ','
+              )}),player_to_add.in.(${involvedPlayerIds.join(',')})`
+            );
+
+          if (waiverDeleteError) {
+            console.error(
+              'Unable to clear affected waiver claims:',
+              waiverDeleteError.message
+            );
+          }
+        }
+
+        if (Platform.OS === 'web') {
+          window.alert(
+            'Trade executed. All players have been swapped successfully.'
+          );
+        } else {
+          Alert.alert(
+            'Success',
+            'Trade executed. All players have been swapped successfully.'
+          );
+        }
+
+        await fetchTransactionContext();
+      } catch (err: any) {
+        const message =
+          err?.message || 'The trade could not be accepted.';
+
+        if (Platform.OS === 'web') {
+          window.alert(`Transaction Failed\n\n${message}`);
+        } else {
+          Alert.alert('Transaction Failed', message);
+        }
+      } finally {
+        setProcessing(false);
+      }
+    }
+  );
+};
+
+const handleBatchRejectTrade = async (
+  packageData: GroupedTradePackage
+) => {
+  confirmAction(
+    'Decline Trade Offer',
+    'Permanently decline this package deal?',
+    'Reject',
+    async () => {
+      try {
+        setProcessing(true);
+
+        const { error } = await supabase
+          .from('transactions')
+          .update({ status: 'REJECTED' })
+          .eq('league_id', leagueId)
+          .eq('receiver_id', userId)
+          .or(
+            `id.in.(${packageData.originalRowIds.join(
+              ','
+            )}),parent_transaction_id.eq.${packageData.batchKey}`
+          );
+
+        if (error) {
+          throw error;
+        }
+
+        await fetchTransactionContext();
+      } catch (err: any) {
+        const message =
+          err?.message || 'The offer could not be rejected.';
+
+        if (Platform.OS === 'web') {
+          window.alert(`Operation Failed\n\n${message}`);
+        } else {
+          Alert.alert('Operation Failed', message);
+        }
+      } finally {
+        setProcessing(false);
+      }
+    },
+    true
+  );
+};
+
+  const handleBatchCancelTrade = async (packageData: GroupedTradePackage) => {
+    Alert.alert('Withdraw Proposal', 'Pull your pending trade assets out of this offer queue?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, Cancel',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setProcessing(true);
+            const { error } = await supabase
+              .from('transactions')
+              .update({ status: 'CANCELLED' })
+              .or(`id.in.(${packageData.originalRowIds.join(',')}),parent_transaction_id.eq.${packageData.batchKey}`);
+
+            if (error) throw error;
+            Alert.alert('Offer Withdrawn', 'Your proposal has been successfully removed.');
+            fetchTransactionContext();
+          } catch (err: any) {
+            Alert.alert('Operation Failed', err.message);
+          } finally {
+            setProcessing(false);
+          }
+        }
+      }
+    ]);
+  };
+
+const handleCounterTradeOffer = async (
+  tradePackage: GroupedTradePackage
+) => {
+  if (!leagueId || !userId) {
+    return;
+  }
+
+  setProcessing(true);
+
+  try {
+    setActiveCounterTrade(tradePackage);
+
+    const rivalUserId =
+      tradePackage.sender_id === userId
+        ? tradePackage.receiver_id
+        : tradePackage.sender_id;
+
+    const { data: rivalData, error: rivalError } =
+      await supabase
+        .from('rosters')
+        .select('players(*)')
+        .eq('league_id', leagueId)
+        .eq('user_id', rivalUserId);
+
+    if (rivalError) {
+      throw rivalError;
+    }
+
+    const parsedRivalRoster = (
+      rivalData
+        ?.map((row) =>
+          Array.isArray(row.players)
+            ? row.players[0]
+            : row.players
+        )
+        .filter(Boolean) || []
+    ) as PlayerAsset[];
+
+    setMyCounterRoster(sortRosterByPosition(myRoster));
+    setRivalCounterRoster(
+      sortRosterByPosition(parsedRivalRoster)
+    );
+
+    // You are offering these players.
+    setMySelectedTradeIds(
+      tradePackage.playersOut.map((player) => player.id)
+    );
+
+    // You are requesting these players.
+    setRivalSelectedTradeIds(
+      tradePackage.playersIn.map((player) => player.id)
+    );
+
+    setIsCounterModalVisible(true);
+  } catch (err: any) {
+    const message =
+      err?.message || 'The counter offer could not be prepared.';
+
+    if (Platform.OS === 'web') {
+      window.alert(`Counter Configuration Failed\n\n${message}`);
+    } else {
+      Alert.alert('Counter Configuration Failed', message);
+    }
+  } finally {
+    setProcessing(false);
+  }
+};
+
+const toggleSelectMyTradePlayer = (id: number) => {
+  const player = myCounterRoster.find(
+    rosterPlayer => rosterPlayer.id === id
+  );
+
+  if (!player) {
+    return;
+  }
+
+  const position = player.element_type;
+
+  setMySelectedTradeIds(previousSelection => {
+    // Clicking a selected player removes it.
+    if (previousSelection.includes(id)) {
+      return previousSelection.filter(
+        selectedId => selectedId !== id
+      );
+    }
+
+    const demandedPlayers = rivalCounterRoster.filter(
+      rivalPlayer =>
+        rivalSelectedTradeIds.includes(rivalPlayer.id)
+    );
+
+    const demandedPositionCount = demandedPlayers.filter(
+      rivalPlayer =>
+        rivalPlayer.element_type === position
+    ).length;
+
+    if (demandedPositionCount === 0) {
+      const message =
+        `Request a ${position} from the other squad before offering one.`;
+
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Position Lock', message);
+      }
+
+      return previousSelection;
+    }
+
+    const selectedIdsForPosition =
+      previousSelection.filter(selectedId => {
+        const selectedPlayer = myCounterRoster.find(
+          rosterPlayer => rosterPlayer.id === selectedId
+        );
+
+        return selectedPlayer?.element_type === position;
+      });
+
+    // Replace an existing selection when the position quota is full.
+    if (
+      selectedIdsForPosition.length >=
+      demandedPositionCount
+    ) {
+      const idToReplace = selectedIdsForPosition[0];
+
+      return [
+        ...previousSelection.filter(
+          selectedId => selectedId !== idToReplace
+        ),
+        id,
+      ];
+    }
+
+    return [...previousSelection, id];
+  });
+};
+
+  const toggleSelectRivalTradePlayer = (id: number) => {
+    setRivalSelectedTradeIds(prev => {
+      const nextSelection = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      setMySelectedTradeIds(currentMySelections => {
+        const demandedPositions = rivalCounterRoster.filter(p => nextSelection.includes(p.id)).map(p => p.element_type);
+        const demandCounts: Record<string, number> = {};
+        demandedPositions.forEach(pos => { demandCounts[pos] = (demandCounts[pos] || 0) + 1; });
+
+        const pruned: number[] = [];
+        const allocated: Record<string, number> = {};
+        currentMySelections.forEach(myId => {
+          const p = myCounterRoster.find(x => x.id === myId);
+          if (p) {
+            const pos = p.element_type;
+            const curAlloc = allocated[pos] || 0;
+            const maxAllow = demandCounts[pos] || 0;
+            if (curAlloc < maxAllow) {
+              pruned.push(myId);
+              allocated[pos] = curAlloc + 1;
+            }
+          }
+        });
+        return pruned;
+      });
+      return nextSelection;
+    });
+  };
+
+  const executeCounterProposalSubmit = async () => {
+    if (!activeCounterTrade || !userId || !leagueId) {
+  return;
+}
+
+if (
+  mySelectedTradeIds.length === 0 ||
+  rivalSelectedTradeIds.length === 0
+) {
+  if (Platform.OS === 'web') {
+    window.alert(
+      'Select at least one player from each squad.'
+    );
+  } else {
+    Alert.alert(
+      'Incomplete Counter Offer',
+      'Select at least one player from each squad.'
+    );
+  }
+
+  return;
+}
+
+if (
+  mySelectedTradeIds.length !== rivalSelectedTradeIds.length
+) {
+  if (Platform.OS === 'web') {
+    window.alert(
+      'Counter offers must contain the same number of players on both sides.'
+    );
+  } else {
+    Alert.alert(
+      'Unequal Trade',
+      'Counter offers must contain the same number of players on both sides.'
+    );
+  }
+
+  return;
+}
+    try {
+      setProcessing(true);
+
+const originalBatchKey = activeCounterTrade.batchKey;
+
+const { error: updateErr } = await supabase
+  .from('transactions')
+  .update({ status: 'COUNTERED' })
+  .eq('league_id', leagueId)
+  .eq('status', 'PENDING')
+  .or(
+    `id.in.(${activeCounterTrade.originalRowIds.join(
+      ','
+    )}),parent_transaction_id.eq.${originalBatchKey}`
+  );
+
+      if (updateErr) throw updateErr;
+
+      const myTradePlayers = sortRosterByPosition(myCounterRoster.filter(p => mySelectedTradeIds.includes(p.id)));
+      const rivalTradePlayers = sortRosterByPosition(rivalCounterRoster.filter(p => rivalSelectedTradeIds.includes(p.id)));
+
+      const counterBatchId = uuidv4();
+      const counterPayload: any[] = [];
+
+      for (let i = 0; i < myTradePlayers.length; i++) {
+        counterPayload.push({
+          league_id: leagueId,
+          sender_id: userId,
+          receiver_id:
+  activeCounterTrade.sender_id === userId
+    ? activeCounterTrade.receiver_id
+    : activeCounterTrade.sender_id,
+          type: 'TRADE',
+          status: 'PENDING',
+          player_out_id: myTradePlayers[i].id,
+          player_in_id: rivalTradePlayers[i] ? rivalTradePlayers[i].id : null,
+          parent_transaction_id: counterBatchId
+        });
+      }
+
+      if (counterPayload.length === 0) {
+  throw new Error(
+    'The counter offer contains no valid player exchanges.'
+  );
+}
+
+      const { error: insertErr } = await supabase.from('transactions').insert(counterPayload);
+      if (insertErr) throw insertErr;
+
+      Alert.alert('Counter Offer Dispatched', 'Your counter-proposal has been successfully broadcasted.');
+      setIsCounterModalVisible(false);
+      setActiveCounterTrade(null);
+      fetchTransactionContext();
+    } catch (err: any) {
+      Alert.alert('Submission Aborted', err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleSwapWaiverPriority = async (targetId: string) => {
+    if (!selectedWaiverClaimId) {
+      setSelectedWaiverClaimId(targetId);
+      return;
+    }
+    if (selectedWaiverClaimId === targetId) {
+      setSelectedWaiverClaimId(null);
+      return;
+    }
+    const claimA = pendingWaiverClaims.find(c => c.id === selectedWaiverClaimId);
+    const claimB = pendingWaiverClaims.find(c => c.id === targetId);
+    if (!claimA || !claimB) {
+      setSelectedWaiverClaimId(null);
+      return;
+    }
+    try {
+      setProcessing(true);
+if (!userId || !leagueId) {
+  throw new Error('Your user or league session is unavailable.');
+}
+
+const [res1, res2] = await Promise.all([
+  supabase
+    .from('waiver_claims')
+    .update({ priority_order: claimB.priority_order })
+    .eq('id', selectedWaiverClaimId)
+    .eq('user_id', userId)
+    .eq('league_id', leagueId),
+
+  supabase
+    .from('waiver_claims')
+    .update({ priority_order: claimA.priority_order })
+    .eq('id', targetId)
+    .eq('user_id', userId)
+    .eq('league_id', leagueId),
+]);
+      if (res1.error) throw res1.error;
+      if (res2.error) throw res2.error;
+      setSelectedWaiverClaimId(null);
+      await fetchTransactionContext();
+    } catch (err: any) {
+      Alert.alert("Priority Swap Failed", err.message);
+      setSelectedWaiverClaimId(null);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleCancelWaiverClaim = async (claimId: string) => {
+    Alert.alert("Cancel Claim", "Remove this waiver request from your active queue?", [
+      { text: "No", style: "cancel" },
+      {
+        text: "Yes, Remove",
+        onPress: async () => {
+          try {
+            setProcessing(true);
+          if (!userId || !leagueId) {
+  throw new Error('Your user or league session is unavailable.');
+}
+
+const { error } = await supabase
+  .from('waiver_claims')
+  .delete()
+  .eq('id', claimId)
+  .eq('user_id', userId)
+  .eq('league_id', leagueId);
+            if (error) throw error;
+            await fetchTransactionContext();
+          } catch (err: any) {
+            Alert.alert("Cancellation Failed", err.message);
+          } finally {
+            setProcessing(false);
+          }
+        }
+      }
+    ]);
+  };
+
+  const getShortTeamCode = (name: string) => {
+    if (!name) return 'FA';
+    return name.slice(0, 3).toUpperCase();
+  };
+
+  const renderSideBySideTradePackage = (pkg: GroupedTradePackage) => {
+    const maxRows = Math.max(pkg.playersIn.length, pkg.playersOut.length);
+
+    return (
+      <View style={styles.stackedBlockContainer}>
+        {/* 2-Column Asset Header Labels */}
+        <View style={styles.assetHeaderRow}>
+          <Text style={[styles.assetHeaderLabel, styles.colLeft]}>Requested Asset(s)</Text>
+          <View style={styles.arrowSpacer} />
+          <Text style={[styles.assetHeaderLabel, styles.colRight, styles.textRight]}>Offered Asset(s)</Text>
+        </View>
+
+        {/* Dual-Column Grid Rows */}
+        <View style={styles.assetGrid}>
+          {Array.from({ length: maxRows }).map((_, idx) => {
+            const req = pkg.playersIn[idx];
+            const off = pkg.playersOut[idx];
+
+            return (
+              <View key={idx} style={styles.assetRow}>
+                {/* Left Column: Requested Asset (In) */}
+                <View style={styles.colLeft}>
+                  {req ? (
+                    <Text style={styles.playerTextRequested} numberOfLines={1}>
+                      {req.web_name}{' '}
+                      <Text style={styles.metaText}>
+                        ({getShortTeamCode(req.team_name)} · {req.element_type})
+                      </Text>
+                    </Text>
+                  ) : (
+                    <Text style={styles.emptyAssetText}>—</Text>
+                  )}
+                </View>
+
+                {/* Center Divider: Vertical Arrow Stack */}
+                <View style={styles.arrowStackContainer}>
+                  <Text style={styles.arrowIn}>➔</Text>
+                  <Text style={styles.arrowOut}>⬅</Text>
+                </View>
+
+                {/* Right Column: Offered Asset (Out - Right Aligned) */}
+                <View style={styles.colRight}>
+                  {off ? (
+                    <Text style={[styles.playerTextOffered, styles.textRight]} numberOfLines={1}>
+                      {off.web_name}{' '}
+                      <Text style={styles.metaText}>
+                        ({getShortTeamCode(off.team_name)} · {off.element_type})
+                      </Text>
+                    </Text>
+                  ) : (
+                    <Text style={[styles.emptyAssetText, styles.textRight]}>—</Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const groupedTradePackages = getGroupedTrades(pendingRequests);
+  const activeOffersList = groupedTradePackages.filter(p => p.status === 'PENDING');
+  const historicalLogsList = groupedTradePackages.filter(p => p.status !== 'PENDING');
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.tabContainer}>
+        <TouchableOpacity style={[styles.tabBtn, activeTab === 'WAIVERS' && styles.tabBtnActive]} onPress={() => setActiveTab('WAIVERS')}>
+          <Text style={[styles.tabText, activeTab === 'WAIVERS' && styles.tabTextActive]}>WAIVERS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabBtn, activeTab === 'OFFERS' && styles.tabBtnActive]} onPress={() => setActiveTab('OFFERS')}>
+          <Text style={[styles.tabText, activeTab === 'OFFERS' && styles.tabTextActive]}>TRADE OFFERS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabBtn, activeTab === 'HISTORY' && styles.tabBtnActive]} onPress={() => setActiveTab('HISTORY')}>
+          <Text style={[styles.tabText, activeTab === 'HISTORY' && styles.tabTextActive]}>TRADE LOGS</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.waiverStatusCard}>
+          <View style={styles.waiverStatusHeadingRow}>
+            <View>
+              <Text style={styles.waiverStatusEyebrow}>WAIVER WINDOW</Text>
+              <Text style={styles.waiverStatusTitle}>
+                {waiverStatus?.gameweek ? `Gameweek ${waiverStatus.gameweek}` : 'Next processing window'}
+              </Text>
+            </View>
+            <View style={styles.marketStatusBadge}>
+              <Text style={styles.marketStatusText}>{(waiverStatus?.market_status || 'SCHEDULED').replaceAll('_', ' ')}</Text>
+            </View>
+          </View>
+
+          <View style={styles.waiverStatusGrid}>
+            <View style={styles.waiverStatusMetric}>
+              <Text style={styles.waiverStatusMetricLabel}>YOUR PRIORITY</Text>
+              <Text style={styles.waiverStatusMetricValue}>
+                {waiverStatus?.priority ? `#${waiverStatus.priority}` : '—'}
+                {waiverStatus?.manager_count ? <Text style={styles.waiverStatusMetricMax}> / {waiverStatus.manager_count}</Text> : null}
+              </Text>
+              <Text style={styles.waiverStatusMetricMeta}>
+                {waiverStatus?.priority_source === 'LEAGUE_POSITION'
+                  ? 'Calculated bottom-to-top from the league table'
+                  : waiverStatus?.priority_source === 'DRAFT_ORDER'
+                    ? 'First window follows the draft order'
+                    : 'First window uses reverse draft order'}
+              </Text>
+            </View>
+            <View style={styles.waiverStatusMetric}>
+              <Text style={styles.waiverStatusMetricLabel}>WAIVER DEADLINE</Text>
+              <Text style={styles.waiverDeadlineValue}>
+                {waiverStatus?.waiver_deadline
+                  ? new Date(waiverStatus.waiver_deadline).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  : 'Awaiting schedule'}
+              </Text>
+              <Text style={styles.waiverStatusMetricMeta}>Claims can be reordered until this time</Text>
+            </View>
+          </View>
+
+          <View style={styles.marketRulesRow}>
+            <Text style={styles.marketRuleText}>
+              Trades close at {waiverStatus?.trade_cutoff_rule === 'GAMEWEEK_DEADLINE' ? 'the Gameweek deadline' : 'the waiver deadline'}
+            </Text>
+            <Text style={styles.marketRuleDivider}>•</Text>
+            <Text style={styles.marketRuleText}>
+              Dropped players: {waiverStatus?.dropped_player_rule === 'IMMEDIATE_FREE_AGENT' ? 'immediate free agents' : 'protected until next waivers'}
+            </Text>
+          </View>
+        </View>
+
+        {activeTab === 'WAIVERS' && (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>Your Pending Weekly Claims</Text>
+            <Text style={styles.sectionSub}>Tap two claims in sequence to swap their processing priority order.</Text>
+
+            {pendingWaiverClaims.length === 0 ? (
+              <View style={styles.emptyClaimsBox}>
+                <Text style={styles.emptyClaimsText}>No active pending waiver claims.</Text>
+                <Text style={styles.emptyClaimsSub}>Add waivers directly by clicking the "+" button next to players in the Player Pool tab.</Text>
+              </View>
+            ) : (
+              pendingWaiverClaims.map((item) => {
+                const isSelected = selectedWaiverClaimId === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.cleanWaiverRow, isSelected && styles.rowSelected]}
+                    onPress={() => handleSwapWaiverPriority(item.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.priorityBadge}>
+                      <Text style={styles.priorityText}>#{item.priority_order}</Text>
+                    </View>
+
+                    <View style={styles.waiverSwapFlexContainer}>
+                      <View style={styles.playerUnitLeft}>
+                        <Text style={styles.playerNameCompact} numberOfLines={1}>{item.add_player?.web_name}</Text>
+                        <Text style={styles.teamCodeText}>{getShortTeamCode(item.add_player?.team_name)}</Text>
+                      </View>
+                      <View style={styles.arrowStackColumn}>
+                        <Text style={styles.greenArrow}>▲</Text>
+                        <Text style={styles.redArrow}>▼</Text>
+                      </View>
+                      <View style={styles.playerUnitRight}>
+                        <Text style={styles.playerNameCompact} numberOfLines={1}>{item.drop_player?.web_name}</Text>
+                        <Text style={styles.teamCodeText}>{getShortTeamCode(item.drop_player?.team_name)}</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancelWaiverClaim(item.id)}>
+                      <Text style={styles.cancelButtonText}>✕</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {activeTab === 'OFFERS' && (
+          <>
+            <Text style={styles.ledgerHeaderTitle}>Active Negotiations & Offers</Text>
+            {activeOffersList.length === 0 ? (
+              <Text style={styles.emptyLedgerText}>No active pending trade proposals found.</Text>
+            ) : (
+              activeOffersList.map(pkg => {
+                const isOutgoingPending = pkg.sender_id === userId;
+                const displayTitle = isOutgoingPending ? `TO: ${pkg.receiver_display_name}` : `FROM: ${pkg.sender_display_name}`;
+
+                return (
+                  <View key={pkg.batchKey} style={styles.ledgerCardSlim}>
+                    <View style={styles.ledgerRowMetaSlim}>
+                      <Text style={styles.ledgerTypeTextSlim} numberOfLines={1}>{displayTitle}</Text>
+                      <Text style={styles.ledgerTimeTextSlim}>{new Date(pkg.created_at).toLocaleDateString()}</Text>
+                      <View style={[styles.statusBadgeSlim, styles.badgePending]}>
+                        <Text style={styles.statusTextSlim}>{pkg.status}</Text>
+                      </View>
+                    </View>
+                    
+                    {/* Render Side-by-Side 2-Column Asset Grid */}
+                    {renderSideBySideTradePackage(pkg)}
+                    
+                    {pkg.receiver_id === userId && (
+                      <View style={styles.interactiveRowBarSlim}>
+                        <TouchableOpacity style={[styles.inlineActionBtnSlim, styles.bgBtnReject]} onPress={() => handleBatchRejectTrade(pkg)} disabled={processing}>
+                          <Text style={styles.lblTextReject}>REJECT</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.inlineActionBtnSlim, styles.bgBtnCounter]} onPress={() => handleCounterTradeOffer(pkg)} disabled={processing}>
+                          <Text style={styles.lblTextCounter}>COUNTER</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.inlineActionBtnSlim, styles.bgBtnAccept]} onPress={() => handleBatchAcceptTrade(pkg)} disabled={processing}>
+                          <Text style={styles.lblTextAccept}>ACCEPT</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {isOutgoingPending && (
+                      <View style={styles.interactiveRowBarSlim}>
+                        <TouchableOpacity style={[styles.inlineActionBtnSlim, styles.bgBtnCancel]} onPress={() => handleBatchCancelTrade(pkg)} disabled={processing}>
+                          <Text style={styles.lblTextCancel}>WITHDRAW PROPOSAL</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </>
+        )}
+
+        {activeTab === 'HISTORY' && (
+          <>
+            <Text style={styles.ledgerHeaderTitle}>Archived Transaction Ledger</Text>
+            {historicalLogsList.length === 0 ? (
+              <Text style={styles.emptyLedgerText}>No historical trade records logged in this segment.</Text>
+            ) : (
+              historicalLogsList.map(pkg => {
+                const displayTitle = pkg.sender_id === userId ? `TO: ${pkg.receiver_display_name}` : `FROM: ${pkg.sender_display_name}`;
+
+                return (
+                  <View key={pkg.batchKey} style={styles.ledgerCardSlim}>
+                    <View style={styles.ledgerRowMetaSlim}>
+                      <Text style={styles.ledgerTypeTextSlim} numberOfLines={1}>{displayTitle}</Text>
+                      <Text style={styles.ledgerTimeTextSlim}>{new Date(pkg.created_at).toLocaleDateString()}</Text>
+                      <View style={[
+                        styles.statusBadgeSlim, 
+                        pkg.status === 'ACCEPTED' ? styles.badgeSuccess : 
+                        pkg.status === 'COUNTERED' ? styles.badgeCountered : 
+                        pkg.status === 'CANCELLED' ? styles.badgeCancelled : styles.badgeDanger
+                      ]}>
+                        <Text style={styles.statusTextSlim}>{pkg.status}</Text>
+                      </View>
+                    </View>
+                    
+                    {/* Render Side-by-Side 2-Column Asset Grid */}
+                    {renderSideBySideTradePackage(pkg)}
+                  </View>
+                );
+              })
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {/* INLINE COUNTER NEGOTIATION DESK CARD MODAL */}
+      <Modal visible={isCounterModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsCounterModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.tradeModalContent}>
+            <Text style={styles.modalTitle}>Construct Counter Offer</Text>
+            <Text style={styles.tradeSubHeader}>
+  Target Partner:{' '}
+  {activeCounterTrade?.sender_id === userId
+    ? activeCounterTrade?.receiver_display_name
+    : activeCounterTrade?.sender_display_name}
+</Text>
+
+            <View style={styles.tradeLayoutGrid}>
+              <View style={styles.tradeCol}>
+                <Text style={styles.colTitle}>Send My Asset(s)</Text>
+                <ScrollView style={styles.tradeScrollView}>
+                  {myCounterRoster.map(p => {
+                    const isSelected = mySelectedTradeIds.includes(p.id);
+                    const pos = p.element_type;
+                    const demandedPlayers = rivalCounterRoster.filter(r => rivalSelectedTradeIds.includes(r.id));
+                    const totalDemandedOfThisPos = demandedPlayers.filter(r => r.element_type === pos).length;
+                    const currentlySelectedOfThisPos = myCounterRoster.filter(r => mySelectedTradeIds.includes(r.id) && r.element_type === pos).length;
+                    const isSelectionDisabled =
+  !isSelected && totalDemandedOfThisPos === 0;
+
+                    return (
+                      <TouchableOpacity 
+                        key={p.id} 
+                        style={[
+                          styles.tradeSelectorCardCompact, 
+                          isSelected && styles.tradeSelectorCardSelected,
+                          isSelectionDisabled && styles.tradeSelectorCardDisabled
+                        ]}
+                        onPress={() => toggleSelectMyTradePlayer(p.id)}
+                        disabled={isSelectionDisabled}
+                      >
+                        <View style={styles.tradeCardRowFlow}>
+                          <Text style={[styles.tradeCardTextCompact, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
+                            {p.web_name}
+                          </Text>
+                          <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>
+                          <View style={[styles.miniPosBadgeCompact, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
+                            <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              <View style={styles.tradeCol}>
+                <Text style={styles.colTitle}>Demand Asset(s)</Text>
+                <ScrollView style={styles.tradeScrollView}>
+                  {rivalCounterRoster.map(p => {
+                    const isSelected = rivalSelectedTradeIds.includes(p.id);
+                    return (
+                      <TouchableOpacity key={p.id} style={[styles.tradeSelectorCardCompact, isSelected && styles.tradeSelectorCardSelected]} onPress={() => toggleSelectRivalTradePlayer(p.id)}>
+                        <View style={styles.tradeCardRowFlow}>
+                          <Text style={[styles.tradeCardTextCompact, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
+                            {p.web_name}
+                          </Text>
+                          <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>
+                          <View style={[styles.miniPosBadgeCompact, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
+                            <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+
+            <Text style={styles.tradeLockNotice}>
+              ⚠️ Multi-player swap constraint active: Swaps must be equal size and matching positions (e.g. swap MID for MID, DEF for DEF).
+            </Text>
+
+            <View style={styles.modalActionRow}>
+              <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} onPress={() => { setIsCounterModalVisible(false); setActiveCounterTrade(null); }}>
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, styles.modalButtonConfirm]} onPress={executeCounterProposalSubmit} disabled={processing}>
+                <Text style={styles.modalButtonConfirmText}>Submit Counter</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: appColors.background,
+  },
+
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: appColors.background,
+  },
+
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: appColors.backgroundElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.border,
+  },
+
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+
+  tabBtnActive: {
+    borderBottomColor: appColors.accent,
+    backgroundColor: appColors.accentSoft,
+  },
+
+  tabText: {
+    color: appColors.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+
+  tabTextActive: {
+    color: appColors.accent,
+    fontWeight: '900',
+  },
+
+  scrollContent: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center',
+    paddingHorizontal: appSpacing.lg,
+    paddingTop: appSpacing.lg,
+    paddingBottom: 50,
+  },
+
+  waiverStatusCard: {
+    padding: appSpacing.lg,
+    marginBottom: appSpacing.lg,
+    backgroundColor: appColors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: appColors.accentBorder,
+    borderRadius: appRadius.large,
+  },
+  waiverStatusHeadingRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: appSpacing.md },
+  waiverStatusEyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
+  waiverStatusTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary, marginTop: 3 },
+  marketStatusBadge: { paddingHorizontal: 8, paddingVertical: 5, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.pill },
+  marketStatusText: { ...appTypography.label, color: appColors.accent, fontSize: 7 },
+  waiverStatusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: appSpacing.md },
+  waiverStatusMetric: { flex: 1, flexBasis: 220, minHeight: 92, justifyContent: 'center', padding: appSpacing.md, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
+  waiverStatusMetricLabel: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
+  waiverStatusMetricValue: { color: appColors.accent, fontSize: 25, fontWeight: '900', marginTop: 4 },
+  waiverStatusMetricMax: { color: appColors.textMuted, fontSize: 12, fontWeight: '800' },
+  waiverDeadlineValue: { color: appColors.textPrimary, fontSize: 14, fontWeight: '900', marginTop: 6 },
+  waiverStatusMetricMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 4 },
+  marketRulesRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 9, paddingHorizontal: 2 },
+  marketRuleText: { ...appTypography.metadata, color: appColors.textSecondary },
+  marketRuleDivider: { color: appColors.accent, fontSize: 10 },
+
+  card: {
+    backgroundColor: appColors.surface,
+    borderWidth: 1,
+    borderColor: appColors.borderStrong,
+    padding: appSpacing.lg,
+    borderRadius: appRadius.medium,
+    marginBottom: appSpacing.xl,
+  },
+
+  sectionHeader: {
+    ...appTypography.sectionTitle,
+    color: appColors.textPrimary,
+    textTransform: 'uppercase',
+    marginBottom: 5,
+  },
+
+  sectionSub: {
+    color: appColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: appSpacing.lg,
+    lineHeight: 16,
+  },
+
+  emptyClaimsBox: {
+    padding: appSpacing.xl,
+    alignItems: 'center',
+    backgroundColor: appColors.backgroundElevated,
+    borderRadius: appRadius.medium,
+    borderWidth: 1,
+    borderColor: appColors.border,
+    marginVertical: appSpacing.sm,
+  },
+
+  emptyClaimsText: {
+    color: appColors.textSecondary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  emptyClaimsSub: {
+    color: appColors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: appSpacing.sm,
+    paddingHorizontal: appSpacing.md,
+    lineHeight: 16,
+  },
+
+  cleanWaiverRow: {
+    flexDirection: 'row',
+    backgroundColor: appColors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: appColors.border,
+    borderRadius: appRadius.medium,
+    paddingVertical: 9,
+    paddingHorizontal: 9,
+    marginBottom: appSpacing.sm,
+    alignItems: 'center',
+  },
+
+  rowSelected: {
+    borderColor: appColors.accent,
+    backgroundColor: appColors.accentSoft,
+  },
+
+  priorityBadge: {
+    backgroundColor: appColors.backgroundDeep,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: appColors.borderStrong,
+  },
+
+  priorityText: {
+    color: appColors.accent,
+    fontWeight: '900',
+    fontSize: 11,
+  },
+
+  waiverSwapFlexContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: appSpacing.sm,
+  },
+
+  playerUnitLeft: {
+    flex: 1,
+    alignItems: 'flex-end',
+    paddingRight: appSpacing.sm,
+  },
+
+  playerUnitRight: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingLeft: appSpacing.sm,
+  },
+
+  playerNameCompact: {
+    color: appColors.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  teamCodeText: {
+    color: appColors.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  arrowStackColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+  },
+
+  greenArrow: {
+    color: appColors.accent,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
+
+  redArrow: {
+    color: appColors.danger,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 12,
+    marginTop: -2,
+  },
+
+  cancelButton: {
+    padding: 7,
+    marginLeft: 4,
+  },
+
+  cancelButtonText: {
+    color: appColors.danger,
+    fontWeight: '900',
+    fontSize: 14,
+  },
+
+  ledgerHeaderTitle: {
+    ...appTypography.sectionTitle,
+    color: appColors.textPrimary,
+    textTransform: 'uppercase',
+    marginBottom: appSpacing.md,
+  },
+
+  emptyLedgerText: {
+    color: appColors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  ledgerCardSlim: {
+    backgroundColor: appColors.surface,
+    borderWidth: 1,
+    borderColor: appColors.borderStrong,
+    padding: appSpacing.md,
+    marginBottom: appSpacing.md,
+    borderRadius: appRadius.medium,
+  },
+
+  ledgerRowMetaSlim: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: appSpacing.sm,
+    paddingBottom: appSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.borderSubtle,
+  },
+
+  ledgerTypeTextSlim: {
+    color: appColors.textPrimary,
+    fontSize: 11,
+    fontWeight: '900',
+    flex: 1,
+    marginRight: appSpacing.sm,
+  },
+
+  ledgerTimeTextSlim: {
+    color: appColors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    marginRight: appSpacing.sm,
+  },
+
+  statusBadgeSlim: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: appRadius.small,
+    borderWidth: 1,
+  },
+
+  badgePending: {
+    backgroundColor: appColors.warningSoft,
+    borderColor: 'rgba(245, 185, 66, 0.35)',
+  },
+
+  badgeSuccess: {
+    backgroundColor: appColors.accentSoft,
+    borderColor: appColors.accentBorder,
+  },
+
+  badgeDanger: {
+    backgroundColor: appColors.dangerSoft,
+    borderColor: appColors.dangerBorder,
+  },
+
+  badgeCountered: {
+    backgroundColor: appColors.infoSoft,
+    borderColor: 'rgba(56, 167, 255, 0.35)',
+  },
+
+  badgeCancelled: {
+    backgroundColor: appColors.surfaceMuted,
+    borderColor: appColors.borderStrong,
+  },
+
+  statusTextSlim: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: appColors.textPrimary,
+    letterSpacing: 0.4,
+  },
+
+  stackedBlockContainer: {
+    backgroundColor: appColors.backgroundElevated,
+    borderRadius: appRadius.medium,
+    padding: appSpacing.md,
+    borderWidth: 1,
+    borderColor: appColors.border,
+  },
+
+  assetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: appSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.borderSubtle,
+    paddingBottom: appSpacing.sm,
+  },
+
+  assetHeaderLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: appColors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  arrowSpacer: {
+    width: 30,
+  },
+
+  assetGrid: {
+    gap: 7,
+  },
+
+  assetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 28,
+  },
+
+  colLeft: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: appSpacing.sm,
+  },
+
+  colRight: {
+    flex: 1,
+    minWidth: 0,
+    paddingLeft: appSpacing.sm,
+  },
+
+  textRight: {
+    textAlign: 'right',
+  },
+
+  arrowStackContainer: {
+    width: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  arrowIn: {
+    color: appColors.accent,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
+
+  arrowOut: {
+    color: appColors.danger,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
+
+  playerTextRequested: {
+    color: appColors.accent,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  playerTextOffered: {
+    color: appColors.danger,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  metaText: {
+    color: appColors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
+  emptyAssetText: {
+    color: appColors.textDisabled,
+    fontSize: 11,
+  },
+
+  interactiveRowBarSlim: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: appSpacing.md,
+    paddingTop: appSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: appColors.borderSubtle,
+  },
+
+  inlineActionBtnSlim: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: appRadius.small,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 4,
+    borderWidth: 1,
+  },
+
+  bgBtnReject: {
+    backgroundColor: appColors.dangerSoft,
+    borderColor: appColors.danger,
+  },
+
+  bgBtnCounter: {
+    backgroundColor: appColors.surfaceRaised,
+    borderColor: appColors.borderStrong,
+  },
+
+  bgBtnAccept: {
+    backgroundColor: appColors.accent,
+    borderColor: appColors.accentDark,
+  },
+
+  bgBtnCancel: {
+    backgroundColor: appColors.dangerSoft,
+    borderColor: appColors.dangerBorder,
+  },
+
+  lblTextReject: {
+    color: appColors.danger,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  lblTextCounter: {
+    color: appColors.textSecondary,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  lblTextAccept: {
+    color: appColors.backgroundDeep,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  lblTextCancel: {
+    color: appColors.danger,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(1, 7, 12, 0.88)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: appSpacing.lg,
+  },
+
+  tradeModalContent: {
+    backgroundColor: appColors.surfaceRaised,
+    width: '95%',
+    maxWidth: 900,
+    height: '82%',
+    borderRadius: appRadius.large,
+    padding: appSpacing.lg,
+    borderWidth: 1,
+    borderColor: appColors.borderStrong,
+  },
+
+  modalTitle: {
+    color: appColors.textPrimary,
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+
+  tradeSubHeader: {
+    color: appColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: appSpacing.md,
+    textTransform: 'uppercase',
+  },
+
+  tradeLayoutGrid: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: appSpacing.sm,
+    gap: appSpacing.md,
+  },
+
+  tradeCol: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: appColors.backgroundElevated,
+    borderRadius: appRadius.medium,
+    padding: appSpacing.sm,
+    borderWidth: 1,
+    borderColor: appColors.border,
+  },
+
+  colTitle: {
+    color: appColors.textSecondary,
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    marginBottom: appSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.border,
+    paddingBottom: appSpacing.sm,
+  },
+
+  tradeScrollView: {
+    flex: 1,
+  },
+
+  tradeSelectorCardCompact: {
+    backgroundColor: appColors.surface,
+    borderRadius: appRadius.small,
+    paddingVertical: 8,
+    paddingHorizontal: 9,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: appColors.border,
+  },
+
+  tradeSelectorCardSelected: {
+    borderColor: appColors.accent,
+    backgroundColor: appColors.accentSoft,
+  },
+
+  tradeCardRowFlow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+
+  tradeCardTextCompact: {
+    color: appColors.textPrimary,
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
+    minWidth: 0,
+    marginRight: 7,
+  },
+
+  tradeCardTextSelected: {
+    color: appColors.accent,
+  },
+
+  tradeCardMetaTextCompact: {
+    color: appColors.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
+    marginRight: 7,
+    flexShrink: 0,
+  },
+
+  miniPosBadgeCompact: {
+    minWidth: 31,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: appRadius.small,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+
+  miniPosTextCompact: {
+    color: appColors.backgroundDeep,
+    fontSize: 7,
+    fontWeight: '900',
+  },
+
+  tradeLockNotice: {
+    color: appColors.textSecondary,
+    fontSize: 10,
+    textAlign: 'center',
+    marginVertical: appSpacing.sm,
+    paddingHorizontal: appSpacing.md,
+    lineHeight: 15,
+    flexShrink: 0,
+  },
+
+  tradeSelectorCardDisabled: {
+    opacity: 0.5,
+    borderColor: appColors.borderSubtle,
+    backgroundColor: appColors.backgroundDeep,
+  },
+
+  tradeCardTextDisabled: {
+    color: appColors.textDisabled,
+  },
+
+  modalActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: appSpacing.sm,
+    flexShrink: 0,
+  },
+
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: appRadius.medium,
+    alignItems: 'center',
+    marginHorizontal: 5,
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+
+  modalButtonCancel: {
+    backgroundColor: appColors.surfaceMuted,
+    borderColor: appColors.borderStrong,
+  },
+
+  modalButtonConfirm: {
+    backgroundColor: appColors.accent,
+    borderColor: appColors.accentDark,
+  },
+
+  modalButtonCancelText: {
+    color: appColors.textPrimary,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+
+  modalButtonConfirmText: {
+    color: appColors.backgroundDeep,
+    fontWeight: '900',
+    fontSize: 13,
+  },
+});

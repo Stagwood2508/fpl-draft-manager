@@ -31,6 +31,9 @@ interface LeagueSettings {
   points_own_goal: number;
   points_penalty_save: number;
   points_penalty_miss: number;
+  trade_cutoff_rule?: 'WAIVER_DEADLINE' | 'GAMEWEEK_DEADLINE';
+  dropped_player_rule?: 'NEXT_WAIVER' | 'IMMEDIATE_FREE_AGENT';
+  initial_waiver_order_rule?: 'REVERSE_DRAFT' | 'DRAFT_ORDER';
 }
 
 interface PlayerSearchTarget {
@@ -449,6 +452,24 @@ export default function UnifiedLeagueSettingsScreen() {
             </View>
           )}
 
+          {isCommissioner && (
+            <TouchableOpacity
+              style={styles.sectionCard}
+              onPress={() => router.push({ pathname: '/gameweek-lineups', params: { leagueId: leagueId || '' } } as any)}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#00ff8714' }}>
+                  <Ionicons name="shield-checkmark-outline" size={19} color="#00ff87" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionHeading}>Gameweek Lineup Review</Text>
+                  <Text style={styles.sectionSub}>Review deadline snapshots, autosubs and controlled corrections.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#666" />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* BLOCK 1: DRAFT & ROSTER OPERATION RULESET */}
           <View style={styles.sectionCard}>
             
@@ -475,6 +496,60 @@ export default function UnifiedLeagueSettingsScreen() {
               >
                 <Text style={[styles.segmentText, rosterType === 'FLEXIBLE' && styles.segmentTextActive]}>Flexible (4–6)</Text>
               </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.sectionHeading, { marginTop: 24 }]}>Trade deadline</Text>
+            <Text style={styles.sectionSub}>Choose when new offers and accepted trades close each Gameweek.</Text>
+            <View style={[styles.segmentedControlGroup, isLocked && { opacity: 0.5 }]}>
+              {([
+                { value: 'WAIVER_DEADLINE' as const, label: 'Before waivers' },
+                { value: 'GAMEWEEK_DEADLINE' as const, label: 'Gameweek deadline' },
+              ]).map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  disabled={isLocked}
+                  style={[styles.segmentBtn, (settings?.trade_cutoff_rule || 'WAIVER_DEADLINE') === option.value && styles.segmentBtnActive]}
+                  onPress={() => handleUpdateFieldState('trade_cutoff_rule', option.value)}
+                >
+                  <Text style={[styles.segmentText, (settings?.trade_cutoff_rule || 'WAIVER_DEADLINE') === option.value && styles.segmentTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.sectionHeading, { marginTop: 24 }]}>First waiver order</Text>
+            <Text style={styles.sectionSub}>Set how managers are ordered for the first waiver window. Later windows always run from the bottom of the league table to the top.</Text>
+            <View style={[styles.segmentedControlGroup, isLocked && { opacity: 0.5 }]}>
+              {([
+                { value: 'REVERSE_DRAFT' as const, label: 'Reverse draft order' },
+                { value: 'DRAFT_ORDER' as const, label: 'Draft order' },
+              ]).map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  disabled={isLocked}
+                  style={[styles.segmentBtn, (settings?.initial_waiver_order_rule || 'REVERSE_DRAFT') === option.value && styles.segmentBtnActive]}
+                  onPress={() => handleUpdateFieldState('initial_waiver_order_rule', option.value)}
+                >
+                  <Text style={[styles.segmentText, (settings?.initial_waiver_order_rule || 'REVERSE_DRAFT') === option.value && styles.segmentTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.sectionHeading, { marginTop: 24 }]}>Waiver-dropped players</Text>
+            <Text style={styles.sectionSub}>Choose whether a player released by a successful waiver is protected for the next waiver round.</Text>
+            <View style={[styles.segmentedControlGroup, isLocked && { opacity: 0.5 }]}>
+              {([
+                { value: 'NEXT_WAIVER' as const, label: 'Protect until next waiver' },
+                { value: 'IMMEDIATE_FREE_AGENT' as const, label: 'Immediate free agent' },
+              ]).map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  disabled={isLocked}
+                  style={[styles.segmentBtn, (settings?.dropped_player_rule || 'NEXT_WAIVER') === option.value && styles.segmentBtnActive]}
+                  onPress={() => handleUpdateFieldState('dropped_player_rule', option.value)}
+                >
+                  <Text style={[styles.segmentText, (settings?.dropped_player_rule || 'NEXT_WAIVER') === option.value && styles.segmentTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
             {/* DRAFT CLOCK DURATION */}

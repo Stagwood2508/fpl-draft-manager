@@ -18,7 +18,7 @@ import { useIsFocused } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
-import TradeDeskModal from '@/components/TradeDeskModal';
+import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import FreeAgentClaimModal from '@/components/FreeAgentClaimModal';
 
 interface PlayerAsset {
@@ -60,6 +60,7 @@ export default function PlayerPoolScreen() {
   const [filteredPlayers, setFilteredPlayers] = useState<PlayerAsset[]>([]);
   const [watchlistIds, setWatchlistIds] = useState<Set<number>>(new Set()); 
   const [ownershipMap, setOwnershipMap] = useState<Record<number, OwnershipInfo>>({});
+  const [waiverLockedPlayerIds, setWaiverLockedPlayerIds] = useState<Set<number>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL');
@@ -125,6 +126,7 @@ export default function PlayerPoolScreen() {
       setActiveLeagueId(currentLeagueId);
 
       // 2. Fetch Market Window Status & Active Gameweek
+      let resolvedGameweek = 1;
       if (currentLeagueId) {
         const { data: leagueGwData } = await supabase
           .from('league_gameweeks')
@@ -136,6 +138,7 @@ export default function PlayerPoolScreen() {
           .maybeSingle();
 
         if (leagueGwData) {
+          resolvedGameweek = leagueGwData.gameweek;
           setCurrentGameweek(leagueGwData.gameweek);
           setMarketStatus(leagueGwData.status as any);
         }
@@ -227,6 +230,17 @@ export default function PlayerPoolScreen() {
       if (currentLeagueId) {
         const { data: watchlistData } = await supabase.from('watchlists').select('player_id').eq('user_id', user.id).eq('league_id', currentLeagueId);
         if (watchlistData) setWatchlistIds(new Set<number>(watchlistData.map(w => w.player_id)));
+
+        const { data: lockedPlayers, error: lockError } = await supabase
+          .from('waiver_player_locks')
+          .select('player_id, available_gameweek')
+          .eq('league_id', currentLeagueId)
+          .gt('available_gameweek', resolvedGameweek);
+        if (!lockError && lockedPlayers) {
+          setWaiverLockedPlayerIds(new Set<number>(lockedPlayers.map(row => Number(row.player_id))));
+        } else if (lockError?.code !== 'PGRST205' && lockError?.code !== '42P01') {
+          console.warn('Unable to load waiver player locks:', lockError?.message);
+        }
       }
 
       setAllPlayers(finalizedPool);
@@ -268,6 +282,13 @@ export default function PlayerPoolScreen() {
     if (marketStatus === 'WAIVERS_OPEN') {
       handleOpenWaiverModal(poolPlayer);
     } else if (marketStatus === 'FREE_AGENCY') {
+      if (waiverLockedPlayerIds.has(poolPlayer.id)) {
+        Alert.alert(
+          'Waiver Protected',
+          'This player was released through waivers and cannot be signed as a free agent until the next waiver round.'
+        );
+        return;
+      }
       setFreeAgentTargetPlayer(poolPlayer);
       setIsFreeAgentModalVisible(true);
     } else {
@@ -337,6 +358,7 @@ export default function PlayerPoolScreen() {
     const isSaved = watchlistIds.has(item.id);
     const owner = ownershipMap[Number(item.id)];
     const isOwnedByMe = owner?.userId === currentUserId;
+    const isWaiverLocked = !owner && marketStatus === 'FREE_AGENCY' && waiverLockedPlayerIds.has(item.id);
     const mappedPositionColor = POSITION_COLORS[item.element_type] || '#222';
 
     return (
@@ -368,8 +390,8 @@ export default function PlayerPoolScreen() {
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.waiverClaimAddBtn} onPress={() => handlePlusButtonPress(item)}>
-            <Ionicons name="add" size={16} color="#000" />
+          <TouchableOpacity style={[styles.waiverClaimAddBtn, isWaiverLocked && { backgroundColor: '#26313A' }]} onPress={() => handlePlusButtonPress(item)}>
+            <Ionicons name={isWaiverLocked ? "lock-closed" : "add"} size={isWaiverLocked ? 13 : 16} color={isWaiverLocked ? "#91A0AC" : "#000"} />
           </TouchableOpacity>
         )}
       </View>

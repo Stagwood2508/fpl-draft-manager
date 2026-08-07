@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityInd
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
 
 // Helper function for web & native alert safety
 const notifyUser = (title: string, message: string) => {
@@ -15,6 +16,7 @@ const notifyUser = (title: string, message: string) => {
 
 export default function CreateLeagueScreen() {
   const router = useRouter();
+    const { refreshLeagueMembership } = useAppSession();
   const [name, setName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [size, setSize] = useState('8');
@@ -52,7 +54,6 @@ export default function CreateLeagueScreen() {
           name: cleanName, 
           commissioner_id: user.id, 
           status: 'PRE_DRAFT',
-          draft_status: 'WAITING_ROOM', 
           invite_code: inviteCode,
           max_size: parseInt(size, 10) || 8
         })
@@ -85,21 +86,38 @@ export default function CreateLeagueScreen() {
       }
       
       // 3. Seed Configurations (Saving roster_type choice)
-      await supabase.from('league_settings').insert({ 
-        league_id: league.id,
-        draft_clock_duration: 60,
-        roster_type: rosterType
-      });
+const { error: settingsErr } = await supabase
+  .from('league_settings')
+  .insert({
+    league_id: league.id,
+    draft_clock_duration: 60,
+    roster_type: rosterType,
+    trade_cutoff_rule: 'WAIVER_DEADLINE',
+    dropped_player_rule: 'NEXT_WAIVER',
+    initial_waiver_order_rule: 'REVERSE_DRAFT',
+  });
+
+if (settingsErr) {
+  console.error('Error creating league settings:', settingsErr);
+  throw settingsErr;
+}
 
       // 4. Initialize draft session state
-      await supabase.from('draft_sessions').insert({
-        league_id: league.id,
-        draft_status: 'WAITING_ROOM',
-        current_round: 1,
-        current_pick_index: 1,
-        current_picker_id: user.id,
-        pick_deadline: new Date().toISOString()
-      });
+const { error: draftSessionErr } = await supabase
+  .from('draft_sessions')
+  .insert({
+    league_id: league.id,
+    draft_status: 'WAITING_ROOM',
+    current_round: 1,
+    current_pick_index: 1,
+    current_picker_id: user.id,
+    pick_deadline: new Date().toISOString(),
+  });
+
+if (draftSessionErr) {
+  console.error('Error creating draft session:', draftSessionErr);
+  throw draftSessionErr;
+}
 
       // 5. 🌟 PERSIST NEW LEAGUE AS ACTIVE IN ASYNC STORAGE & LOCAL STORAGE
       await AsyncStorage.setItem('active_league_id', league.id);
@@ -119,25 +137,51 @@ export default function CreateLeagueScreen() {
   };
 
 const handleEnterDashboard = async () => {
-    if (createdLeagueId) {
-      await AsyncStorage.setItem('active_league_id', createdLeagueId);
-      if (Platform.OS === 'web') {
-        window.localStorage.setItem('active_league_id', createdLeagueId);
-      }
+  if (!createdLeagueId) {
+    notifyUser(
+      'League Error',
+      'The new league could not be identified. Please reload and try again.'
+    );
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    await AsyncStorage.setItem(
+      'active_league_id',
+      createdLeagueId
+    );
+
+    const membershipConfirmed =
+      await refreshLeagueMembership();
+
+    if (!membershipConfirmed) {
+      throw new Error(
+        'Your league was created, but your membership could not be verified.'
+      );
     }
 
-    console.log('🚀 [ROUTING] Entering dashboard cleanly...');
-    
-    // Use simple root replacement to break out of the auth group layout stack
-    router.replace('/(tabs)');
-  };
-    // 2. 🔥 FIX ROUTE PATH: Use `/(tabs)` or `/dashboard` without parenthesis in path
+    console.log(
+      '🚀 [ROUTING] Membership verified. Entering dashboard...'
+    );
+
     router.replace({
-      pathname: '/(tabs)',
-      params: { leagueId: createdLeagueId }
+      pathname: '/(tabs)/dashboard',
+      params: {
+        leagueId: createdLeagueId,
+      },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Navigation Error:', err);
+
+    notifyUser(
+      'Dashboard Error',
+      err?.message ||
+        'The dashboard could not be opened.'
+    );
+  } finally {
+    setLoading(false);
   }
 };
 
@@ -215,12 +259,23 @@ const handleEnterDashboard = async () => {
           <Text style={styles.codeDisplay}>{createdCode}</Text>
           <Text style={styles.hint}>Share this token directly with your rival managers.</Text>
 
-          <TouchableOpacity 
-            style={[styles.btn, { marginTop: 30 }]} 
-            onPress={handleEnterDashboard}
-          >
-            <Text style={styles.btnText}>ENTER MY SQUAD DASHBOARD</Text>
-          </TouchableOpacity>
+<TouchableOpacity
+  style={[
+    styles.btn,
+    { marginTop: 30 },
+    loading && styles.btnDisabled,
+  ]}
+  onPress={handleEnterDashboard}
+  disabled={loading}
+>
+  {loading ? (
+    <ActivityIndicator color="#000" size="small" />
+  ) : (
+    <Text style={styles.btnText}>
+      ENTER MY SQUAD DASHBOARD
+    </Text>
+  )}
+</TouchableOpacity>
         </View>
       )}
     </View>

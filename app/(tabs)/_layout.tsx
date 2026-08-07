@@ -1,163 +1,239 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { StyleSheet, View, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Shirt, TrendingUp, Users, Trophy, BarChart3 } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, View } from 'react-native';
 import { supabase } from '@/utils/supabase';
-import SettingsDropdown from '@/components/SettingsDropdown'; 
+import { appColors } from '@/constants/theme';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function RootTabsLayout() {
-  const insets = useSafeAreaInsets(); 
-  const [hasPendingTrade, setHasPendingTrade] = useState(false);
+import SettingsDropdown from '@/components/SettingsDropdown';
+import NotificationBell from '@/components/NotificationBell';
 
-  useEffect(() => {
-    let tradeChannel: any = null;
+export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
 
-    const setupTradeListener = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  const { currentUserId, activeLeagueId } = useAppSession();
 
-      const checkPendingTrades = async () => {
-        try {
-          const { count, error } = await supabase
-            .from('transactions')
-            .select('*', { count: 'exact', head: true })
-            .eq('receiver_id', user.id)
-            .eq('status', 'PENDING');
+const [hasPendingTradeOffer, setHasPendingTradeOffer] = useState(false);
 
-          if (!error && count !== null) {
-            setHasPendingTrade(count > 0);
-          } else {
-            setHasPendingTrade(false);
-          }
-        } catch (err) {
-          console.error('Error checking pending transactions:', err);
-        }
-      };
+useEffect(() => {
+  if (!currentUserId || !activeLeagueId) {
+    setHasPendingTradeOffer(false);
+    return;
+  }
 
-      await checkPendingTrades();
+  let isActive = true;
 
-      tradeChannel = supabase
-        .channel(`root-tabs-transactions-badge-${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', 
-            schema: 'public',
-            table: 'transactions',
-          },
-          (payload) => {
-            const newRow = payload.new as any;
-            const oldRow = payload.old as any;
+  const checkPendingTradeOffers = async () => {
+    const { count, error } = await supabase
+      .from('transactions')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('league_id', activeLeagueId)
+      .eq('receiver_id', currentUserId)
+      .eq('type', 'TRADE')
+      .eq('status', 'PENDING');
 
-            const isRelevantUser = 
-              newRow?.receiver_id === user.id || 
-              newRow?.sender_id === user.id ||
-              oldRow?.receiver_id === user.id ||
-              oldRow?.sender_id === user.id;
+    if (error) {
+      console.error(
+        'Unable to check pending trade offers:',
+        error.message
+      );
+      return;
+    }
 
-            if (isRelevantUser) {
-              setTimeout(() => {
-                checkPendingTrades();
-              }, 150);
-            }
-          }
-        )
-        .subscribe();
-    };
+    if (isActive) {
+      setHasPendingTradeOffer((count ?? 0) > 0);
+    }
+  };
 
-    setupTradeListener();
+  void checkPendingTradeOffers();
 
-    return () => {
-      if (tradeChannel) {
-        supabase.removeChannel(tradeChannel);
+  // Realtime reuses an existing channel when the topic matches. Give each
+  // layout mount a unique topic so a fast route remount cannot receive a
+  // channel that is still subscribed while its async cleanup is finishing.
+  const channelInstanceId = `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+
+  const channel = supabase
+    .channel(
+      `market-tab-offers-${activeLeagueId}-${currentUserId}-${channelInstanceId}`
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'transactions',
+        filter: `league_id=eq.${activeLeagueId}`,
+      },
+      () => {
+        void checkPendingTradeOffers();
       }
-    };
-  }, []);
+    )
+    .subscribe();
+
+  return () => {
+    isActive = false;
+    void supabase.removeChannel(channel);
+  };
+}, [currentUserId, activeLeagueId]);
 
   return (
     <Tabs
+      initialRouteName="dashboard"
       screenOptions={{
-        tabBarActiveTintColor: '#00ff87',
-        tabBarInactiveTintColor: '#888888',
-        tabBarStyle: {
-          backgroundColor: '#0F0F0F',
-          borderTopWidth: 1,
-          borderTopColor: '#1A1A1A',
-          height: Platform.OS === 'web' ? 60 : 50 + insets.bottom, 
-          paddingBottom: Platform.OS === 'web' ? 8 : (insets.bottom > 0 ? insets.bottom : 6), 
-          paddingTop: 6,
-        },
-        headerStyle: {
-          backgroundColor: '#0A0A0A',
-          borderBottomWidth: 1,
-          borderBottomColor: '#161616',
-        },
-        headerTintColor: '#FFF',
-        headerTitleStyle: { fontWeight: '900', fontSize: 16 },
-        headerRight: () => <SettingsDropdown />,
+        headerShown: true,
+
+       headerStyle: {
+  backgroundColor: appColors.backgroundDeep,
+},
+
+headerTintColor: appColors.textPrimary,
+headerShadowVisible: false,
+
+headerTitleStyle: {
+  fontSize: 13,
+  fontWeight: '900',
+  color: appColors.textPrimary,
+},
+
+headerTitleContainerStyle: {
+  paddingVertical: 0,
+},
+
+headerRightContainerStyle: {
+  paddingRight: 6,
+},
+
+        headerRight: () => (
+          <View style={styles.headerActions}>
+            <NotificationBell />
+            <SettingsDropdown />
+          </View>
+        ),
+
+       tabBarStyle: {
+  backgroundColor: appColors.backgroundDeep,
+  borderTopColor: appColors.border,
+  borderTopWidth: 1,
+  height: 58 + Math.max(insets.bottom, 8),
+  paddingTop: 7,
+  paddingBottom: Math.max(insets.bottom, 8),
+},
+
+tabBarActiveTintColor: appColors.accent,
+tabBarInactiveTintColor: appColors.textMuted,
+
+tabBarLabelStyle: {
+  fontSize: 9,
+  fontWeight: '800',
+  letterSpacing: 0.4,
+},
+
+        tabBarHideOnKeyboard: true,
       }}
     >
-      <Tabs.Screen 
-        name="dashboard" 
-        options={{ 
-          title: "HOME HUB", 
-          tabBarLabel: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Home size={size - 2} color={color} />
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'HOME',
+          headerTitle: 'DASHBOARD',
+
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              color={color}
+              size={size}
+            />
           ),
-        }} 
+        }}
       />
-      <Tabs.Screen 
-        name="squad" 
-        options={{ 
-          title: "MY TEAM", 
-          tabBarLabel: "Squad",
-          tabBarIcon: ({ color, size }) => (
-            <Shirt size={size - 2} color={color} />
+
+      <Tabs.Screen
+        name="squad"
+        options={{
+          title: 'SQUAD',
+          headerTitle: 'MY SQUAD',
+
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'shirt' : 'shirt-outline'}
+              color={color}
+              size={size}
+            />
           ),
-        }} 
+        }}
       />
-      <Tabs.Screen 
-        name="market" 
-        options={{ 
-          title: "PLAYER MARKET", 
-          tabBarLabel: "Market",
-          tabBarIcon: ({ color, size }) => (
-            <View style={styles.iconContainer}>
-              <TrendingUp size={size - 2} color={color} />
-              {hasPendingTrade && <View style={styles.notificationBadgeCircle} />}
-            </View>
+
+      <Tabs.Screen
+        name="players"
+        options={{
+          title: 'PLAYERS',
+          headerTitle: 'PLAYER SCOUT',
+
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'search' : 'search-outline'}
+              color={color}
+              size={size}
+            />
           ),
-        }} 
+        }}
       />
-      <Tabs.Screen 
-        name="players" 
-        options={{ 
-          title: "PLAYER POOL", 
-          tabBarLabel: "Player Pool",
-          tabBarIcon: ({ color, size }) => (
-            <Users size={size - 2} color={color} />
+
+      <Tabs.Screen
+        name="market"
+        options={{
+          title: 'MARKET',
+          headerTitle: 'TRANSFER MARKET',
+
+          tabBarIcon: ({ color, size, focused }) => (
+  <View style={styles.marketIconContainer}>
+    <Ionicons
+      name={
+        focused
+          ? 'swap-horizontal'
+          : 'swap-horizontal-outline'
+      }
+      color={color}
+      size={size}
+    />
+
+    {hasPendingTradeOffer && (
+      <View style={styles.notificationDot} />
+    )}
+  </View>
+),
+        }}
+      />
+
+      <Tabs.Screen
+        name="league"
+        options={{
+          title: 'LEAGUE',
+          headerTitle: 'LEAGUE HUB',
+
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'trophy' : 'trophy-outline'}
+              color={color}
+              size={size}
+            />
           ),
-        }} 
+        }}
       />
-      <Tabs.Screen 
-        name="league" 
-        options={{ 
-          title: "LEAGUE CENTRE", 
-          tabBarLabel: "League",
-          tabBarIcon: ({ color, size }) => (
-            <Trophy size={size - 2} color={color} />
-          ),
-        }} 
-      />
+
+      {/* Existing route, available programmatically but not as a main tab */}
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Stats',
-          tabBarIcon: ({ color, size }) => (
-            <BarChart3 size={size - 2} color={color} />
-          ),
+          href: null,
+          title: 'STATS',
         }}
       />
     </Tabs>
@@ -165,20 +241,24 @@ export default function RootTabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
-    position: 'relative',
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 2,
   },
-  notificationBadgeCircle: {
+  marketIconContainer: {
+    position: 'relative',
+  },
+
+  notificationDot: {
     position: 'absolute',
-    top: -2,
-    right: -6,
+    top: -3,
+    right: -5,
     width: 9,
     height: 9,
-    borderRadius: 4.5,
+    borderRadius: 5,
     backgroundColor: '#FF3B30',
-    borderWidth: 1.5,
-    borderColor: '#0F0F0F',
+    borderWidth: 2,
+    borderColor: appColors.backgroundDeep,
   },
 });

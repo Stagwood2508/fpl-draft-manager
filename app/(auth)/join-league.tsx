@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
 
 export default function JoinLeagueScreen() {
   const router = useRouter();
+   const { refreshLeagueMembership } = useAppSession();
   const [inviteCode, setInviteCode] = useState('');
   const [teamName, setTeamName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,31 +57,64 @@ export default function JoinLeagueScreen() {
       if (rpcErr) throw rpcErr;
 
       // 4. Handle RPC Capacity / Status Rejections
-      if (joinResult && !joinResult.success) {
-        switch (joinResult.error) {
-          case 'LEAGUE_FULL':
-            Alert.alert('League Full', `This league has already reached its maximum capacity of ${league.max_size || 8} managers.`);
-            return;
-          case 'DRAFT_ALREADY_STARTED':
-            Alert.alert('Draft In Progress', 'You cannot join this league because the draft has already started or finished.');
-            return;
-          default:
-            Alert.alert('Join Failed', joinResult.error || 'Could not join league.');
-            return;
-        }
+      const result = Array.isArray(joinResult)
+  ? joinResult[0]
+  : joinResult;
+
+if (result && !result.success) {
+switch (result.error) {
+  case 'LEAGUE_FULL':
+    Alert.alert(
+      'League Full',
+      `This league has already reached its maximum capacity of ${
+        league.max_size || 8
+      } managers.`
+    );
+    return;
+
+  case 'DRAFT_ALREADY_STARTED':
+    Alert.alert(
+      'Draft In Progress',
+      'You cannot join this league because the draft has already started or finished.'
+    );
+    return;
+
+  default:
+    Alert.alert(
+      'Join Failed',
+      result.error || 'Could not join league.'
+    );
+    return;
+}
       }
 
-      // 5. Success Notification & Explicit Navigation to Newly Joined League
-      Alert.alert('Welcome Aboard!', `You have joined "${league.name}" as manager of ${cleanTeamName}.`);
-      router.replace({
-        pathname: '/(tabs)/dashboard',
-        params: { leagueId: league.id }
-      });
+// 5. Persist the newly joined league
+await AsyncStorage.setItem('active_league_id', league.id);
+
+// 6. Refresh the shared membership state before navigating
+const membershipConfirmed = await refreshLeagueMembership();
+
+if (!membershipConfirmed) {
+  throw new Error(
+    'The league was joined successfully, but your membership could not be verified.'
+  );
+}
+
+console.log(
+  '🚀 [JOIN LEAGUE] Membership verified. Entering dashboard...'
+);
+
+// 7. Navigate only after RootLayout knows the user has a league
+router.replace({
+  pathname: '/(tabs)/dashboard',
+  params: {
+    leagueId: league.id,
+  },
+});
 
     } catch (err: any) {
       console.error('Join League Crash:', JSON.stringify(err, null, 2));
       const exactErrorMsg = err?.message || err?.details || err?.hint || JSON.stringify(err);
-      Alert.alert('Database Rejection', exactErrorMsg);
     } finally {
       setLoading(false);
     }

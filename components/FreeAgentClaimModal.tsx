@@ -178,16 +178,33 @@ export default function FreeAgentClaimModal({
       setSubmitting(true);
 
       // Call Atomic Postgres RPC Function (validates final squad counts)
-      const { data, error } = await supabase.rpc('claim_free_agent', {
+      let { data, error } = await supabase.rpc('claim_free_agent_with_history', {
         p_league_id: targetLeagueId,
         p_add_player_id: targetPlayer.id,
         p_drop_player_id: selectedDropPlayerId,
         p_gameweek: currentGameweek,
       });
 
+      // Keep development builds usable until the accompanying database migration is deployed.
+      if (error?.code === 'PGRST202') {
+        const fallback = await supabase.rpc('claim_free_agent', {
+          p_league_id: targetLeagueId,
+          p_add_player_id: targetPlayer.id,
+          p_drop_player_id: selectedDropPlayerId,
+          p_gameweek: currentGameweek,
+        });
+        data = fallback.data;
+        error = fallback.error;
+      }
+
       if (error) throw error;
 
       if (data && !data.success) {
+        if (data.error === 'PLAYER_WAIVER_LOCKED') {
+          throw new Error(
+            `This player is protected until the Gameweek ${data.available_gameweek || 'next'} waiver window.`
+          );
+        }
         throw new Error(data.error || 'Failed to complete Free Agent claim.');
       }
 

@@ -9,7 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Dimensions,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,14 +28,28 @@ interface PlayerDetails {
   team_name: string;
   team_short_name?: string;
   total_points: number;
-  minutes: number;
-  goals_scored: number;
-  assists: number;
-  clean_sheets: number;
-  yellow_cards: number;
-  red_cards: number;
+  minutes?: number;
+  goals_scored?: number;
+  assists?: number;
+  clean_sheets?: number;
+  yellow_cards?: number;
+  red_cards?: number;
   form?: string;
   points_per_game?: string;
+  starts?: number;
+  bonus?: number;
+  saves?: number;
+  penalties_saved?: number;
+  goals_conceded?: number;
+  influence?: string | number;
+  creativity?: string | number;
+  threat?: string | number;
+  ict_index?: string | number;
+  expected_goals?: string | number;
+  expected_assists?: string | number;
+  defensive_contribution_points?: string | number;
+  defcon_points?: string | number;
+  total_defcon_points?: string | number;
   owner_name?: string | null;
 }
 
@@ -63,9 +77,29 @@ interface PlayerCardModalProps {
   visible: boolean;
   playerId: number | null;
   leagueId: string | null;
-  currentGameweek: number;
+  currentGameweek?: number;
+  statsMode?: 'CURRENT' | 'LAST_SEASON';
+  seasonLabel?: string;
+  transferListing?: {
+    isListed: boolean;
+    note: string | null;
+    saving?: boolean;
+    onSave: (note: string | null) => void | Promise<void>;
+    onRemove: () => void | Promise<void>;
+  };
   onClose: () => void;
 }
+
+const getPreviousSeasonLabel = () => {
+  const now = new Date();
+  const endingYear = now.getUTCMonth() >= 6 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  return `${endingYear - 1}/${String(endingYear).slice(-2)}`;
+};
+
+const displayStat = (value: string | number | null | undefined, suffix = '') => {
+  if (value === null || value === undefined || value === '') return '—';
+  return `${value}${suffix}`;
+};
 
 const POSITION_COLORS: Record<string, string> = {
   GKP: '#FFC107',
@@ -86,16 +120,21 @@ export default function PlayerCardModal({
   visible,
   playerId,
   leagueId,
-  currentGameweek,
+  currentGameweek = 0,
+  statsMode = 'CURRENT',
+  seasonLabel,
+  transferListing,
   onClose,
 }: PlayerCardModalProps) {
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'HISTORY' | 'SCHEDULE'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'HISTORY' | 'SCHEDULE' | 'TRANSFER'>('OVERVIEW');
   const [loading, setLoading] = useState<boolean>(true);
   const [imageError, setImageError] = useState<boolean>(false);
 
   const [player, setPlayer] = useState<PlayerDetails | null>(null);
   const [history, setHistory] = useState<GameweekStat[]>([]);
   const [schedule, setSchedule] = useState<UpcomingFixture[]>([]);
+  const [lastSeasonDefconPoints, setLastSeasonDefconPoints] = useState<number | null>(null);
+  const [tradeNoteText, setTradeNoteText] = useState('');
 
   useEffect(() => {
     if (visible && playerId) {
@@ -106,14 +145,22 @@ export default function PlayerCardModal({
       setPlayer(null);
       setHistory([]);
       setSchedule([]);
+      setLastSeasonDefconPoints(null);
       setImageError(false);
     }
-  }, [visible, playerId, leagueId]);
+  }, [visible, playerId, leagueId, currentGameweek, statsMode]);
+
+  useEffect(() => {
+    if (visible && transferListing) {
+      setTradeNoteText(transferListing.note || '');
+    }
+  }, [playerId, transferListing?.isListed, transferListing?.note, visible]);
 
   const loadPlayerData = async () => {
     if (!playerId) return;
     try {
       setLoading(true);
+      setLastSeasonDefconPoints(null);
 
       // Resolve Active League ID from prop > AsyncStorage fallback
       let activeLid = leagueId;
@@ -189,71 +236,90 @@ export default function PlayerCardModal({
         owner_name: ownerDisplayName,
       });
 
-      // 2. Fetch Completed Gameweek Stats History
-      const { data: statsData } = await supabase
-        .from('player_gameweek_stats')
-        .select(`
-          gameweek,
-          minutes,
-          goals,
-          assists,
-          clean_sheets,
-          cbit_points,
-          total_points,
-          fixtures (
-            home_team_short,
-            away_team_short,
-            home_score,
-            away_score
-          )
-        `)
-        .eq('player_id', playerId)
-        .lte('gameweek', currentGameweek)
-        .order('gameweek', { ascending: false });
+      if (statsMode === 'LAST_SEASON' && effectivePosition !== 'GKP') {
+        const { data: defconRows } = await supabase
+          .from('player_gameweek_stats')
+          .select('defensive_contribution')
+          .eq('player_id', playerId);
 
-      if (statsData) {
-        const formattedHistory: GameweekStat[] = statsData.map((row: any) => {
-          const fix = row.fixtures;
-          const isHome = fix?.home_team_short === playerData.team_name?.slice(0, 3).toUpperCase();
-          const oppShort = isHome ? fix?.away_team_short || 'OPP' : fix?.home_team_short || 'OPP';
-          const score = fix ? `${fix.home_score ?? 0}-${fix.away_score ?? 0}` : 'v';
-
-          return {
-            gameweek: row.gameweek,
-            minutes: row.minutes || 0,
-            goals: row.goals || 0,
-            assists: row.assists || 0,
-            clean_sheets: row.clean_sheets || 0,
-            cbit_points: row.cbit_points || 0,
-            total_points: row.total_points || 0,
-            opponent_short: oppShort,
-            is_home: isHome,
-            score_display: score,
-          };
-        });
-        setHistory(formattedHistory);
+        if (defconRows && defconRows.length > 0) {
+          const threshold = effectivePosition === 'DEF' ? 10 : 12;
+          const points = defconRows.reduce(
+            (total: number, row: any) =>
+              total + (Number(row.defensive_contribution || 0) >= threshold ? 2 : 0),
+            0
+          );
+          setLastSeasonDefconPoints(points);
+        }
       }
 
-      // 3. Fetch Upcoming Schedule (FDR)
-      const { data: fixtureData } = await supabase
-        .from('fixtures')
-        .select('*')
-        .or(`home_team_id.eq.${playerData.team_id},away_team_id.eq.${playerData.team_id}`)
-        .gt('gameweek', currentGameweek)
-        .order('gameweek', { ascending: true })
-        .limit(6);
+      if (statsMode === 'CURRENT') {
+        // 2. Fetch Completed Gameweek Stats History
+        const { data: statsData } = await supabase
+          .from('player_gameweek_stats')
+          .select(`
+            gameweek,
+            minutes,
+            goals,
+            assists,
+            clean_sheets,
+            cbit_points,
+            total_points,
+            fixtures (
+              home_team_short,
+              away_team_short,
+              home_score,
+              away_score
+            )
+          `)
+          .eq('player_id', playerId)
+          .lte('gameweek', currentGameweek)
+          .order('gameweek', { ascending: false });
 
-      if (fixtureData) {
-        const formattedSchedule: UpcomingFixture[] = fixtureData.map((fix: any) => {
-          const isHome = fix.home_team_id === playerData.team_id;
-          return {
-            gameweek: fix.gameweek,
-            opponent_short: isHome ? fix.away_team_short || 'OPP' : fix.home_team_short || 'OPP',
-            is_home: isHome,
-            fdr: isHome ? fix.home_fdr || 3 : fix.away_fdr || 3,
-          };
-        });
-        setSchedule(formattedSchedule);
+        if (statsData) {
+          const formattedHistory: GameweekStat[] = statsData.map((row: any) => {
+            const fix = row.fixtures;
+            const isHome = fix?.home_team_short === playerData.team_name?.slice(0, 3).toUpperCase();
+            const oppShort = isHome ? fix?.away_team_short || 'OPP' : fix?.home_team_short || 'OPP';
+            const score = fix ? `${fix.home_score ?? 0}-${fix.away_score ?? 0}` : 'v';
+
+            return {
+              gameweek: row.gameweek,
+              minutes: row.minutes || 0,
+              goals: row.goals || 0,
+              assists: row.assists || 0,
+              clean_sheets: row.clean_sheets || 0,
+              cbit_points: row.cbit_points || 0,
+              total_points: row.total_points || 0,
+              opponent_short: oppShort,
+              is_home: isHome,
+              score_display: score,
+            };
+          });
+          setHistory(formattedHistory);
+        }
+
+        // 3. Fetch Upcoming Schedule (FDR)
+        const { data: fixtureData } = await supabase
+          .from('fixtures')
+          .select('*')
+          .or(`home_team_id.eq.${playerData.team_id},away_team_id.eq.${playerData.team_id}`)
+          .gt('gameweek', currentGameweek)
+          .order('gameweek', { ascending: true })
+          .limit(6);
+
+        if (fixtureData) {
+          const formattedSchedule: UpcomingFixture[] = fixtureData.map((fix: any) => {
+            const isHome = fix.home_team_id === playerData.team_id;
+            return {
+              gameweek: fix.gameweek,
+              opponent_short: isHome ? fix.away_team_short || 'OPP' : fix.home_team_short || 'OPP',
+              is_home: isHome,
+              fdr: isHome ? fix.home_fdr || 3 : fix.away_fdr || 3,
+            };
+          });
+          setSchedule(formattedSchedule);
+        }
       }
     } catch (err: any) {
       Alert.alert('Error Loading Player Card', err.message);
@@ -319,7 +385,7 @@ export default function PlayerCardModal({
           )}
 
           {/* TAB NAVIGATION HEADER */}
-          <View style={styles.tabBar}>
+          {statsMode === 'CURRENT' ? <View style={styles.tabBar}>
             <TouchableOpacity
               style={[styles.tabBtn, activeTab === 'OVERVIEW' && styles.tabBtnActive]}
               onPress={() => setActiveTab('OVERVIEW')}
@@ -340,7 +406,24 @@ export default function PlayerCardModal({
             >
               <Text style={[styles.tabText, activeTab === 'SCHEDULE' && styles.tabTextActive]}>FIXTURES</Text>
             </TouchableOpacity>
-          </View>
+            {transferListing && (
+              <TouchableOpacity
+                style={[styles.tabBtn, activeTab === 'TRANSFER' && styles.tabBtnActive]}
+                onPress={() => setActiveTab('TRANSFER')}
+              >
+                <Text style={[styles.tabText, activeTab === 'TRANSFER' && styles.tabTextActive]}>
+                  {transferListing.isListed ? 'LISTED' : 'TRANSFER'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View> : (
+            <View style={styles.seasonBanner}>
+              <Ionicons name="stats-chart" size={14} color="#00FF87" />
+              <Text style={styles.seasonBannerText}>
+                {seasonLabel || getPreviousSeasonLabel()} LAST-SEASON STATS
+              </Text>
+            </View>
+          )}
 
           {/* CONTENT BODY */}
           {loading ? (
@@ -356,60 +439,146 @@ export default function PlayerCardModal({
                   {/* KPI Summary Grid */}
                   <View style={styles.kpiGrid}>
                     <View style={styles.kpiCard}>
-                      <Text style={styles.kpiValue}>{player.total_points}</Text>
+                      <Text style={styles.kpiValue}>{displayStat(player.total_points)}</Text>
                       <Text style={styles.kpiLabel}>TOTAL PTS</Text>
                     </View>
                     <View style={styles.kpiCard}>
-                      <Text style={styles.kpiValue}>{player.points_per_game || '0.0'}</Text>
+                      <Text style={styles.kpiValue}>{displayStat(player.points_per_game)}</Text>
                       <Text style={styles.kpiLabel}>AVG / MATCH</Text>
                     </View>
                     <View style={styles.kpiCard}>
-                      <Text style={styles.kpiValue}>{player.form || '0.0'}</Text>
-                      <Text style={styles.kpiLabel}>FORM</Text>
+                      <Text style={styles.kpiValue}>
+                        {statsMode === 'LAST_SEASON' ? displayStat(player.starts) : displayStat(player.form)}
+                      </Text>
+                      <Text style={styles.kpiLabel}>{statsMode === 'LAST_SEASON' ? 'STARTS' : 'FORM'}</Text>
                     </View>
                     <View style={styles.kpiCard}>
-                      <Text style={styles.kpiValue}>{player.minutes}'</Text>
+                      <Text style={styles.kpiValue}>{displayStat(player.minutes, "'")}</Text>
                       <Text style={styles.kpiLabel}>MINUTES</Text>
                     </View>
                   </View>
 
-                  {/* Attacking & Match Action Summary */}
-                  <Text style={styles.sectionHeader}>Matchday Return Metrics</Text>
+                  <Text style={styles.sectionHeader}>
+                    {player.element_type === 'GKP' ? 'Goalkeeping Performance' : 'Matchday Return Metrics'}
+                  </Text>
                   <View style={styles.statsBox}>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Goals Scored</Text>
-                      <Text style={styles.statVal}>{player.goals_scored}</Text>
-                    </View>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Assists</Text>
-                      <Text style={styles.statVal}>{player.assists}</Text>
-                    </View>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>Clean Sheets</Text>
-                      <Text style={styles.statVal}>{player.clean_sheets}</Text>
-                    </View>
+                    {player.element_type !== 'GKP' && (
+                      <>
+                        <View style={styles.statRow}>
+                          <Text style={styles.statLabel}>Goals Scored</Text>
+                          <Text style={styles.statVal}>{displayStat(player.goals_scored)}</Text>
+                        </View>
+                        <View style={styles.statRow}>
+                          <Text style={styles.statLabel}>Assists</Text>
+                          <Text style={styles.statVal}>{displayStat(player.assists)}</Text>
+                        </View>
+                      </>
+                    )}
+                    {player.element_type !== 'FWD' && (
+                      <View style={styles.statRow}>
+                        <Text style={styles.statLabel}>Clean Sheets</Text>
+                        <Text style={styles.statVal}>{displayStat(player.clean_sheets)}</Text>
+                      </View>
+                    )}
+                    {player.element_type === 'GKP' && (
+                      <>
+                        <View style={styles.statRow}>
+                          <Text style={styles.statLabel}>Saves</Text>
+                          <Text style={styles.statVal}>{displayStat(player.saves)}</Text>
+                        </View>
+                        <View style={styles.statRow}>
+                          <Text style={styles.statLabel}>Penalties Saved</Text>
+                          <Text style={styles.statVal}>{displayStat(player.penalties_saved)}</Text>
+                        </View>
+                        <View style={styles.statRow}>
+                          <Text style={styles.statLabel}>Goals Conceded</Text>
+                          <Text style={styles.statVal}>{displayStat(player.goals_conceded)}</Text>
+                        </View>
+                      </>
+                    )}
                     <View style={styles.statRow}>
                       <Text style={styles.statLabel}>Yellow / Red Cards</Text>
                       <Text style={styles.statVal}>
-                        {player.yellow_cards} / {player.red_cards}
+                        {displayStat(player.yellow_cards)} / {displayStat(player.red_cards)}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Defensive Contribution Tiers Summary */}
-                  <Text style={styles.sectionHeader}>Tactical Defensive Contributions (CBIT/CBIRT)</Text>
-                  <View style={styles.cbitBanner}>
-                    <Ionicons name="shield-checkmark" size={18} color="#00FF87" />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={styles.cbitBannerTitle}>Custom Tier Points Earned</Text>
-                      <Text style={styles.cbitBannerSub}>
-                        Accumulated via successful CBIT/CBIRT action thresholds.
+                  {statsMode === 'LAST_SEASON' && (
+                    <>
+                      <Text style={styles.sectionHeader}>FPL Scouting Indexes</Text>
+                      <View style={styles.ictHeroCard}>
+                        <View>
+                          <Text style={styles.ictHeroLabel}>ICT INDEX</Text>
+                          <Text style={styles.ictHeroValue}>{displayStat(player.ict_index)}</Text>
+                        </View>
+                        <View style={styles.ictBreakdown}>
+                          <View style={styles.ictBreakdownItem}>
+                            <Text style={styles.ictBreakdownValue}>{displayStat(player.influence)}</Text>
+                            <Text style={styles.ictBreakdownLabel}>INFLUENCE</Text>
+                          </View>
+                          <View style={styles.ictBreakdownItem}>
+                            <Text style={styles.ictBreakdownValue}>{displayStat(player.creativity)}</Text>
+                            <Text style={styles.ictBreakdownLabel}>CREATIVITY</Text>
+                          </View>
+                          <View style={styles.ictBreakdownItem}>
+                            <Text style={styles.ictBreakdownValue}>{displayStat(player.threat)}</Text>
+                            <Text style={styles.ictBreakdownLabel}>THREAT</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <Text style={styles.sectionHeader}>Additional Returns</Text>
+                      <View style={styles.statsBox}>
+                        {player.element_type !== 'GKP' && (
+                          <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>Expected Goals / Assists</Text>
+                            <Text style={styles.statVal}>{displayStat(player.expected_goals)} / {displayStat(player.expected_assists)}</Text>
+                          </View>
+                        )}
+                        {player.element_type !== 'GKP' && (
+                          <View style={styles.statRow}>
+                            <Text style={styles.statLabel}>FPL DEFCON Points</Text>
+                            <Text style={styles.statVal}>
+                              {displayStat(
+                                lastSeasonDefconPoints ??
+                                  player.defensive_contribution_points ??
+                                  player.defcon_points ??
+                                  player.total_defcon_points
+                              )}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.statRow}>
+                          <Text style={styles.statLabel}>Bonus Points</Text>
+                          <Text style={styles.statVal}>{displayStat(player.bonus)}</Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.dataAvailabilityNote}>
+                        — means the statistic was not supplied in the stored player record.
                       </Text>
-                    </View>
-                    <Text style={styles.cbitBannerVal}>
-                      +{history.reduce((acc, h) => acc + (h.cbit_points || 0), 0)} PTS
-                    </Text>
-                  </View>
+                    </>
+                  )}
+
+                  {/* Defensive Contribution Tiers Summary */}
+                  {statsMode === 'CURRENT' && (
+                    <>
+                      <Text style={styles.sectionHeader}>Tactical Defensive Contributions (CBIT/CBIRT)</Text>
+                      <View style={styles.cbitBanner}>
+                        <Ionicons name="shield-checkmark" size={18} color="#00FF87" />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={styles.cbitBannerTitle}>Custom Tier Points Earned</Text>
+                          <Text style={styles.cbitBannerSub}>
+                            Accumulated via successful CBIT/CBIRT action thresholds.
+                          </Text>
+                        </View>
+                        <Text style={styles.cbitBannerVal}>
+                          +{history.reduce((acc, h) => acc + (h.cbit_points || 0), 0)} PTS
+                        </Text>
+                      </View>
+                    </>
+                  )}
                 </ScrollView>
               )}
 
@@ -487,6 +656,78 @@ export default function PlayerCardModal({
                 </ScrollView>
               )}
 
+              {activeTab === 'TRANSFER' && transferListing && (
+                <View style={styles.transferTabContent}>
+                  <View style={styles.transferListingPanel}>
+                    <View style={styles.transferListingHeader}>
+                      <View style={styles.transferListingTitleRow}>
+                        <Ionicons
+                          name="swap-horizontal"
+                          size={18}
+                          color={transferListing.isListed ? '#00FF87' : '#A3AAA7'}
+                        />
+                        <View style={styles.transferListingCopy}>
+                          <Text style={styles.transferListingTitle}>
+                            {transferListing.isListed ? 'TRANSFER LISTED' : 'TRANSFER LIST'}
+                          </Text>
+                          <Text style={styles.transferListingSubtitle}>
+                            {transferListing.isListed
+                              ? 'Other managers can currently make an offer for this player.'
+                              : 'Advertise this player to the other managers in your league.'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={styles.transferListingFieldLabel}>WHAT ARE YOU LOOKING FOR?</Text>
+                    <TextInput
+                      value={tradeNoteText}
+                      onChangeText={setTradeNoteText}
+                      editable={!transferListing.saving}
+                      maxLength={160}
+                      multiline
+                      placeholder="Optional note — e.g. looking for a midfielder"
+                      placeholderTextColor="#5F6864"
+                      style={styles.transferListingInput}
+                    />
+                    <Text style={styles.transferListingCount}>{tradeNoteText.length}/160</Text>
+
+                    <View style={styles.transferListingActions}>
+                      {transferListing.isListed && (
+                        <TouchableOpacity
+                          style={styles.removeListingButton}
+                          disabled={transferListing.saving}
+                          onPress={() => void transferListing.onRemove()}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.removeListingButtonText}>REMOVE</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={[
+                          styles.saveListingButton,
+                          transferListing.saving && styles.listingButtonDisabled,
+                        ]}
+                        disabled={transferListing.saving}
+                        onPress={() => void transferListing.onSave(tradeNoteText.trim() || null)}
+                        activeOpacity={0.8}
+                      >
+                        {transferListing.saving ? (
+                          <ActivityIndicator size="small" color="#06110C" />
+                        ) : (
+                          <>
+                            <Ionicons name="megaphone" size={14} color="#06110C" />
+                            <Text style={styles.saveListingButtonText}>
+                              {transferListing.isListed ? 'UPDATE LISTING' : 'LIST PLAYER'}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+
             </View>
           )}
 
@@ -512,6 +753,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     backgroundColor: '#121212',
     width: '100%',
+    maxWidth: 560,
     maxHeight: '90%',
     borderRadius: 12,
     borderWidth: 1,
@@ -520,7 +762,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
@@ -610,6 +852,77 @@ const styles = StyleSheet.create({
   tabBtnActive: { backgroundColor: '#00FF87' },
   tabText: { color: '#666', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   tabTextActive: { color: '#000' },
+  seasonBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#071A12',
+    borderWidth: 1,
+    borderColor: '#00FF8744',
+    borderRadius: 6,
+    paddingVertical: 9,
+    marginBottom: 16,
+  },
+  transferListingPanel: {
+    padding: 12,
+    backgroundColor: '#0C1712',
+    borderWidth: 1,
+    borderColor: '#214A35',
+    borderRadius: 8,
+  },
+  transferListingHeader: { marginBottom: 9 },
+  transferTabContent: { flex: 1, justifyContent: 'center' },
+  transferListingTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  transferListingCopy: { flex: 1, marginLeft: 8 },
+  transferListingTitle: { color: '#F4F7F5', fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
+  transferListingSubtitle: { color: '#8D9993', fontSize: 9, lineHeight: 13, marginTop: 2 },
+  transferListingFieldLabel: { color: '#8D9993', fontSize: 8, fontWeight: '900', letterSpacing: 0.5, marginBottom: 5 },
+  transferListingInput: {
+    minHeight: 52,
+    maxHeight: 76,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#F4F7F5',
+    fontSize: 11,
+    textAlignVertical: 'top',
+    backgroundColor: '#111B17',
+    borderWidth: 1,
+    borderColor: '#293A32',
+    borderRadius: 6,
+  },
+  transferListingActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 7, marginTop: 9 },
+  transferListingCount: { color: '#5F6864', fontSize: 8, fontWeight: '700', textAlign: 'right', marginTop: 3 },
+  removeListingButton: {
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: '#261518',
+    borderWidth: 1,
+    borderColor: '#63323A',
+    borderRadius: 6,
+  },
+  removeListingButtonText: { color: '#FF899B', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  saveListingButton: {
+    flex: 1,
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#00FF87',
+    borderRadius: 6,
+  },
+  saveListingButtonText: { color: '#06110C', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  listingButtonDisabled: { opacity: 0.55 },
+  seasonBannerText: {
+    color: '#00FF87',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    marginLeft: 7,
+  },
 
   loaderBox: { height: 260, justifyContent: 'center', alignItems: 'center' },
   bodyContainer: { minHeight: 280, maxHeight: 380 },
@@ -653,6 +966,33 @@ const styles = StyleSheet.create({
   },
   statLabel: { color: '#AAA', fontSize: 12, fontWeight: '700' },
   statVal: { color: '#FFF', fontSize: 12, fontWeight: '900' },
+  ictHeroCard: {
+    backgroundColor: '#071A12',
+    borderWidth: 1,
+    borderColor: '#00FF8744',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  ictHeroLabel: { color: '#6B8C7B', fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  ictHeroValue: { color: '#00FF87', fontSize: 26, fontWeight: '900', marginTop: 1 },
+  ictBreakdown: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#173729',
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  ictBreakdownItem: { flex: 1, alignItems: 'center' },
+  ictBreakdownValue: { color: '#FFF', fontSize: 13, fontWeight: '900' },
+  ictBreakdownLabel: { color: '#5F766B', fontSize: 8, fontWeight: '800', marginTop: 2 },
+  dataAvailabilityNote: {
+    color: '#66716C',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: -6,
+    marginBottom: 10,
+  },
 
   cbitBanner: {
     flexDirection: 'row',

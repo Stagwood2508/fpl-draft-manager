@@ -191,7 +191,10 @@ export default function MatchesScreen() {
       let liveScoreMap = new Map();
       if (viewMode === 'LIVE') {
         const { data: liveScores } = await supabase
-          .rpc('get_live_fixture_scores', { p_gameweek: selectedGameweek });
+          .rpc('get_league_live_fixture_scores', {
+            p_league_id: currentLeagueId,
+            p_gameweek: selectedGameweek,
+          });
 
         if (liveScores) {
           liveScoreMap = new Map(liveScores.map((s: any) => [s.fixture_id, s]));
@@ -208,12 +211,29 @@ export default function MatchesScreen() {
       if (userIds.length > 0) {
         const { data: allRosters } = await supabase
           .from('rosters')
-          .select('user_id, player_id')
+          .select('user_id, player_id, is_starting')
           .eq('league_id', currentLeagueId)
-          .eq('is_starting', true)
           .in('user_id', userIds);
 
-        const allPlayerIds = Array.from(new Set((allRosters || []).map(r => r.player_id)));
+        const { data: deadlineLineups } = await supabase
+          .from('gameweek_lineup_snapshots')
+          .select('user_id, effective_starting_player_ids')
+          .eq('league_id', currentLeagueId)
+          .eq('gameweek', selectedGameweek)
+          .in('user_id', userIds);
+
+        const deadlinePlayersByUser = new Map<string, Set<number>>(
+          (deadlineLineups || []).map(lineup => [
+            lineup.user_id,
+            new Set<number>((lineup.effective_starting_player_ids || []).map(Number)),
+          ])
+        );
+        const effectiveRosters = (allRosters || []).filter(row => {
+          const deadlinePlayers = deadlinePlayersByUser.get(row.user_id);
+          return deadlinePlayers ? deadlinePlayers.has(Number(row.player_id)) : row.is_starting;
+        });
+
+        const allPlayerIds = Array.from(new Set(effectiveRosters.map(r => r.player_id)));
 
         if (allPlayerIds.length > 0) {
           const [{ data: playersMeta }, { data: gwStats }] = await Promise.all([
@@ -228,7 +248,7 @@ export default function MatchesScreen() {
           const playersMetaMap = new Map((playersMeta || []).map(p => [p.id, p]));
           const statsMap = new Map((gwStats || []).map(s => [s.player_id, s.total_points || 0]));
 
-          (allRosters || []).forEach(r => {
+          effectiveRosters.forEach(r => {
             const p = playersMetaMap.get(r.player_id);
             if (!p) return;
 

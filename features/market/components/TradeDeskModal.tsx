@@ -109,21 +109,36 @@ export default function TradeDeskModal({
       if (!resolvedUserId) throw new Error('Authentication frame unverified.');
 
       // 3. Fetch League Configuration (roster_type)
-      const { data: leagueData } = await supabase
-        .from('leagues')
-        .select('roster_type')
-        .eq('id', resolvedLeagueId)
-        .maybeSingle();
+const { data: leagueSettings, error: settingsError } = await supabase
+  .from('league_settings')
+  .select('roster_type')
+  .eq('league_id', resolvedLeagueId)
+  .maybeSingle();
 
-      if (leagueData?.roster_type) {
-        setRosterType(leagueData.roster_type as 'STRICT' | 'FLEXIBLE');
-      }
+if (settingsError) {
+  throw settingsError;
+}
+
+if (leagueSettings?.roster_type) {
+  setRosterType(
+    leagueSettings.roster_type as 'STRICT' | 'FLEXIBLE'
+  );
+}
+
 
       // 4. Fetch Both Roster Packages strictly for the resolved active league
       const [myDataRes, rivalDataRes] = await Promise.all([
         supabase.from('rosters').select('players(*)').eq('league_id', resolvedLeagueId).eq('user_id', resolvedUserId),
         supabase.from('rosters').select('players(*)').eq('league_id', resolvedLeagueId).eq('user_id', tradePartner.userId)
       ]);
+
+      if (myDataRes.error) {
+  throw myDataRes.error;
+}
+
+if (rivalDataRes.error) {
+  throw rivalDataRes.error;
+}
 
       const parsedMy = (myDataRes.data?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
       const parsedRival = (rivalDataRes.data?.map(r => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean) || []) as PlayerAsset[];
@@ -335,7 +350,7 @@ export default function TradeDeskModal({
           </Text>
 
           {modalLoading && myTradeRoster.length === 0 ? (
-            <View style={styles.loaderBox}><ActivityIndicator size="large" color="#00ff87" /></View>
+            <View style={styles.loaderBox}><ActivityIndicator size="large" color="#00F27A" /></View>
           ) : (
             <View style={styles.tradeLayoutGrid}>
               {/* Left Column */}
@@ -429,7 +444,7 @@ export default function TradeDeskModal({
 
             <TouchableOpacity style={[styles.modalButton, styles.modalButtonConfirm, modalLoading && { opacity: 0.6 }]} onPress={handleProposeBilateralTrade} disabled={modalLoading}>
               {modalLoading ? (
-                <ActivityIndicator size="small" color="#000" />
+                <ActivityIndicator size="small" color="#030A11" />
               ) : (
                 <Text style={styles.modalButtonConfirmText}>Submit Offer</Text>
               )}
@@ -442,30 +457,205 @@ export default function TradeDeskModal({
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  tradeModalContent: { backgroundColor: '#161616', width: '95%', maxHeight: '85%', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#333' },
-  modalHeader: { color: '#FFF', fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
-  tradeSubHeader: { color: '#666', fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 12, textTransform: 'uppercase' },
-  tradeLayoutGrid: { flexDirection: 'row', justifyContent: 'space-between', height: 320, marginBottom: 10 },
-  tradeCol: { flex: 1, backgroundColor: '#0E0E10', marginHorizontal: 4, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#222' },
-  colTitle: { color: '#888', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#222', paddingBottom: 6 },
-  tradeScrollView: { flex: 1 },
-  loaderBox: { height: 320, justifyContent: 'center', alignItems: 'center' },
-  tradeSelectorCardCompact: { backgroundColor: '#18181B', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 8, marginBottom: 4, borderWidth: 1, borderColor: '#2E2E33' },
-  tradeSelectorCardSelected: { borderColor: '#00ff87', backgroundColor: '#00ff8710' },
-  tradeCardRowFlow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tradeCardTextCompact: { color: '#CCC', fontSize: 11, fontWeight: '700', flex: 1, marginRight: 6 },
-  tradeCardTextSelected: { color: '#00ff87' },
-  tradeCardMetaTextCompact: { color: '#555', fontSize: 9, fontWeight: '800', marginRight: 6 },
-  miniPosBadgeCompact: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
-  miniPosTextCompact: { color: '#000', fontSize: 7, fontWeight: '900' },
-  tradeLockNotice: { color: '#888', fontSize: 10, textAlign: 'center', marginVertical: 6, paddingHorizontal: 12, lineHeight: 14, fontStyle: 'italic' },
-  tradeSelectorCardDisabled: { opacity: 0.25, borderColor: '#111', backgroundColor: '#09090B' },
-  tradeCardTextDisabled: { color: '#444' },
-  modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 6, justifyContent: 'center' },
-  modalButtonCancel: { backgroundColor: '#333' },
-  modalButtonConfirm: { backgroundColor: '#00ff87' },
-  modalButtonCancelText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
-  modalButtonConfirmText: { color: '#000', fontWeight: '800', fontSize: 13 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(1, 7, 12, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+
+  tradeModalContent: {
+    backgroundColor: '#122230',
+    width: '92%',
+    maxWidth: 920,
+    height: '82%',
+    borderRadius: 14,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#365063',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 12,
+    overflow: 'hidden',
+  },
+
+  loaderBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  modalHeader: {
+    color: '#F7FAFC',
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+
+  tradeSubHeader: {
+    color: '#A7B4C2',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+
+  tradeLayoutGrid: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: 8,
+    marginBottom: 10,
+    gap: 12,
+  },
+
+  tradeCol: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: '#091521',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#223443',
+  },
+
+  tradeScrollView: {
+    flex: 1,
+  },
+
+  colTitle: {
+    color: '#A7B4C2',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#223443',
+    paddingBottom: 8,
+  },
+
+  tradeSelectorCardCompact: {
+    backgroundColor: '#0D1924',
+    borderRadius: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    marginBottom: 7,
+    borderWidth: 1,
+    borderColor: '#223443',
+  },
+
+  tradeSelectorCardSelected: {
+    borderColor: '#00F27A',
+    backgroundColor: 'rgba(0, 242, 122, 0.12)',
+  },
+
+  tradeSelectorCardDisabled: {
+    opacity: 0.42,
+    borderColor: '#172733',
+    backgroundColor: '#06101A',
+  },
+
+  tradeCardRowFlow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+
+  tradeCardTextCompact: {
+    color: '#F7FAFC',
+    fontSize: 12,
+    fontWeight: '800',
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
+  },
+
+  tradeCardTextSelected: {
+    color: '#00F27A',
+  },
+
+  tradeCardTextDisabled: {
+    color: '#687887',
+  },
+
+  tradeCardMetaTextCompact: {
+    color: '#687887',
+    fontSize: 9,
+    fontWeight: '800',
+    marginRight: 8,
+    flexShrink: 0,
+  },
+
+  miniPosBadgeCompact: {
+    minWidth: 32,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+
+  miniPosTextCompact: {
+    color: '#030A11',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+  tradeLockNotice: {
+    color: '#A7B4C2',
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginVertical: 10,
+    paddingHorizontal: 16,
+    lineHeight: 15,
+    flexShrink: 0,
+  },
+
+  modalActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 8,
+    flexShrink: 0,
+  },
+
+  modalButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderWidth: 1,
+  },
+
+  modalButtonCancel: {
+    backgroundColor: '#101C27',
+    borderColor: '#365063',
+  },
+
+  modalButtonConfirm: {
+    backgroundColor: '#00F27A',
+    borderColor: '#00A956',
+  },
+
+  modalButtonCancelText: {
+    color: '#F7FAFC',
+    fontWeight: '900',
+    fontSize: 13,
+  },
+
+  modalButtonConfirmText: {
+    color: '#030A11',
+    fontWeight: '900',
+    fontSize: 13,
+  },
 });

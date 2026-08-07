@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
+import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 
 interface DraftCountdownCardProps {
   leagueId?: string | null;
@@ -137,11 +138,11 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
 }
 
 const styles = StyleSheet.create({
-  cardContainer: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 6, margin: 16, alignSelf: 'stretch' },
-  heading: { color: '#FFF', fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
-  clockNumbers: { color: '#00ff87', fontSize: 20, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginVertical: 10, letterSpacing: 1 },
-  subtext: { color: '#555', fontSize: 11, fontWeight: '600', lineHeight: 15 },
-  subtextCenter: { color: '#AAA', fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 4, marginBottom: 14 },
-  enterRoomButton: { backgroundColor: '#00ff87', borderRadius: 4, paddingVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
-  buttonText: { color: '#000', fontSize: 13, fontWeight: '900', textTransform: 'uppercase' }
+  cardContainer: { minHeight: 142, justifyContent: 'center', padding: appSpacing.xl, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large, alignSelf: 'stretch' },
+  heading: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 14 },
+  clockNumbers: { color: appColors.accent, fontSize: 21, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginVertical: 10, letterSpacing: 0.8 },
+  subtext: { ...appTypography.body, color: appColors.textMuted, lineHeight: 18 },
+  subtextCenter: { ...appTypography.body, color: appColors.textSecondary, textAlign: 'center', marginTop: 5, marginBottom: 14 },
+  enterRoomButton: { minHeight: 42, backgroundColor: appColors.accent, borderRadius: appRadius.small, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
+  buttonText: { ...appTypography.label, color: appColors.backgroundDeep }
 });
