@@ -796,7 +796,6 @@ const isDesktop = width >= 1050;
   const [draftStartTimeStr, setDraftStartTimeStr] = useState<string | null>(null);
   const [waitingRoomCountdown, setWaitingRoomCountdown] = useState<string>('00:00');
 
-  const [isDebugDrawerOpen, setIsDebugDrawerOpen] = useState(false);
   const [isQuickRefVisible, setIsQuickRefVisible] = useState(false);
   const [quickRefTab, setQuickRefTab] = useState<'WATCHLIST' | 'POOL'>('WATCHLIST');
 
@@ -1117,7 +1116,6 @@ useEffect(() => {
 
     const engineStartup = async () => {
       try {
-        console.log('============= 🧪 DRAFT DEBUG STARTUP =============');
         const { data: authData } = await supabase.auth.getUser();
         if (!authData?.user) return;
         const currentUid = authData.user.id;
@@ -3295,25 +3293,6 @@ useEffect(() => {
           </View>
         )}
 
-        {isLive && (
-          <TouchableOpacity 
-            style={styles.floatingQuickRefFab} 
-            onPress={() => setIsQuickRefVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="list-circle" size={24} color="#000" />
-            <Text style={styles.fabLabelText}>TARGETS</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity 
-          style={styles.diagnosticDebugFab} 
-          onPress={() => setIsDebugDrawerOpen(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="bug-outline" size={16} color="#000" />
-          <Text style={styles.debugFabLabelText}>DEBUG</Text>
-        </TouchableOpacity>
       </View>
 
       {isMyTurn && selectedPlayer && (activeTab === 'POOL' || activeTab === 'WATCHLIST') && (
@@ -3419,82 +3398,6 @@ useEffect(() => {
         onClose={() => setInspectingPlayer(null)}
       />
 
-      {/* QUICK TARGET SHEET */}
-      <Modal 
-        visible={isQuickRefVisible} 
-        animationType="slide" 
-        transparent={true}
-        onRequestClose={() => setIsQuickRefVisible(false)}
-      >
-        <View style={styles.quickRefOverlayPanel}>
-          <View style={styles.quickRefCardContainer}>
-            <View style={styles.drawerDragHandleRow}>
-              <TouchableOpacity style={styles.closeDrawerHitbox} onPress={() => setIsQuickRefVisible(false)}>
-                <Ionicons name="chevron-down" size={16} color="#555" />
-                <Text style={styles.closeDrawerLabelText}>DISMISS HUB</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.quickRefTabsContainerRow}>
-              <TouchableOpacity style={[styles.quickRefSubTabBtn, quickRefTab === 'WATCHLIST' && styles.quickRefSubTabBtnActive]} onPress={() => setQuickRefTab('WATCHLIST')}>
-                <Text style={[styles.quickRefSubTabText, quickRefTab === 'WATCHLIST' && styles.quickRefSubTabTextActive]}>⭐ WATCHLIST ({watchlistPlayers.length})</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.quickRefSubTabBtn, quickRefTab === 'POOL' && styles.quickRefSubTabBtnActive]} onPress={() => setQuickRefTab('POOL')}>
-                <Text style={[styles.quickRefSubTabText, quickRefTab === 'POOL' && styles.quickRefSubTabTextActive]}>🏃 LEAGUE POOL ({memoizedFilteredPlayers.length})</Text>
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={quickRefTab === 'WATCHLIST' ? watchlistPlayers : memoizedFilteredPlayers.slice(0, 30)}
-              keyExtractor={(item) => `quick-ref-${item.id}`}
-              renderItem={({ item, index }) => (
-                <View style={styles.quickRefCompactRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.quickRefPlayerNameText} numberOfLines={1}>{quickRefTab === 'WATCHLIST' ? `${index + 1}. ` : ''}{item.web_name}</Text>
-                    <Text style={styles.quickRefPlayerTeamText}>{item.team_name} • {item.element_type}</Text>
-                  </View>
-                  <View style={styles.quickRefMetricStack}><Text style={styles.quickRefMetricVal}>#{item.draft_rank}</Text></View>
-                  <TouchableOpacity style={styles.quickRefActionSelectBtn} onPress={() => { handleSelectPress(item); setIsQuickRefVisible(false); }}>
-                    <Ionicons name="add-circle-outline" size={16} color="#00ff87" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* DIAGNOSTICS DRAWER */}
-      <Modal 
-        visible={isDebugDrawerOpen} 
-        animationType="slide" 
-        transparent={true}
-        onRequestClose={() => setIsDebugDrawerOpen(false)}
-      >
-        <View style={styles.debugDrawerOverlayPanel}>
-          <View style={styles.debugDrawerCardContainer}>
-            <View style={styles.debugDrawerHeaderRow}>
-              <Text style={styles.debugDrawerTitleText}>🔬 SYSTEM PIPELINE DIAGNOSTICS</Text>
-              <TouchableOpacity style={styles.debugCloseBtn} onPress={() => setIsDebugDrawerOpen(false)}>
-                <Text style={styles.debugCloseBtnText}>DISMISS</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ flex: 1, marginTop: 10 }}>
-              <Text style={styles.debugSectionSubHeading}>GLOBAL SESSION METRICS</Text>
-              <View style={styles.debugDataGridCard}>
-                <Text style={styles.debugGridMetaItemText}>⚡ Status Parameter: {session?.draft_status || 'NULL'}</Text>
-                <Text style={styles.debugGridMetaItemText}>🔢 Overall Pick Index: {session?.current_pick_index || 0}</Text>
-                <Text style={styles.debugGridMetaItemText}>🔄 Round Matrix Bracket: {session?.current_round || 0}</Text>
-              </View>
-              <Text style={styles.debugSectionSubHeading}>MANAGED ROSTER ALLOCATION COUNTS</Text>
-              <View style={styles.debugDataGridCard}>
-                <Text style={styles.debugGridMetaItemText}>🧤 Goalkeepers (GKP): {myRoster.GKP.filter(Boolean).length} / 2</Text>
-                <Text style={styles.debugGridMetaItemText}>🛡️ Defenders (DEF): {myRoster.DEF.filter(Boolean).length} / 5</Text>
-                <Text style={styles.debugGridMetaItemText}>⚔️ Midfielders (MID): {myRoster.MID.filter(Boolean).length} / 5</Text>
-                <Text style={styles.debugGridMetaItemText}>🚀 Forwards (FWD): {myRoster.FWD.filter(Boolean).length} / 3</Text>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -4340,17 +4243,6 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
   quickRefMetricStack: { alignItems: 'center', width: 45 },
   quickRefMetricVal: { color: '#FFF', fontSize: 11, fontWeight: '800' },
   quickRefActionSelectBtn: { borderWidth: 1, borderColor: '#333', backgroundColor: '#1C1C1E', padding: 8, borderRadius: 4 },
-  diagnosticDebugFab: { position: 'absolute', bottom: 85, left: 16, backgroundColor: '#FF9500', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 30, flexDirection: 'row', alignItems: 'center', elevation: 8, zIndex: 1000 },
-  debugDrawerOverlayPanel: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-  debugDrawerCardContainer: { backgroundColor: '#111', borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 2, borderTopColor: '#FF9500', height: '75%', padding: 16 },
-  debugDrawerHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#222', paddingBottom: 12 },
-  debugDrawerTitleText: { color: '#FF9500', fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
-  debugCloseBtn: { backgroundColor: '#222', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 4 },
-  debugCloseBtnText: { color: '#AAA', fontSize: 10, fontWeight: '800' },
-  debugSectionSubHeading: { color: '#555', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, marginTop: 14, marginBottom: 6 },
-  debugDataGridCard: { backgroundColor: '#000', borderRadius: 4, padding: 12, borderWidth: 1, borderColor: '#222' },
-  debugGridMetaItemText: { color: '#AAA', fontSize: 12, fontWeight: '700', marginVertical: 3 },
-  debugFabLabelText: { color: '#000', fontSize: 11, fontWeight: '900', marginLeft: 4, letterSpacing: 0.5 },
 draftOrderPanel: {
   backgroundColor: '#08111A',
   marginHorizontal: 12,
