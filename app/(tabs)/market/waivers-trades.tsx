@@ -174,6 +174,33 @@ useEffect(() => {
   }
 }, [isFocused, activeTab, userId, leagueId]);
 
+useEffect(() => {
+  if (!leagueId || !userId) return;
+
+  const channel = supabase
+    .channel(`transactions-${leagueId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'transactions',
+        filter: `league_id=eq.${leagueId}`,
+      },
+      (payload) => {
+        const row = (payload.new || payload.old) as any;
+        if (row?.sender_id === userId || row?.receiver_id === userId) {
+          void fetchTransactionContext();
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [leagueId, userId]);
+
   const fetchTransactionContext = async () => {
     try {
       setLoading(true);

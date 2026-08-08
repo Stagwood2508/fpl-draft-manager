@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +22,12 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
   useEffect(() => {
     fetchActiveDraftSchedule();
   }, [leagueId]);
+
+    useFocusEffect(
+    useCallback(() => {
+      fetchActiveDraftSchedule();
+    }, [leagueId])
+  );
 
   useEffect(() => {
     if (!targetTime) return;
