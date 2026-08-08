@@ -115,7 +115,7 @@ const PositionBadge = ({ position }: { position: string }) => {
       textColor = '#000';
       break;
     case 'FWD':
-      backgroundColor = '#BF5AF2'; // Purple
+      backgroundColor = '#ff2200'; // Purple
       break;
   }
 
@@ -774,8 +774,6 @@ const isDesktop = width >= 1050;
 
   const [recentPicksFeed, setRecentPicksFeed] = useState<TickerPickItem[]>([]);
   const [watchlistDraftedAlert, setWatchlistDraftedAlert] = useState<WatchlistDraftedAlert | null>(null);
-  const tickerScrollViewRef = useRef<ScrollView | null>(null);
-  const tickerScrollPos = useRef(0);
 
   const [activeTab, setActiveTab] = useState<MainTab>('POOL');
   const [sortOrder, setSortOrder] = useState<SortMetric>('RANK');
@@ -972,20 +970,6 @@ const isDesktop = width >= 1050;
     return () => clearTimeout(noticeTimer);
   }, [commissionerNotice]);
 
-  // 🔄 AUTOMATIC SCROLLING ENGINE FOR BOTTOM TICKER
-  useEffect(() => {
-    if (recentPicksFeed.length === 0) return;
-
-    const scrollTimer = setInterval(() => {
-      tickerScrollPos.current += 1.5;
-      if (tickerScrollPos.current > recentPicksFeed.length * 160) {
-        tickerScrollPos.current = 0;
-      }
-      tickerScrollViewRef.current?.scrollTo({ x: tickerScrollPos.current, animated: false });
-    }, 30);
-
-    return () => clearInterval(scrollTimer);
-  }, [recentPicksFeed]);
 
   // ⏱️ MANAGES PRE-LIVE WAITING ROOM COUNTDOWN & DRAFT KICKOFF
 useEffect(() => {
@@ -1391,25 +1375,6 @@ const { data: teamsProfiles } = await supabase
             pickReason: lastPick.pick_reason || null,
           });
         }
-
-        // 2. Horizontal Scroll Ticker Strip (Last 10 Picks)
-        const recentFeed: TickerPickItem[] = committedPicks
-          .slice(-10)
-          .reverse()
-          .map(pick => {
-            const player = parsedPool.find(p => p.id === pick.player_id);
-            const manager = activeProfiles.find(m => m.user_id === pick.user_id);
-            return {
-              pickNumber: pick.overall_pick_number || 0,
-              managerName: manager?.team_name || 'Manager',
-              playerName: player?.web_name || 'Player',
-              position: player?.element_type || 'MID',
-              pickSource: pick.pick_source || 'MANUAL',
-              pickReason: pick.pick_reason || null,
-            };
-          });
-
-        setRecentPicksFeed(recentFeed);
       }
 
       const totalLeagueManagers = membersList.length || 1;
@@ -3268,31 +3233,6 @@ useEffect(() => {
           </View>
         </>
 
-        {/* 📺 PINNED BOTTOM AUTO-SCROLLING TICKER STRIP */}
-        {isLive && recentPicksFeed.length > 0 && (
-          <View style={styles.bottomTickerPinnedStrip}>
-            <ScrollView 
-              ref={tickerScrollViewRef}
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              scrollEnabled={false}
-              contentContainerStyle={{ paddingHorizontal: 4 }}
-            >
-              {[...recentPicksFeed, ...recentPicksFeed].map((item, idx) => (
-                <View key={`bottom-ticker-${item.pickNumber}-${idx}`} style={styles.tickerChip}>
-                  <Text style={styles.tickerPickNum}>#{item.pickNumber}</Text>
-                  <Text style={styles.tickerPlayerName}>{item.playerName}</Text>
-                  <PositionBadge position={item.position} />
-                  <Text style={styles.tickerManagerName}>({item.managerName})</Text>
-                  {item.pickSource !== 'MANUAL' && (
-                    <Text style={styles.tickerAutopickLabel}>AUTO</Text>
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
       </View>
 
       {isMyTurn && selectedPlayer && (activeTab === 'POOL' || activeTab === 'WATCHLIST') && (
@@ -3881,43 +3821,6 @@ watchlistDraftedCopy: { flex: 1, minWidth: 0, marginLeft: 9 },
 watchlistDraftedTitle: { color: '#FFB340', fontSize: 9, fontWeight: '900', letterSpacing: 0.45 },
 watchlistDraftedText: { color: '#D1BD98', fontSize: 10, fontWeight: '700', marginTop: 2 },
 watchlistDraftedDismiss: { padding: 7, marginLeft: 4 },
-
-  bottomTickerPinnedStrip: {
-    backgroundColor: '#0D0D0D',
-    borderTopWidth: 1,
-    borderTopColor: '#222',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
-    paddingVertical: 6,
-  },
-  tickerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#161616',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 4,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#262626',
-    gap: 6,
-  },
-  tickerPickNum: {
-    color: '#00ff87',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  tickerPlayerName: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  tickerManagerName: {
-    color: '#666',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  tickerAutopickLabel: { color: '#FFB340', fontSize: 7, fontWeight: '900', letterSpacing: 0.4 },
 
 tabNavbarGroup: {
   flexDirection: 'row',
