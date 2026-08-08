@@ -17,13 +17,6 @@ export default function PlayersLayout() {
         animationEnabled: Platform.OS !== 'web',
       }}
     >
-      {/* 🙈 Hide the index redirect file from the top tabs visually */}
-      <MaterialTopTabs.Screen 
-        name="index" 
-        options={{ 
-          tabBarItemStyle: { display: 'none' } 
-        }} 
-      />
 
       {/* ✅ Clean and simple: Only your true visible sub-tabs live here */}
       <MaterialTopTabs.Screen name="scout" options={{ title: "Scout Pool" }} />
