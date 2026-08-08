@@ -385,14 +385,14 @@ const PlayerPoolRow = React.memo(({
       {watchlistIndex !== undefined && (
         <Text style={styles.watchlistIndexNumberText}>{watchlistIndex}. </Text>
       )}
-      <View style={styles.poolPlayerIdentity}>
+      <View style={styles.poolPlayerIdentitySingleRow}>
         <Text style={styles.poolPlayerNameText} numberOfLines={1}>{item.web_name}</Text>
-        <Text style={styles.poolPlayerTeamText} numberOfLines={1}>
+        <Text style={styles.poolPlayerTeamInlineMetaText} numberOfLines={1}>
           {item.team_name} · #{item.draft_rank === 999 ? 'N/A' : item.draft_rank} · {item.total_points} pts
         </Text>
       </View>
       <PositionBadge position={item.element_type} />
-      <Ionicons name="information-circle-outline" size={16} color="#71818E" />
+      <Ionicons name="information-circle-outline" size={15} color="#71818E" style={{ marginLeft: 6 }} />
     </Pressable>
 
     <View style={styles.playerRowActionBar}>
@@ -3881,12 +3881,13 @@ playerPoolRow: {
   flexDirection: 'row',
   alignItems: 'center',
   marginHorizontal: 12,
-  marginBottom: 5,
+  marginBottom: 3,
   backgroundColor: '#0B141D',
   borderWidth: 1,
   borderColor: '#192733',
-  borderRadius: 11,
+  borderRadius: 7,
   overflow: 'hidden',
+  minHeight: 38,
 },
 
 playerPoolRowSelected: {
@@ -3898,9 +3899,9 @@ playerPoolRowSelected: {
   minWidth: 0,
   flexDirection: 'row',
   alignItems: 'center',
-  paddingVertical: 8,
+  paddingVertical: 5,
   paddingLeft: 10,
-  paddingRight: 4,
+  paddingRight: 6,
 },
 
 reconnectBanner: {
@@ -3966,12 +3967,12 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
     paddingRight: 8,
   },
   playerRowActionButton: {
-    width: 30,
-    height: 30,
+    width: 26,
+    height: 26,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 7,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: '#22313D',
     backgroundColor: '#0D1821',
@@ -3988,7 +3989,15 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
   shifterArrowPad: { padding: 6, backgroundColor: '#1C1C1E', borderRadius: 4, marginLeft: 4 },
   poolPlayerNameText: { color: '#DDD', fontSize: 13, fontWeight: '800' },
   poolPlayerTeamText: { color: '#555', fontSize: 11, fontWeight: '600', marginTop: 1 },
-  poolPlayerIdentity: { flex: 1, minWidth: 0 },
+  poolPlayerIdentity: { flex: 1, minWidth: 0, flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8, },
+    poolPlayerInlineMetaText: { 
+    color: '#657684', 
+    fontSize: 11, 
+    fontWeight: '600',
+    flexShrink: 1, 
+  },
   splitMetricCell: { width: 55, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: '#1A1A1A', paddingLeft: 4 },
   splitMetricVal: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   splitMetricLabel: { color: '#444', fontSize: 8, fontWeight: '700', marginTop: 1 },
