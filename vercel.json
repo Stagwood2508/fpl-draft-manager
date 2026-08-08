@@ -2,6 +2,7 @@
   "version": 2,
   "cleanUrls": true,
   "framework": null,
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/((?!_expo|assets|favicon.ico|.*\\..*).*)",
