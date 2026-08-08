@@ -746,7 +746,7 @@ const isDesktop = width >= 1050;
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
   const [pickSubmissionError, setPickSubmissionError] = useState<string | null>(null);
   const [isDraftTrackerExpanded, setIsDraftTrackerExpanded] =
-    useState(true);
+    useState(false);
   const [isHapticsEnabled, setIsHapticsEnabled] = useState(true);
   const [isDraftSoundEnabled, setIsDraftSoundEnabled] = useState(false);
   const [highlightedPickerId, setHighlightedPickerId] = useState<string | null>(null);
@@ -3749,22 +3749,22 @@ connectionStatusDotOffline: { backgroundColor: '#FF6B61' },
 connectionStatusPillText: { color: '#71818E', fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
 
 clockContainer: {
-  minWidth: 76,
+  minWidth: 58,
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'center',
   backgroundColor: 'rgba(0,0,0,0.38)',
-  paddingVertical: 10,
-  paddingHorizontal: 12,
-  borderRadius: 10,
+  paddingVertical: 4,
+  paddingHorizontal: 8,
+  borderRadius: 6,
   borderWidth: 1,
   borderColor: 'rgba(255,255,255,0.08)',
 },
 
 clockText: {
-  fontSize: 19,
+  fontSize: 14,
   fontWeight: '900',
-  marginLeft: 7,
+  marginLeft: 4,
   fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
 },
 
@@ -4149,21 +4149,20 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
 draftOrderPanel: {
   backgroundColor: '#08111A',
   marginHorizontal: 12,
-  marginBottom: 9,
+  marginBottom: 6,
   borderWidth: 1,
   borderColor: '#1B2A36',
   borderRadius: 14,
-  paddingTop: 11,
-  paddingBottom: 11,
+  paddingVertical: 2,
   overflow: 'hidden',
 },
 
 draftOrderHeader: {
-  minHeight: 44,
+  minHeight: 32,
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
-  paddingHorizontal: 14,
+  paddingHorizontal: 10,
   marginBottom: 0,
 },
 
