@@ -700,6 +700,19 @@ export default function HomeDashboardScreen() {
                 </TouchableOpacity>
               )}
             />
+            <TouchableOpacity
+              style={styles.joinAnotherLeagueButton}
+              onPress={() => {
+                setLeaguePickerOpen(false);
+                router.push('/(auth)/join-league');
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={appColors.accent} />
+              <Text style={styles.joinAnotherLeagueText}>Join another league</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setLeaguePickerOpen(false)}>
+              <Text style={styles.modalCloseText}>CLOSE</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.modalClose} onPress={() => setLeaguePickerOpen(false)}>
               <Text style={styles.modalCloseText}>CLOSE</Text>
             </TouchableOpacity>
@@ -972,8 +985,10 @@ const styles = StyleSheet.create({
   leagueOptionCopy: { flex: 1 },
   leagueOptionName: { color: appColors.textPrimary, fontSize: 13, fontWeight: '900' },
   leagueOptionMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 2 },
-  modalClose: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: appSpacing.sm, backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
+ modalClose: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: appSpacing.sm, backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   modalCloseText: { ...appTypography.label, color: appColors.textSecondary },
+  joinAnotherLeagueButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: appSpacing.sm, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.small },
+  joinAnotherLeagueText: { ...appTypography.label, color: appColors.accent },
   shortcutModalCard: { width: '100%', maxWidth: 520, maxHeight: '88%', padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
   shortcutModalIntro: { ...appTypography.metadata, color: appColors.textMuted, marginTop: -8, marginBottom: appSpacing.md },
   selectedShortcuts: { overflow: 'hidden', borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },

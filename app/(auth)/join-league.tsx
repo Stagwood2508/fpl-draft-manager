@@ -112,10 +112,11 @@ router.replace({
   },
 });
 
-    } catch (err: any) {
-      console.error('Join League Crash:', JSON.stringify(err, null, 2));
-      const exactErrorMsg = err?.message || err?.details || err?.hint || JSON.stringify(err);
-    } finally {
+} catch (err: any) {
+  console.error('Join League Crash:', JSON.stringify(err, null, 2));
+  const exactErrorMsg = err?.message || err?.details || err?.hint || 'Something went wrong while joining the league.';
+  Alert.alert('Join Failed', exactErrorMsg);
+} finally {
       setLoading(false);
     }
   };
