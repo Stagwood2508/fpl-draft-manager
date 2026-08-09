@@ -127,7 +127,7 @@ function RootLayoutContent() {
       return;
     }
 
-    if (inAuthGroup) {
+   if (inAuthGroup && !isActivelyOnboarding) {
       router.replace('/(tabs)/dashboard');
     }
   }, [
