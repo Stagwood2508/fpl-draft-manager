@@ -713,9 +713,6 @@ export default function HomeDashboardScreen() {
             <TouchableOpacity style={styles.modalClose} onPress={() => setLeaguePickerOpen(false)}>
               <Text style={styles.modalCloseText}>CLOSE</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setLeaguePickerOpen(false)}>
-              <Text style={styles.modalCloseText}>CLOSE</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
