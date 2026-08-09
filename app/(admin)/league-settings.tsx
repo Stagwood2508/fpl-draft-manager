@@ -471,44 +471,45 @@ export default function UnifiedLeagueSettingsScreen() {
             </View>
           )}
 
-          {isCommissioner && (
-            <TouchableOpacity
-              style={styles.sectionCard}
-              onPress={() => router.push({ pathname: '/gameweek-lineups', params: { leagueId: leagueId || '' } } as any)}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#00ff8714' }}>
-                  <Ionicons name="shield-checkmark-outline" size={19} color="#00ff87" />
+{isCommissioner && (
+            <>
+              <TouchableOpacity
+                style={styles.sectionCard}
+                onPress={() => router.push({ pathname: '/gameweek-lineups', params: { leagueId: leagueId || '' } } as any)}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#00ff8714' }}>
+                    <Ionicons name="shield-checkmark-outline" size={19} color="#00ff87" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sectionHeading}>Gameweek Lineup Review</Text>
+                    <Text style={styles.sectionSub}>Review deadline snapshots, autosubs and controlled corrections.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#666" />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionHeading}>Gameweek Lineup Review</Text>
-                  <Text style={styles.sectionSub}>Review deadline snapshots, autosubs and controlled corrections.</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sectionCard}
+                onPress={handleManualFplSync}
+                disabled={syncingPool}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#00ff8714' }}>
+                    {syncingPool ? (
+                      <ActivityIndicator size="small" color="#00ff87" />
+                    ) : (
+                      <Ionicons name="sync-outline" size={19} color="#00ff87" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sectionHeading}>Sync Player Pool</Text>
+                    <Text style={styles.sectionSub}>Pull the latest players, clubs, and stats from the official FPL API.</Text>
+                  </View>
+                  {!syncingPool && <Ionicons name="chevron-forward" size={18} color="#666" />}
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#666" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-    style={styles.sectionCard}
-    onPress={handleManualFplSync}
-    disabled={syncingPool}
-  >
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#00ff8714' }}>
-        {syncingPool ? (
-          <ActivityIndicator size="small" color="#00ff87" />
-        ) : (
-          <Ionicons name="sync-outline" size={19} color="#00ff87" />
-        )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.sectionHeading}>Sync Player Pool</Text>
-        <Text style={styles.sectionSub}>Pull the latest players, clubs, and stats from the official FPL API.</Text>
-      </View>
-      {!syncingPool && <Ionicons name="chevron-forward" size={18} color="#666" />}
-    </View>
-  </TouchableOpacity>
-
-
+              </TouchableOpacity>
+            </>
           )}
 
           {/* BLOCK 1: DRAFT & ROSTER OPERATION RULESET */}
