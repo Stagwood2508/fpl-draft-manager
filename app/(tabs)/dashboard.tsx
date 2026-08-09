@@ -330,14 +330,14 @@ export default function HomeDashboardScreen() {
           <View style={[styles.leagueBar, !isDesktop && styles.leagueBarMobile]}>
             <View style={styles.leagueIdentity}>
               <Text style={styles.eyebrow}>ACTIVE LEAGUE</Text>
-              <TouchableOpacity
-                style={styles.leagueSelector}
-                onPress={() => memberships.length > 1 && setLeaguePickerOpen(true)}
-                activeOpacity={memberships.length > 1 ? 0.75 : 1}
-              >
-                <Text style={styles.leagueName} numberOfLines={1}>{activeLeague?.name || 'League Hub'}</Text>
-                {memberships.length > 1 && <Ionicons name="chevron-down" size={16} color={appColors.accent} />}
-              </TouchableOpacity>
+<TouchableOpacity
+  style={styles.leagueSelector}
+  onPress={() => setLeaguePickerOpen(true)}
+  activeOpacity={0.75}
+>
+  <Text style={styles.leagueName} numberOfLines={1}>{activeLeague?.name || 'League Hub'}</Text>
+  <Ionicons name="chevron-down" size={16} color={appColors.accent} />
+</TouchableOpacity>
               <Text style={styles.leagueMeta}>
                 {myStanding ? `#${myStanding.rank} · ${myStanding.points} league pts` : 'Season overview'}
               </Text>
