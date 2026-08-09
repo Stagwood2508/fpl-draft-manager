@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { synchronizeFplPlayerPool } from '@/utils/fplSync';
 
 interface LeagueSettings {
   draft_clock_duration: number;
@@ -63,6 +64,7 @@ export default function UnifiedLeagueSettingsScreen() {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isCommissioner, setIsCommissioner] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [syncingPool, setSyncingPool] = useState(false);
   
   // Roster Limits Configuration State
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
@@ -277,6 +279,23 @@ export default function UnifiedLeagueSettingsScreen() {
     }
   };
 
+  const handleManualFplSync = async () => {
+  try {
+    setSyncingPool(true);
+    const result = await synchronizeFplPlayerPool();
+
+    if (result.success) {
+      Alert.alert('Sync Complete', `Successfully updated ${result.count} Premier League players.`);
+    } else {
+      Alert.alert('Sync Failed', result.error || 'The player pool sync could not be completed.');
+    }
+  } catch (err: any) {
+    Alert.alert('Sync Failed', err.message || 'An unexpected error occurred during sync.');
+  } finally {
+    setSyncingPool(false);
+  }
+};
+  
   const handleSaveAllSettingsMatrix = async () => {
     if (!leagueId || !isCommissioner || !settings) return;
 
@@ -468,6 +487,28 @@ export default function UnifiedLeagueSettingsScreen() {
                 <Ionicons name="chevron-forward" size={18} color="#666" />
               </View>
             </TouchableOpacity>
+            <TouchableOpacity
+    style={styles.sectionCard}
+    onPress={handleManualFplSync}
+    disabled={syncingPool}
+  >
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#00ff8714' }}>
+        {syncingPool ? (
+          <ActivityIndicator size="small" color="#00ff87" />
+        ) : (
+          <Ionicons name="sync-outline" size={19} color="#00ff87" />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.sectionHeading}>Sync Player Pool</Text>
+        <Text style={styles.sectionSub}>Pull the latest players, clubs, and stats from the official FPL API.</Text>
+      </View>
+      {!syncingPool && <Ionicons name="chevron-forward" size={18} color="#666" />}
+    </View>
+  </TouchableOpacity>
+
+
           )}
 
           {/* BLOCK 1: DRAFT & ROSTER OPERATION RULESET */}

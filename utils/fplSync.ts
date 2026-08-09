@@ -133,7 +133,7 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
     // 3. Map players using PL_TEAMS_STATIC as primary source to prevent unrefreshed API team leaks
     const mappedPlayers = rawElements.map((player) => {
       const teamIdNum = Number(player.team);
-      const teamInfo = PL_TEAMS_STATIC[teamIdNum] || teamLookupById[teamIdNum] || { id: teamIdNum, code: 0, name: 'Unknown Club', short: 'UNK' };
+      const teamInfo =  teamLookupById[teamIdNum] || PL_TEAMS_STATIC[teamIdNum] || { id: teamIdNum, code: 0, name: 'Unknown Club', short: 'UNK' };
 
       return {
         id: player.id,
@@ -156,8 +156,8 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
     const mappedFixtures = (fixturesData || [])
       .filter((f) => f.event !== null)
       .map((f) => {
-        const homeTeam = PL_TEAMS_STATIC[f.team_h] || teamLookupById[f.team_h] || { id: f.team_h, name: 'Unknown', short: 'UNK' };
-        const awayTeam = PL_TEAMS_STATIC[f.team_a] || teamLookupById[f.team_a] || { id: f.team_a, name: 'Unknown', short: 'UNK' };
+        const homeTeam = teamLookupById[f.team_h] || PL_TEAMS_STATIC[f.team_h] ||  { id: f.team_h, name: 'Unknown', short: 'UNK' };
+        const awayTeam = teamLookupById[f.team_a] || PL_TEAMS_STATIC[f.team_a] ||  { id: f.team_a, name: 'Unknown', short: 'UNK' };
         
         return {
           id: f.id,
