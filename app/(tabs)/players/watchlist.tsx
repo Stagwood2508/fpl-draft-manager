@@ -80,8 +80,9 @@ export default function WatchlistScreen() {
           .maybeSingle();
 
         if (!memberErr && memberData?.league_id) {
-          currentLeagueId = memberData.league_id;
-          await AsyncStorage.setItem('active_league_id', currentLeagueId);
+          const membershipLeagueId = memberData.league_id;
+          currentLeagueId = membershipLeagueId;
+          await AsyncStorage.setItem('active_league_id', membershipLeagueId);
         }
       }
 

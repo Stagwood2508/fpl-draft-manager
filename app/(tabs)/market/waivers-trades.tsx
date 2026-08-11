@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
 import {
   StyleSheet,
   Text,
@@ -104,6 +102,7 @@ export default function TransactionsScreen() {
   const leagueId = activeLeagueId;
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
 
   const [activeTab, setActiveTab] = useState<'WAIVERS' | 'OFFERS' | 'HISTORY'>('WAIVERS');
 
@@ -214,6 +213,13 @@ if (!leagueId) {
 }
 
 const currentLeagueId = leagueId;
+
+      const { data: rosterSettingsData } = await supabase
+        .from('league_settings')
+        .select('roster_type')
+        .eq('league_id', currentLeagueId)
+        .maybeSingle();
+      setRosterType((rosterSettingsData?.roster_type as 'STRICT' | 'FLEXIBLE') || 'STRICT');
 
       const { data: waiverStatusData, error: waiverStatusError } = await supabase.rpc(
         'get_my_waiver_status',
@@ -369,31 +375,6 @@ const handleBatchAcceptTrade = async (
           );
         }
 
-        const involvedPlayerIds = [
-          ...packageData.playersIn.map((player) => player.id),
-          ...packageData.playersOut.map((player) => player.id),
-        ];
-
-        if (involvedPlayerIds.length > 0 && leagueId) {
-          const { error: waiverDeleteError } = await supabase
-            .from('waiver_claims')
-            .delete()
-            .eq('league_id', leagueId)
-            .eq('status', 'pending')
-            .or(
-              `player_to_drop.in.(${involvedPlayerIds.join(
-                ','
-              )}),player_to_add.in.(${involvedPlayerIds.join(',')})`
-            );
-
-          if (waiverDeleteError) {
-            console.error(
-              'Unable to clear affected waiver claims:',
-              waiverDeleteError.message
-            );
-          }
-        }
-
         if (Platform.OS === 'web') {
           window.alert(
             'Trade executed. All players have been swapped successfully.'
@@ -433,19 +414,16 @@ const handleBatchRejectTrade = async (
       try {
         setProcessing(true);
 
-        const { error } = await supabase
-          .from('transactions')
-          .update({ status: 'REJECTED' })
-          .eq('league_id', leagueId)
-          .eq('receiver_id', userId)
-          .or(
-            `id.in.(${packageData.originalRowIds.join(
-              ','
-            )}),parent_transaction_id.eq.${packageData.batchKey}`
-          );
+        const { data, error } = await supabase.rpc('update_trade_package_status', {
+          p_transaction_id: packageData.batchKey || packageData.originalRowIds[0],
+          p_action: 'REJECT',
+        });
 
         if (error) {
           throw error;
+        }
+        if (data && data.success === false) {
+          throw new Error(data.error || 'The offer could not be rejected.');
         }
 
         await fetchTransactionContext();
@@ -475,12 +453,15 @@ const handleBatchRejectTrade = async (
         onPress: async () => {
           try {
             setProcessing(true);
-            const { error } = await supabase
-              .from('transactions')
-              .update({ status: 'CANCELLED' })
-              .or(`id.in.(${packageData.originalRowIds.join(',')}),parent_transaction_id.eq.${packageData.batchKey}`);
+            const { data, error } = await supabase.rpc('update_trade_package_status', {
+              p_transaction_id: packageData.batchKey || packageData.originalRowIds[0],
+              p_action: 'WITHDRAW',
+            });
 
             if (error) throw error;
+            if (data && data.success === false) {
+              throw new Error(data.error || 'The offer could not be withdrawn.');
+            }
             Alert.alert('Offer Withdrawn', 'Your proposal has been successfully removed.');
             fetchTransactionContext();
           } catch (err: any) {
@@ -585,6 +566,39 @@ const toggleSelectMyTradePlayer = (id: number) => {
         rivalSelectedTradeIds.includes(rivalPlayer.id)
     );
 
+    if (rosterType === 'FLEXIBLE') {
+      const requestedClass = position === 'GKP' ? 'GKP' : 'OUTFIELD';
+      const demandedForClass = demandedPlayers.filter(candidate =>
+        requestedClass === 'GKP'
+          ? candidate.element_type === 'GKP'
+          : candidate.element_type !== 'GKP'
+      ).length;
+      const selectedForClass = previousSelection.filter(selectedId => {
+        const selected = myCounterRoster.find(candidate => candidate.id === selectedId);
+        return requestedClass === 'GKP'
+          ? selected?.element_type === 'GKP'
+          : selected?.element_type !== 'GKP';
+      });
+
+      if (demandedForClass === 0) {
+        const message = requestedClass === 'GKP'
+          ? 'Select a goalkeeper from the other squad before offering one.'
+          : 'Select an outfield player from the other squad before offering one.';
+        if (Platform.OS === 'web') window.alert(message);
+        else Alert.alert('Roster Balance', message);
+        return previousSelection;
+      }
+
+      if (selectedForClass.length >= demandedForClass) {
+        return [
+          ...previousSelection.filter(selectedId => selectedId !== selectedForClass[0]),
+          id,
+        ];
+      }
+
+      return [...previousSelection, id];
+    }
+
     const demandedPositionCount = demandedPlayers.filter(
       rivalPlayer =>
         rivalPlayer.element_type === position
@@ -635,6 +649,27 @@ const toggleSelectMyTradePlayer = (id: number) => {
     setRivalSelectedTradeIds(prev => {
       const nextSelection = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
       setMySelectedTradeIds(currentMySelections => {
+        if (rosterType === 'FLEXIBLE') {
+          const demanded = rivalCounterRoster.filter(player => nextSelection.includes(player.id));
+          const goalkeeperSlots = demanded.filter(player => player.element_type === 'GKP').length;
+          const outfieldSlots = demanded.length - goalkeeperSlots;
+          let usedGoalkeepers = 0;
+          let usedOutfielders = 0;
+
+          return currentMySelections.filter(myId => {
+            const selected = myCounterRoster.find(candidate => candidate.id === myId);
+            if (!selected) return false;
+            if (selected.element_type === 'GKP') {
+              if (usedGoalkeepers >= goalkeeperSlots) return false;
+              usedGoalkeepers += 1;
+              return true;
+            }
+            if (usedOutfielders >= outfieldSlots) return false;
+            usedOutfielders += 1;
+            return true;
+          });
+        }
+
         const demandedPositions = rivalCounterRoster.filter(p => nextSelection.includes(p.id)).map(p => p.element_type);
         const demandCounts: Record<string, number> = {};
         demandedPositions.forEach(pos => { demandCounts[pos] = (demandCounts[pos] || 0) + 1; });
@@ -701,51 +736,17 @@ if (
     try {
       setProcessing(true);
 
-const originalBatchKey = activeCounterTrade.batchKey;
-
-const { error: updateErr } = await supabase
-  .from('transactions')
-  .update({ status: 'COUNTERED' })
-  .eq('league_id', leagueId)
-  .eq('status', 'PENDING')
-  .or(
-    `id.in.(${activeCounterTrade.originalRowIds.join(
-      ','
-    )}),parent_transaction_id.eq.${originalBatchKey}`
-  );
-
-      if (updateErr) throw updateErr;
-
       const myTradePlayers = sortRosterByPosition(myCounterRoster.filter(p => mySelectedTradeIds.includes(p.id)));
       const rivalTradePlayers = sortRosterByPosition(rivalCounterRoster.filter(p => rivalSelectedTradeIds.includes(p.id)));
-
-      const counterBatchId = uuidv4();
-      const counterPayload: any[] = [];
-
-      for (let i = 0; i < myTradePlayers.length; i++) {
-        counterPayload.push({
-          league_id: leagueId,
-          sender_id: userId,
-          receiver_id:
-  activeCounterTrade.sender_id === userId
-    ? activeCounterTrade.receiver_id
-    : activeCounterTrade.sender_id,
-          type: 'TRADE',
-          status: 'PENDING',
-          player_out_id: myTradePlayers[i].id,
-          player_in_id: rivalTradePlayers[i] ? rivalTradePlayers[i].id : null,
-          parent_transaction_id: counterBatchId
-        });
+      const { data, error } = await supabase.rpc('counter_trade_package', {
+        p_transaction_id: activeCounterTrade.batchKey || activeCounterTrade.originalRowIds[0],
+        p_player_out_ids: myTradePlayers.map(player => player.id),
+        p_player_in_ids: rivalTradePlayers.map(player => player.id),
+      });
+      if (error) throw error;
+      if (data && data.success === false) {
+        throw new Error(data.error || 'The counter offer was rejected by the server.');
       }
-
-      if (counterPayload.length === 0) {
-  throw new Error(
-    'The counter offer contains no valid player exchanges.'
-  );
-}
-
-      const { error: insertErr } = await supabase.from('transactions').insert(counterPayload);
-      if (insertErr) throw insertErr;
 
       Alert.alert('Counter Offer Dispatched', 'Your counter-proposal has been successfully broadcasted.');
       setIsCounterModalVisible(false);

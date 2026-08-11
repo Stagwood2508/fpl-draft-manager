@@ -103,18 +103,18 @@ export default function FreeAgentClaimModal({
 
       if (rosterErr) throw rosterErr;
 
-      const formattedRoster: PlayerAsset[] = (rosterData || [])
-        .map((r: any) => {
+      const formattedRoster = (rosterData || [])
+        .reduce<PlayerAsset[]>((players, r: any) => {
           const p = Array.isArray(r.players) ? r.players[0] : r.players;
-          if (!p) return null;
-          return {
+          if (!p) return players;
+          players.push({
             id: p.id,
             web_name: p.web_name,
             element_type: p.element_type || 'FWD',
             team_short_name: p.team_name ? p.team_name.slice(0, 3).toUpperCase() : 'PL',
-          };
-        })
-        .filter(Boolean);
+          });
+          return players;
+        }, []);
 
       // Sort by position matching target player first for quick selection
       if (targetPlayer) {

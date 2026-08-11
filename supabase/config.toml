@@ -428,3 +428,8 @@ entrypoint = "./functions/fpl-proxy/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/sync-live-stats/index.ts"
+
+[functions.sync-fpl-player-pool]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-fpl-player-pool/index.ts"

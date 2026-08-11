@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
 import {
   StyleSheet,
   Text,
@@ -288,26 +286,20 @@ if (rivalDataRes.error) {
           throw new Error('Missing required authentication or league parameters.');
         }
 
-        const batchId = uuidv4();
-        const tradePayload: any[] = [];
-
-        for (let i = 0; i < myTradePlayers.length; i++) {
-          tradePayload.push({
-            league_id: resolvedLeagueId,
-            sender_id: resolvedUserId,
-            receiver_id: tradePartner.userId,
-            type: 'TRADE',
-            status: 'PENDING',
-            player_out_id: myTradePlayers[i].id,
-            player_in_id: rivalTradePlayers[i].id,
-            parent_transaction_id: batchId
-          });
-        }
+        const tradePayload = {
+          p_league_id: resolvedLeagueId,
+          p_receiver_id: tradePartner.userId,
+          p_player_out_ids: myTradePlayers.map(player => player.id),
+          p_player_in_ids: rivalTradePlayers.map(player => player.id),
+        };
 
         console.log('⚡ [TRADE] Inserting transaction rows into Supabase:', tradePayload);
 
-        const { error } = await supabase.from('transactions').insert(tradePayload);
+        const { data, error } = await supabase.rpc('create_trade_package', tradePayload);
         if (error) throw error;
+        if (data && data.success === false) {
+          throw new Error(data.error || 'The trade package was rejected by the server.');
+        }
         
         console.log('✅ [TRADE] Trade dispatched successfully!');
         notifyUser('Success', 'Trade proposal successfully dispatched!');

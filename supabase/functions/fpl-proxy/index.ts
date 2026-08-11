@@ -13,7 +13,12 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const endpoint = url.searchParams.get('endpoint') || 'bootstrap-static';
+    let endpoint = url.searchParams.get('endpoint');
+    if (!endpoint && req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      endpoint = typeof body?.endpoint === 'string' ? body.endpoint : null;
+    }
+    endpoint = endpoint || 'bootstrap-static';
 
     let targetUrl = `https://draft.premierleague.com/api/${endpoint}`;
     if (endpoint === 'fixtures') {

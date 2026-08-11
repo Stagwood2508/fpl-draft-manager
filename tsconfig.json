@@ -6,5 +6,9 @@
     "paths": {
       "@/*": ["./*"]
     }
-  }
+  },
+  "exclude": [
+    "supabase/functions/**",
+    "fantasy-draft-worker/supabase/functions/**"
+  ]
 }

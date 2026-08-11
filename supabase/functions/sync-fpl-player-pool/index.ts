@@ -1,41 +1,21 @@
-import { Platform } from 'react-native';
-import { supabase } from './supabase';
+// Supabase Edge Function: sync-fpl-player-pool
+//
+// Pulls fresh player, team, fixture, and live-stats data from the official
+// FPL Draft API and upserts it into Postgres. Players no longer returned by
+// FPL are marked inactive so historical draft, roster and scoring links remain.
+//
+// ACCESS CONTROL:
+// - Callable via the Supabase Dashboard "Invoke" button or the Supabase CLI
+//   (both authenticate with the service role key, which is always allowed).
+// - Callable from the app ONLY if the logged-in user's ID matches the
+//   APP_OWNER_USER_ID Edge Function secret.
+// - All other callers receive a 403.
 
-// Official FPL API Endpoints
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// ⚠️ Replace with your actual Supabase auth user UUID (Authentication → Users)
 const FPL_DRAFT_BOOTSTRAP_API = 'https://draft.premierleague.com/api/bootstrap-static';
 const FPL_FIXTURES_API = 'https://fantasy.premierleague.com/api/fixtures/';
-
-interface FPLRawElement {
-  id: number;
-  first_name: string;
-  second_name: string;
-  element_type: number; // 1: GKP, 2: DEF, 3: MID, 4: FWD
-  team: number;         // Draft team ID
-  web_name: string;
-  total_points: number;
-  draft_rank?: number;
-  code?: number;
-}
-
-interface FPLRawTeam {
-  id: number;
-  code: number;
-  name: string;
-  short_name?: string;
-}
-
-interface FPLRawFixture {
-  id: number;
-  event: number | null; // Gameweek round
-  team_h: number;       // Team ID in standard FPL
-  team_a: number;       // Team ID in standard FPL
-  team_h_score: number | null;
-  team_a_score: number | null;
-  finished: boolean;
-  kickoff_time: string;
-  team_h_difficulty: number;
-  team_a_difficulty: number;
-}
 
 const POSITION_MAP: Record<number, string> = {
   1: 'GKP',
@@ -44,7 +24,8 @@ const POSITION_MAP: Record<number, string> = {
   4: 'FWD',
 };
 
-// Reliable static mapping to override unrefreshed Draft API team index data
+// Fallback only — used only if the live API response is somehow missing a team.
+// The live API's own team list always takes priority over this.
 const PL_TEAMS_STATIC: Record<number, { id: number; name: string; short: string }> = {
   1:  { id: 1,  name: 'Arsenal',                short: 'ARS' },
   2:  { id: 2,  name: 'Aston Villa',            short: 'AVL' },
@@ -68,71 +49,83 @@ const PL_TEAMS_STATIC: Record<number, { id: number; name: string; short: string 
   20: { id: 20, name: 'Tottenham Hotspur',      short: 'TOT' },
 };
 
-/**
- * Platform-Aware API Dispatcher
- * On Web browsers, routes calls through the Supabase `fpl-proxy` Edge Function to bypass CORS.
- * On Native iOS/Android apps, fetches directly from official FPL endpoints.
- */
-async function fetchFplEndpoint(endpointKey: string, nativeUrl: string) {
-  if (Platform.OS === 'web') {
-    const { data, error } = await supabase.functions.invoke('fpl-proxy', {
-      body: { endpoint: endpointKey },
-    });
-    if (error) throw new Error(`Supabase Edge Proxy Error (${endpointKey}): ${error.message}`);
-    return data;
-  }
-
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Custom FPL Draft App Sync Engine)',
-    'Accept': 'application/json',
-  };
-
-  const response = await fetch(nativeUrl, { method: 'GET', headers });
-  if (!response.ok) {
-    throw new Error(`FPL API Endpoint rejected connection. Status: ${response.status}`);
-  }
-  return await response.json();
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
-/**
- * Orchestrates a complete real-time ingestion loop, pulling data from official 
- * FPL Draft & FPL Fixtures endpoints and committing clean upserts into PostgreSQL.
- */
-export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; count: number; error?: string }> {
-  console.log('[FPL-SYNC] Initializing executive data synchronization sequence...');
+Deno.serve(async (req) => {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const appOwnerUserId = Deno.env.get('APP_OWNER_USER_ID');
 
-  try {
-    // 1. Fetch live payload configurations in parallel
-    const [data, fixturesData] = await Promise.all([
-      fetchFplEndpoint('bootstrap-static', FPL_DRAFT_BOOTSTRAP_API),
-      fetchFplEndpoint('fixtures', FPL_FIXTURES_API) as Promise<FPLRawFixture[]>,
-    ]);
+  // --- ACCESS CONTROL ---
+  const authHeader = req.headers.get('Authorization') || '';
+  const bearerToken = authHeader.replace('Bearer ', '').trim();
 
-    const rawElements: FPLRawElement[] = data.elements || [];
-    const rawTeams: FPLRawTeam[] = data.teams || [];
+  const isServiceRoleCall = bearerToken === serviceRoleKey;
 
-    if (rawElements.length === 0) {
-      throw new Error('Ingested payload contains an empty player matrix.');
-    }
-
-    // 2. Build Team Lookup Dictionaries
-    const teamLookupById: Record<number, { id: number; code: number; name: string; short: string }> = {};
-
-    rawTeams.forEach((t: FPLRawTeam) => {
-      teamLookupById[t.id] = {
-        id: t.id,
-        code: t.code,
-        name: t.name,
-        short: t.short_name || 'UNK',
-      };
+  if (!isServiceRoleCall) {
+    // Not called with the service role key — check if it's the app owner's own session.
+    const callerClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
     });
 
-    console.log(`[FPL-SYNC] Successfully fetched ${rawElements.length} raw records from FPL. Mapping schema...`);
+    const { data: { user }, error: userError } = await callerClient.auth.getUser();
 
-    // 3. Map players using PL_TEAMS_STATIC as primary source to prevent unrefreshed API team leaks
-    const mappedPlayers = rawElements.map((player) => {
+    if (userError || !user || !appOwnerUserId || user.id !== appOwnerUserId) {
+      return jsonResponse({ success: false, error: 'FORBIDDEN: Only the app owner can trigger this sync.' }, 403);
+    }
+  }
+
+  // --- SYNC LOGIC (runs with full service-role permissions) ---
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  try {
+    console.log('[FPL-SYNC] Starting sync...');
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (FPL Draft Manager Sync Engine)',
+      'Accept': 'application/json',
+    };
+
+    const [bootstrapRes, fixturesRes] = await Promise.all([
+      fetch(FPL_DRAFT_BOOTSTRAP_API, { headers }),
+      fetch(FPL_FIXTURES_API, { headers }),
+    ]);
+
+    if (!bootstrapRes.ok || !fixturesRes.ok) {
+      throw new Error(`FPL API rejected the request. Bootstrap: ${bootstrapRes.status}, Fixtures: ${fixturesRes.status}`);
+    }
+
+    const data = await bootstrapRes.json();
+    const fixturesData = await fixturesRes.json();
+
+    const rawElements = data.elements || [];
+    const rawTeams = data.teams || [];
+
+    if (rawElements.length === 0) {
+      throw new Error('FPL API returned an empty player list — aborting to avoid wiping the player pool.');
+    }
+
+    // Safety threshold: the Premier League always has 20 clubs and several hundred
+    // registered players. If the API returns suspiciously few, abort before any delete runs.
+    if (rawElements.length < 300) {
+      throw new Error(`FPL API returned only ${rawElements.length} players — this looks incomplete. Aborting before any changes are made.`);
+    }
+
+    // Build team lookup from THIS sync's live data — takes priority over the static fallback.
+    const teamLookupById: Record<number, { id: number; name: string; short: string }> = {};
+    rawTeams.forEach((t: any) => {
+      teamLookupById[t.id] = { id: t.id, name: t.name, short: t.short_name || 'UNK' };
+    });
+
+    const mappedPlayers = rawElements.map((player: any) => {
       const teamIdNum = Number(player.team);
-      const teamInfo =  teamLookupById[teamIdNum] || PL_TEAMS_STATIC[teamIdNum] || { id: teamIdNum, code: 0, name: 'Unknown Club', short: 'UNK' };
+      // Live API data first, static map only as a last-resort fallback.
+      const teamInfo = teamLookupById[teamIdNum] || PL_TEAMS_STATIC[teamIdNum] || { id: teamIdNum, name: 'Unknown Club', short: 'UNK' };
 
       return {
         id: player.id,
@@ -142,8 +135,8 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
         web_name: player.web_name,
         photo_code: player.code,
         team_id: teamInfo.id,
-        team_name: teamInfo.name,        // Explicit verified club name
-        team_short_name: teamInfo.short, // Explicit verified short tag
+        team_name: teamInfo.name,
+        team_short_name: teamInfo.short,
         element_type: POSITION_MAP[player.element_type] || 'MID',
         total_points: player.total_points || 0,
         draft_rank: player.draft_rank || 999,
@@ -152,18 +145,17 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
       };
     });
 
-    // 4. Map Fixtures using PL_TEAMS_STATIC
     const mappedFixtures = (fixturesData || [])
-      .filter((f) => f.event !== null)
-      .map((f) => {
-        const homeTeam = teamLookupById[f.team_h] || PL_TEAMS_STATIC[f.team_h] ||  { id: f.team_h, name: 'Unknown', short: 'UNK' };
-        const awayTeam = teamLookupById[f.team_a] || PL_TEAMS_STATIC[f.team_a] ||  { id: f.team_a, name: 'Unknown', short: 'UNK' };
-        
+      .filter((f: any) => f.event !== null)
+      .map((f: any) => {
+        const homeTeam = teamLookupById[f.team_h] || PL_TEAMS_STATIC[f.team_h] || { id: f.team_h, name: 'Unknown', short: 'UNK' };
+        const awayTeam = teamLookupById[f.team_a] || PL_TEAMS_STATIC[f.team_a] || { id: f.team_a, name: 'Unknown', short: 'UNK' };
+
         return {
           id: f.id,
           gameweek: f.event,
-          home_team_id: homeTeam.id,       // Explicit Home Team ID
-          away_team_id: awayTeam.id,       // Explicit Away Team ID
+          home_team_id: homeTeam.id,
+          away_team_id: awayTeam.id,
           home_team_name: homeTeam.name,
           away_team_name: awayTeam.name,
           home_team_short: homeTeam.short,
@@ -177,37 +169,39 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
         };
       });
 
-    // 5. Batch Upsert Players
+    // Batch upsert players
     const BATCH_SIZE = 200;
     let successfulSyncCount = 0;
 
     for (let i = 0; i < mappedPlayers.length; i += BATCH_SIZE) {
       const chunk = mappedPlayers.slice(i, i + BATCH_SIZE);
-
-      const { error: upsertError } = await supabase
-        .from('players')
-        .upsert(chunk, { onConflict: 'id' });
-
-      if (upsertError) {
-        console.error(`[FPL-SYNC] Database collision error on players batch block:`, upsertError);
-        throw upsertError;
-      }
-
+      const { error: upsertError } = await supabase.from('players').upsert(chunk, { onConflict: 'id' });
+      if (upsertError) throw upsertError;
       successfulSyncCount += chunk.length;
     }
 
-    // 6. Upsert Fixtures
-    if (mappedFixtures.length > 0) {
-      const { error: fixturesError } = await supabase
-        .from('fixtures')
-        .upsert(mappedFixtures, { onConflict: 'id' });
-        
-      if (fixturesError) {
-        console.warn('[FPL-SYNC] Fixtures upsert alert:', fixturesError.message);
-      }
+    // Preserve historical roster and draft references while removing stale
+    // players from all future player-selection pools.
+    const currentPlayerIds = mappedPlayers.map((p: any) => p.id);
+    const { error: cleanupError, count: deactivatedCount } = await supabase
+      .from('players')
+      .update({ is_active: false, updated_at: new Date().toISOString() }, { count: 'exact' })
+      .eq('is_active', true)
+      .not('id', 'in', `(${currentPlayerIds.join(',')})`);
+
+    if (cleanupError) {
+      console.warn('[FPL-SYNC] Cleanup of stale players failed:', cleanupError.message);
+    } else {
+      console.log(`[FPL-SYNC] Deactivated ${deactivatedCount ?? 0} stale players.`);
     }
 
-    // 7. Resolve Current Active Gameweek cleanly
+    // Upsert fixtures
+    if (mappedFixtures.length > 0) {
+      const { error: fixturesError } = await supabase.from('fixtures').upsert(mappedFixtures, { onConflict: 'id' });
+      if (fixturesError) console.warn('[FPL-SYNC] Fixtures upsert warning:', fixturesError.message);
+    }
+
+    // Resolve current gameweek
     let currentGameweek = 1;
     if (data.events && Array.isArray(data.events)) {
       const currentEvent = data.events.find((e: any) => e.is_current || e.is_next);
@@ -216,9 +210,7 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
       currentGameweek = data.current_event;
     }
 
-    console.log(`[FPL-SYNC] Synchronizing matchday performance logs up to GW ${currentGameweek}...`);
-
-    // 8. Fetch Matchday Live Stats Logs
+    // Sync live gameweek stats
     const activeGameweeks = Array.from({ length: currentGameweek }, (_, i) => i + 1);
     const CHUNK_SIZE = 3;
 
@@ -228,14 +220,10 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
       await Promise.all(
         currentChunkGws.map(async (gw) => {
           try {
-            const endpointKey = `event/${gw}/live`;
-            const nativeUrl = `https://draft.premierleague.com/api/event/${gw}/live`;
-            
-            const liveData = await fetchFplEndpoint(endpointKey, nativeUrl);
+            const liveRes = await fetch(`https://draft.premierleague.com/api/event/${gw}/live`, { headers });
+            if (!liveRes.ok) return;
+            const liveData = await liveRes.json();
             const elementsMap = liveData?.elements || {};
-            const elementKeys = Object.keys(elementsMap);
-
-            if (elementKeys.length === 0) return;
 
             const mappedStats: any[] = [];
 
@@ -246,14 +234,12 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
               const stats = livePlayerRecord.stats || {};
               const explainArray = livePlayerRecord.explain || [];
 
-              // Defensive stats parsing
               let clearances = stats.clearances || 0;
               let blocks = stats.blocks || 0;
               let interceptions = stats.interceptions || 0;
               let tackles = stats.tackles || 0;
               let ballRecoveries = stats.ball_recoveries || 0;
 
-              // Fallback deep inspection if explain breakdown array exists
               if (Array.isArray(explainArray)) {
                 explainArray.forEach((match: any) => {
                   if (match && Array.isArray(match.stats)) {
@@ -286,7 +272,7 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
                   blocks,
                   interceptions,
                   tackles,
-                  ball_recoveries: ballRecoveries, 
+                  ball_recoveries: ballRecoveries,
                   total_points: stats.total_points ?? 0,
                   bonus: stats.bonus ?? 0,
                 });
@@ -297,13 +283,10 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
               const { error: statsError } = await supabase
                 .from('player_gameweek_stats')
                 .upsert(mappedStats, { onConflict: 'player_id,gameweek' });
-
-              if (statsError) {
-                console.error(`[FPL-SYNC] Error writing statistics for GW ${gw}:`, statsError.message);
-              }
+              if (statsError) console.error(`[FPL-SYNC] Stats write error GW ${gw}:`, statsError.message);
             }
           } catch (gwErr) {
-            console.warn(`[FPL-SYNC] Failed parsing Live API entries for GW ${gw}:`, gwErr);
+            console.warn(`[FPL-SYNC] Failed GW ${gw}:`, gwErr);
           }
         })
       );
@@ -311,12 +294,15 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
 
-    console.log(`[FPL-SYNC] SUCCESS. Processed ${successfulSyncCount} players.`);
-    return { success: true, count: successfulSyncCount };
+    console.log(`[FPL-SYNC] SUCCESS. Processed ${successfulSyncCount} players. Deactivated ${deactivatedCount ?? 0} stale.`);
 
+    return jsonResponse({
+      success: true,
+      count: successfulSyncCount,
+      deactivated: deactivatedCount ?? 0,
+    });
   } catch (err: any) {
-    const errorMessage = err.message || 'Unknown processing runtime failure.';
-    console.error(`[FPL-SYNC] Executive script operation aborted: ${errorMessage}`);
-    return { success: false, count: 0, error: errorMessage };
+    console.error('[FPL-SYNC] Failed:', err.message);
+    return jsonResponse({ success: false, error: err.message || 'Unknown sync failure.' }, 500);
   }
-}
+});

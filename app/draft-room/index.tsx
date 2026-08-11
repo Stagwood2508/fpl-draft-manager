@@ -1256,12 +1256,13 @@ const { data: teamsProfiles } = await supabase
   ) => {
     if (!lId || !uId || !currentSession) return;
     try {
-      const [membersResponse, picksResponse, watchlistResponse, playersResponse, autopickStateResponse] = await Promise.all([
-        supabase.from('league_members').select('user_id').eq('league_id', lId),
+      const [membersResponse, picksResponse, watchlistResponse, playersResponse, autopickStateResponse, settingsResponse] = await Promise.all([
+        supabase.from('league_members').select('user_id, draft_order').eq('league_id', lId).order('draft_order', { ascending: true }),
         supabase.from('draft_picks').select('player_id, user_id, round_number, overall_pick_number, pick_source, pick_reason').eq('league_id', lId).order('overall_pick_number', { ascending: true }),
         supabase.from('watchlists').select('player_id').eq('league_id', lId).eq('user_id', uId).order('priority_order', { ascending: true }),
-        supabase.from('players').select('id, web_name, element_type, team_name, total_points, draft_rank'),
+        supabase.from('players').select('id, web_name, element_type, team_name, total_points, draft_rank').eq('is_active', true),
         supabase.from('draft_manager_autopick_state').select('league_id, user_id, consecutive_autopicks, is_away').eq('league_id', lId),
+        supabase.from('league_settings').select('roster_type').eq('league_id', lId).maybeSingle(),
       ]);
 
       const pipelineError =
@@ -1269,7 +1270,8 @@ const { data: teamsProfiles } = await supabase
         picksResponse.error ||
         watchlistResponse.error ||
         playersResponse.error ||
-        autopickStateResponse.error;
+        autopickStateResponse.error ||
+        settingsResponse.error;
 
       if (pipelineError) throw pipelineError;
 
@@ -1278,6 +1280,10 @@ const { data: teamsProfiles } = await supabase
       const watchlistRows = watchlistResponse.data || [];
       const masterPool = playersResponse.data || [];
       const autopickStates = (autopickStateResponse.data || []) as ManagerAutopickState[];
+      const activeRosterType = (settingsResponse.data?.roster_type as 'STRICT' | 'FLEXIBLE') || 'STRICT';
+      const rosterLimits = activeRosterType === 'FLEXIBLE'
+        ? { GKP: 2, DEF: 6, MID: 6, FWD: 4 }
+        : { GKP: 2, DEF: 5, MID: 5, FWD: 3 };
 
       setWatchlistIds(watchlistRows.map(r => r.player_id));
       setManagerAutopickStates(autopickStates);
@@ -1392,7 +1398,10 @@ const { data: teamsProfiles } = await supabase
       setPicksUntilMyTurn(targetPickForMe >= currentPickIndex ? targetPickForMe - currentPickIndex : 0);
 
       const freshRoster: Record<string, (DraftedPlayer | null)[]> = {
-        GKP: [null, null], DEF: [null, null, null, null, null], MID: [null, null, null, null, null], FWD: [null, null, null]
+        GKP: Array(rosterLimits.GKP).fill(null),
+        DEF: Array(rosterLimits.DEF).fill(null),
+        MID: Array(rosterLimits.MID).fill(null),
+        FWD: Array(rosterLimits.FWD).fill(null),
       };
 
       committedPicks.filter(p => p.user_id === uId).forEach(pick => {
@@ -1406,10 +1415,10 @@ const { data: teamsProfiles } = await supabase
       setMyRoster(freshRoster);
 
       setFilledPositions({
-        GKP: freshRoster.GKP.filter(x => x !== null).length >= 2,
-        DEF: freshRoster.DEF.filter(x => x !== null).length >= 5,
-        MID: freshRoster.MID.filter(x => x !== null).length >= 5,
-        FWD: freshRoster.FWD.filter(x => x !== null).length >= 3
+        GKP: freshRoster.GKP.filter(x => x !== null).length >= rosterLimits.GKP,
+        DEF: freshRoster.DEF.filter(x => x !== null).length >= rosterLimits.DEF,
+        MID: freshRoster.MID.filter(x => x !== null).length >= rosterLimits.MID,
+        FWD: freshRoster.FWD.filter(x => x !== null).length >= rosterLimits.FWD,
       });
 
       return true;
@@ -1575,13 +1584,14 @@ useEffect(() => {
     setDragMovingPlayer(null);
 
     try {
-      await Promise.all(baseIds.map((id, index) =>
-        supabase.from('watchlists')
-          .update({ priority_order: index + 1 })
-          .eq('league_id', leagueId)
-          .eq('user_id', myUserId)
-          .eq('player_id', id)
-      ));
+      const { data, error } = await supabase.rpc('reorder_watchlist', {
+        p_league_id: leagueId,
+        p_player_ids: baseIds,
+      });
+      if (error) throw error;
+      if (data && data.success === false) {
+        throw new Error(data.error || 'Watchlist order could not be saved.');
+      }
       if (session) await syncPipelineEngine(session);
     } catch (err) {
       console.error(err);
@@ -1922,6 +1932,18 @@ useEffect(() => {
       setPickSubmissionError(null);
     } catch (err: any) {
       console.error('MANUAL PICK FAILED', err);
+
+      const serverMessage = String(err?.message || err?.details || '');
+      if (serverMessage.includes('POSITION_FULL')) {
+        setSelectedPlayer(null);
+        setPickSubmissionError('That position has reached its roster limit. Choose another position.');
+        return;
+      }
+      if (serverMessage.includes('POSITION_REQUIRED_FOR_VALID_FLEXIBLE_ROSTER')) {
+        setSelectedPlayer(null);
+        setPickSubmissionError('Choose a position still required to complete a valid flexible roster.');
+        return;
+      }
 
       try {
         const { data: recordedPick } = await supabase

@@ -19,7 +19,6 @@ interface PlayerAsset {
   first_name: string;
   second_name: string;
   element_type: number; // 1: GKP, 2: DEF, 3: MID, 4: FWD
-  team_code: number;
   total_points: number;
 }
 
@@ -63,7 +62,8 @@ export default function PlayerAnalysisScreen() {
       setLoading(true);
       const { data, error } = await supabase
         .from('players')
-        .select('id, first_name, second_name, element_type, team_code, total_points')
+        .select('id, first_name, second_name, element_type, total_points')
+        .eq('is_active', true)
         .order('total_points', { ascending: false });
 
       if (error) throw error;

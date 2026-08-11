@@ -81,8 +81,9 @@ export default function StandingsScreen() {
           return;
         }
 
-        targetLeagueId = membership.league_id;
-        await AsyncStorage.setItem('active_league_id', targetLeagueId);
+        const membershipLeagueId = membership.league_id;
+        targetLeagueId = membershipLeagueId;
+        await AsyncStorage.setItem('active_league_id', membershipLeagueId);
       }
 
       cachedLeagueId.current = targetLeagueId;
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#666', fontSize: 13, textAlign: 'center' },
   topBar: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,

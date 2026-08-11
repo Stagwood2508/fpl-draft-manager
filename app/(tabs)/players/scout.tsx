@@ -118,8 +118,9 @@ export default function PlayerPoolScreen() {
           .maybeSingle();
 
         if (!memberErr && memberData?.league_id) {
-          currentLeagueId = memberData.league_id;
-          await AsyncStorage.setItem('active_league_id', currentLeagueId);
+          const membershipLeagueId = memberData.league_id;
+          currentLeagueId = membershipLeagueId;
+          await AsyncStorage.setItem('active_league_id', membershipLeagueId);
         }
       }
 
@@ -148,6 +149,7 @@ export default function PlayerPoolScreen() {
       const { data: playersData, error: playersErr } = await supabase
         .from('players')
         .select('id, web_name, first_name, second_name, team_name, team_short_name, element_type, total_points')
+        .eq('is_active', true)
         .order('total_points', { ascending: false });
 
       if (playersErr) throw playersErr;
