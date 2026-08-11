@@ -69,12 +69,38 @@ serve(async (req) => {
     // 3. Transform API response into database rows
     const rowsToUpsert = [];
 
-    for (const [playerIdStr, playerObj] of Object.entries(elements || {})) {
-      const stats = (playerObj as any).stats || {};
+    const livePlayerEntries: Array<[string, any]> = Array.isArray(elements)
+      ? elements
+          .map((player: any) => [String(player?.id ?? player?.element ?? ""), player] as [string, any])
+          .filter(([playerId]) => /^\d+$/.test(playerId))
+      : Object.entries(elements || {});
 
-      const cbi = stats.clearances_blocks_interceptions ?? 0;
-      const recoveries = stats.recoveries ?? 0;
-      const tackles = stats.tackles ?? 0;
+    for (const [playerIdStr, playerObj] of livePlayerEntries) {
+      const livePlayer = playerObj as any;
+      const stats = livePlayer.stats || {};
+      const explain = Array.isArray(livePlayer.explain) ? livePlayer.explain : [];
+
+      let clearances = Number(stats.clearances || 0);
+      let blocks = Number(stats.blocks || 0);
+      let interceptions = Number(stats.interceptions || 0);
+      let tackles = Number(stats.tackles || 0);
+      let recoveries = Number(stats.recoveries ?? stats.ball_recoveries ?? 0);
+
+      explain.forEach((match: any) => {
+        if (!Array.isArray(match?.stats)) return;
+        match.stats.forEach((entry: any) => {
+          const value = Number(entry?.value || 0);
+          if (entry?.identifier === "clearances") clearances = Math.max(clearances, value);
+          if (entry?.identifier === "blocks") blocks = Math.max(blocks, value);
+          if (entry?.identifier === "interceptions") interceptions = Math.max(interceptions, value);
+          if (entry?.identifier === "tackles") tackles = Math.max(tackles, value);
+          if (entry?.identifier === "ball_recoveries" || entry?.identifier === "recoveries") {
+            recoveries = Math.max(recoveries, value);
+          }
+        });
+      });
+
+      const cbi = Number(stats.clearances_blocks_interceptions ?? (clearances + blocks + interceptions));
       const defContribution = stats.defensive_contribution ?? (cbi + recoveries + tackles);
 
       rowsToUpsert.push({
@@ -173,10 +199,25 @@ serve(async (req) => {
       { p_gameweek: gwNumber }
     );
 
+    let fixtureFinalizationData = null;
     if (autoSubError) {
       console.error("Auto-sub processing error:", autoSubError.message);
     } else {
       console.log(`Auto-subs evaluated. ${autoSubData?.length || 0} recorded swaps.`);
+
+      const { data: finalizationData, error: finalizationError } = await supabase.rpc(
+        "finalize_gameweek_fixture_scores",
+        { p_gameweek: gwNumber }
+      );
+
+      if (finalizationError) {
+        console.error("Fixture finalization error:", finalizationError.message);
+      } else {
+        fixtureFinalizationData = finalizationData;
+        if (finalizationData?.success) {
+          console.log(`Finalized ${finalizationData.fixtures_finalized || 0} league fixtures.`);
+        }
+      }
     }
 
     return new Response(
@@ -185,6 +226,7 @@ serve(async (req) => {
         gameweek: gwNumber,
         records_processed: rowsToUpsert.length,
         schedule_records: gameweekRows.length,
+        fixture_finalization: fixtureFinalizationData,
         message: `Successfully synced live stats for GW${gwNumber}`,
       }),
       {

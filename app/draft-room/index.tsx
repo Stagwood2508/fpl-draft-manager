@@ -1280,7 +1280,7 @@ const { data: teamsProfiles } = await supabase
     if (!lId || !uId || !currentSession) return;
     try {
       const [membersResponse, picksResponse, watchlistResponse, playersResponse, autopickStateResponse, settingsResponse] = await Promise.all([
-        supabase.from('league_members').select('user_id, draft_order').eq('league_id', lId).order('draft_order', { ascending: true }),
+        supabase.from('league_members').select('user_id, team_name, draft_order').eq('league_id', lId).order('draft_order', { ascending: true }),
         supabase.from('draft_picks').select('player_id, user_id, round_number, overall_pick_number, pick_source, pick_reason').eq('league_id', lId).order('overall_pick_number', { ascending: true }),
         supabase.from('watchlists').select('player_id').eq('league_id', lId).eq('user_id', uId).order('priority_order', { ascending: true }),
         supabase.from('players').select('id, web_name, element_type, team_name, total_points, draft_rank').eq('is_active', true),
@@ -1337,13 +1337,40 @@ const { data: teamsProfiles } = await supabase
       const draftedPlayerIds = new Set(committedPicks.map(p => p.player_id));
       setAvailablePlayers(parsedPool.filter(p => !draftedPlayerIds.has(p.id)));
 
-      if (committedPicks.length === 0 && seenDraftPickNumbersRef.current === null) {
+      if (committedPicks.length === 0) {
         seenDraftPickNumbersRef.current = new Set();
+        setRecentPicksFeed([]);
+        setLatestPickAlert(null);
       }
 
       // 📢 POPULATE RECENT PICKS TICKER FEED & ANNOUNCEMENT BANNER
       if (committedPicks.length > 0) {
-        const activeProfiles = profilesList.length > 0 ? profilesList : managersList;
+        const activeProfiles = profilesList.length > 0
+          ? profilesList
+          : membersList.map(member => ({
+              user_id: member.user_id,
+              team_name: member.team_name || 'Rival Manager',
+              draft_order: member.draft_order,
+            }));
+
+        setRecentPicksFeed(
+          committedPicks
+            .slice(-8)
+            .reverse()
+            .map((pick, recentIndex) => {
+              const draftedPlayer = parsedPool.find(player => player.id === pick.player_id);
+              const draftingManager = activeProfiles.find(manager => manager.user_id === pick.user_id);
+              return {
+                pickNumber: pick.overall_pick_number || committedPicks.length - recentIndex,
+                managerName: draftingManager?.team_name || 'Rival Manager',
+                playerName: draftedPlayer?.web_name || `Player ${pick.player_id}`,
+                position: draftedPlayer?.element_type || '—',
+                pickSource: pick.pick_source || 'MANUAL',
+                pickReason: pick.pick_reason || null,
+              };
+            })
+        );
+
         const currentPickNumbers = new Set(
           committedPicks.map((pick, index) => pick.overall_pick_number || index + 1)
         );

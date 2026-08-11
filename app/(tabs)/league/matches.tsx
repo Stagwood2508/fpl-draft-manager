@@ -7,17 +7,24 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import LivePlayerBreakdownModal, { LivePlayerScore } from '@/components/LivePlayerBreakdownModal';
 
 const POSITION_ORDER: Record<string, number> = {
+  '1': 1,
+  GK: 1,
   GKP: 1,
+  '2': 2,
   DEF: 2,
+  '3': 3,
   MID: 3,
+  '4': 4,
   FWD: 4,
 };
 
@@ -28,18 +35,13 @@ interface TeamOption {
   team_name: string;
 }
 
-interface PlayerScoreRow {
-  id: number;
-  web_name: string;
-  element_type: string;
-  live_points: number;
-}
+type PlayerScoreRow = LivePlayerScore;
 
 interface MatchupItem {
   id: string;
   gameweek: number;
   home_user_id: string;
-  away_user_id: string;
+  away_user_id: string | null;
   home_team_name: string;
   away_team_name: string;
   home_score: number;
@@ -49,6 +51,7 @@ interface MatchupItem {
   away_fpl_points: number;
   away_defcon_points: number;
   is_finished: boolean;
+  is_league_average: boolean;
   home_players?: PlayerScoreRow[];
   away_players?: PlayerScoreRow[];
 }
@@ -56,6 +59,8 @@ interface MatchupItem {
 export default function MatchesScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
+  const compactMatchup = width < 700;
   const [loading, setLoading] = useState(true);
   
   const [viewMode, setViewMode] = useState<ViewMode>('LIVE');
@@ -67,18 +72,26 @@ export default function MatchesScreen() {
 
   const [matchups, setMatchups] = useState<MatchupItem[]>([]);
   const [expandedMatchupId, setExpandedMatchupId] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<LivePlayerScore | null>(null);
+  const [contextReady, setContextReady] = useState(false);
+  const [gameweekIsLive, setGameweekIsLive] = useState(false);
+  const [currentGameweekFinished, setCurrentGameweekFinished] = useState(false);
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const cachedLeagueId = useRef<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     if (viewMode === 'LIVE') {
-      Animated.loop(
+      const animation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      animation.start();
+      return () => animation.stop();
     } else {
       pulseAnim.setValue(0.3);
     }
@@ -91,10 +104,11 @@ export default function MatchesScreen() {
   );
 
   useEffect(() => {
+    if (!contextReady) return;
     fetchMatchdayData();
 
     let interval: NodeJS.Timeout | null = null;
-    if (viewMode === 'LIVE') {
+    if (viewMode === 'LIVE' && gameweekIsLive) {
       interval = setInterval(() => {
         fetchMatchdayData(true);
       }, 30000);
@@ -103,11 +117,12 @@ export default function MatchesScreen() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [viewMode, selectedGameweek, selectedTeamUserId]);
+  }, [contextReady, viewMode, selectedGameweek, selectedTeamUserId, gameweekIsLive]);
 
   async function initMatchdayContext() {
     try {
       setLoading(true);
+      setContextReady(false);
       
       // 1. Resolve Active League ID from AsyncStorage
       const storedLeagueId = await AsyncStorage.getItem('active_league_id');
@@ -139,19 +154,52 @@ export default function MatchesScreen() {
         }
       }
 
-      const { data: gwData } = await supabase
-        .from('player_gameweek_stats')
-        .select('gameweek')
-        .order('gameweek', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      if (!targetLeagueId) {
+        setLeagueTeams([]);
+        setMatchups([]);
+        return;
+      }
 
-      const activeGW = gwData?.gameweek || 1;
+      const { data: gameweeksData, error: gameweeksError } = await supabase
+        .from('league_gameweeks')
+        .select('gameweek, gw_deadline, is_current, is_finished, status')
+        .eq('league_id', targetLeagueId)
+        .order('gameweek', { ascending: true });
+
+      if (gameweeksError) throw gameweeksError;
+
+      const now = Date.now();
+      const gameweeks = gameweeksData || [];
+      const activeGameweek = gameweeks.find((row: any) => row.is_current)
+        || gameweeks.find((row: any) => !row.is_finished && new Date(row.gw_deadline).getTime() <= now)
+        || gameweeks.find((row: any) => !row.is_finished)
+        || gameweeks[gameweeks.length - 1];
+      const activeGW = Number(activeGameweek?.gameweek || 1);
+      const isFinished = Boolean(activeGameweek?.is_finished);
+      const isLive = Boolean(
+        activeGameweek
+        && !isFinished
+        && new Date(activeGameweek.gw_deadline).getTime() <= now
+      );
+
       setCurrentGW(activeGW);
-      setSelectedGameweek(activeGW);
+      setGameweekIsLive(isLive);
+      setCurrentGameweekFinished(isFinished);
+
+      if (isLive) {
+        setViewMode('LIVE');
+        setSelectedGameweek(activeGW);
+      } else if (isFinished) {
+        setViewMode('RESULTS');
+        setSelectedGameweek(activeGW);
+      } else {
+        setViewMode('FIXTURES');
+        setSelectedGameweek(activeGW);
+      }
     } catch (err: any) {
       console.error('Failed to initialize matchday context:', err.message);
     } finally {
+      setContextReady(true);
       setLoading(false);
     }
   }
@@ -159,19 +207,21 @@ export default function MatchesScreen() {
   const handleModeChange = (mode: ViewMode) => {
     setViewMode(mode);
     setExpandedMatchupId(null);
+    setSelectedPlayer(null);
 
     if (mode === 'LIVE') {
       setSelectedGameweek(currentGW);
     } else if (mode === 'RESULTS') {
-      setSelectedGameweek(Math.max(1, currentGW - 1));
+      setSelectedGameweek(currentGameweekFinished ? currentGW : Math.max(1, currentGW - 1));
     } else if (mode === 'FIXTURES') {
-      setSelectedGameweek(Math.min(38, currentGW + 1));
+      setSelectedGameweek(gameweekIsLive || currentGameweekFinished ? Math.min(38, currentGW + 1) : currentGW);
     }
   };
 
   async function fetchMatchdayData(isBackgroundRefresh = false) {
     try {
       if (!isBackgroundRefresh) setLoading(true);
+      setErrorMessage(null);
 
       const currentLeagueId = cachedLeagueId.current;
       if (!currentLeagueId) return;
@@ -179,7 +229,8 @@ export default function MatchesScreen() {
       let query = supabase
         .from('league_fixtures')
         .select('*')
-        .eq('league_id', currentLeagueId);
+        .eq('league_id', currentLeagueId)
+        .order('home_team_name', { ascending: true });
 
       if (selectedTeamUserId && viewMode === 'FIXTURES') {
         query = query
@@ -189,90 +240,51 @@ export default function MatchesScreen() {
         query = query.eq('gameweek', selectedGameweek);
       }
 
-      const { data: fixturesData, error: fixturesErr } = await query;
-      if (fixturesErr) throw fixturesErr;
+      const [fixturesResult, liveScoresResult, playerScoresResult] = await Promise.all([
+        query,
+        viewMode === 'LIVE'
+          ? supabase.rpc('get_league_live_fixture_scores', {
+              p_league_id: currentLeagueId,
+              p_gameweek: selectedGameweek,
+            })
+          : Promise.resolve({ data: [], error: null }),
+        supabase.rpc('get_league_gameweek_player_scores', {
+          p_league_id: currentLeagueId,
+          p_gameweek: selectedGameweek,
+        }),
+      ]);
 
-      let liveScoreMap = new Map();
-      if (viewMode === 'LIVE') {
-        const { data: liveScores } = await supabase
-          .rpc('get_league_live_fixture_scores', {
-            p_league_id: currentLeagueId,
-            p_gameweek: selectedGameweek,
-          });
+      if (fixturesResult.error) throw fixturesResult.error;
+      if (liveScoresResult.error) throw liveScoresResult.error;
+      if (playerScoresResult.error) throw playerScoresResult.error;
 
-        if (liveScores) {
-          liveScoreMap = new Map(liveScores.map((s: any) => [s.fixture_id, s]));
-        }
-      }
+      const fixturesData = fixturesResult.data || [];
+      const liveScoreMap = new Map<string, any>(
+        (liveScoresResult.data || []).map((score: any) => [String(score.fixture_id), score])
+      );
+      const fixturePlayers = new Map<string, { home: PlayerScoreRow[]; away: PlayerScoreRow[] }>();
 
-      // BATCH FETCH ALL ROSTERS FOR ACTIVE LEAGUE IN 1 SINGLE QUERY
-      const userIds = Array.from(new Set(
-        (fixturesData || []).flatMap((f: any) => [f.home_user_id, f.away_user_id]).filter(Boolean)
-      ));
+      (playerScoresResult.data || []).forEach((rawPlayer: any) => {
+        const player = rawPlayer as PlayerScoreRow;
+        const fixture = fixturePlayers.get(player.fixture_id) || { home: [], away: [] };
+        if (player.fixture_side === 'HOME') fixture.home.push(player);
+        else fixture.away.push(player);
+        fixturePlayers.set(player.fixture_id, fixture);
+      });
 
-      let userSquadsMap = new Map<string, PlayerScoreRow[]>();
+      fixturePlayers.forEach((fixture) => {
+        const sortPlayers = (a: PlayerScoreRow, b: PlayerScoreRow) =>
+          (POSITION_ORDER[a.position] || 99) - (POSITION_ORDER[b.position] || 99)
+          || a.player_name.localeCompare(b.player_name);
+        fixture.home.sort(sortPlayers);
+        fixture.away.sort(sortPlayers);
+      });
 
-      if (userIds.length > 0) {
-        const { data: allRosters } = await supabase
-          .from('rosters')
-          .select('user_id, player_id, is_starting')
-          .eq('league_id', currentLeagueId)
-          .in('user_id', userIds);
-
-        const { data: deadlineLineups } = await supabase
-          .from('gameweek_lineup_snapshots')
-          .select('user_id, effective_starting_player_ids')
-          .eq('league_id', currentLeagueId)
-          .eq('gameweek', selectedGameweek)
-          .in('user_id', userIds);
-
-        const deadlinePlayersByUser = new Map<string, Set<number>>(
-          (deadlineLineups || []).map(lineup => [
-            lineup.user_id,
-            new Set<number>((lineup.effective_starting_player_ids || []).map(Number)),
-          ])
-        );
-        const effectiveRosters = (allRosters || []).filter(row => {
-          const deadlinePlayers = deadlinePlayersByUser.get(row.user_id);
-          return deadlinePlayers ? deadlinePlayers.has(Number(row.player_id)) : row.is_starting;
-        });
-
-        const allPlayerIds = Array.from(new Set(effectiveRosters.map(r => r.player_id)));
-
-        if (allPlayerIds.length > 0) {
-          const [{ data: playersMeta }, { data: gwStats }] = await Promise.all([
-            supabase.from('players').select('id, web_name, element_type').in('id', allPlayerIds),
-            supabase
-              .from('player_gameweek_stats')
-              .select('player_id, total_points')
-              .eq('gameweek', selectedGameweek)
-              .in('player_id', allPlayerIds),
-          ]);
-
-          const playersMetaMap = new Map((playersMeta || []).map(p => [p.id, p]));
-          const statsMap = new Map((gwStats || []).map(s => [s.player_id, s.total_points || 0]));
-
-          effectiveRosters.forEach(r => {
-            const p = playersMetaMap.get(r.player_id);
-            if (!p) return;
-
-            const row: PlayerScoreRow = {
-              id: p.id,
-              web_name: p.web_name,
-              element_type: p.element_type || 'FWD',
-              live_points: statsMap.get(p.id) || 0,
-            };
-
-            const existing = userSquadsMap.get(r.user_id) || [];
-            existing.push(row);
-            userSquadsMap.set(r.user_id, existing);
-          });
-
-          userSquadsMap.forEach((squad) => {
-            squad.sort((a, b) => (POSITION_ORDER[a.element_type] || 99) - (POSITION_ORDER[b.element_type] || 99));
-          });
-        }
-      }
+      const updateTimes = (playerScoresResult.data || [])
+        .map((player: any) => player.stats_updated_at)
+        .filter(Boolean)
+        .sort();
+      setLiveUpdatedAt(updateTimes.length > 0 ? updateTimes[updateTimes.length - 1] : null);
 
       const processedMatchups = (fixturesData || []).map((match: any) => {
         const liveScoreData = liveScoreMap.get(match.id);
@@ -301,14 +313,22 @@ export default function MatchesScreen() {
           home_defcon_points: homeDefcon,
           away_fpl_points: awayFpl,
           away_defcon_points: awayDefcon,
-          home_players: userSquadsMap.get(match.home_user_id) || [],
-          away_players: userSquadsMap.get(match.away_user_id) || [],
+          home_players: fixturePlayers.get(match.id)?.home || [],
+          away_players: fixturePlayers.get(match.id)?.away || [],
         };
       });
 
       setMatchups(processedMatchups);
+      setSelectedPlayer((current) => {
+        if (!current) return null;
+        const refreshedPlayer = (playerScoresResult.data || []).find((player: any) =>
+          player.fixture_id === current.fixture_id && Number(player.player_id) === Number(current.player_id)
+        ) as LivePlayerScore | undefined;
+        return refreshedPlayer || current;
+      });
     } catch (err: any) {
       console.error('Error loading matches:', err.message);
+      setErrorMessage(err?.message || 'Live Match Centre could not be refreshed.');
     } finally {
       setLoading(false);
     }
@@ -320,10 +340,12 @@ export default function MatchesScreen() {
 
   const getAvailableGameweeks = () => {
     if (viewMode === 'RESULTS') {
-      return Array.from({ length: Math.max(1, currentGW - 1) }, (_, i) => i + 1);
+      const latestResult = currentGameweekFinished ? currentGW : Math.max(1, currentGW - 1);
+      return Array.from({ length: latestResult }, (_, i) => i + 1);
     }
     if (viewMode === 'FIXTURES') {
-      return Array.from({ length: 38 - currentGW }, (_, i) => currentGW + 1 + i);
+      const firstFixture = gameweekIsLive || currentGameweekFinished ? Math.min(38, currentGW + 1) : currentGW;
+      return Array.from({ length: 39 - firstFixture }, (_, i) => firstFixture + i);
     }
     return [currentGW];
   };
@@ -339,8 +361,9 @@ export default function MatchesScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.segmentTab, viewMode === 'LIVE' && styles.segmentTabLiveActive]}
+          style={[styles.segmentTab, !gameweekIsLive && styles.segmentTabDisabled, viewMode === 'LIVE' && styles.segmentTabLiveActive]}
           onPress={() => handleModeChange('LIVE')}
+          disabled={!gameweekIsLive}
         >
           <View style={styles.liveSegmentContent}>
             <Animated.View
@@ -407,7 +430,21 @@ export default function MatchesScreen() {
             <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
             <Text style={styles.liveBannerText}>IN-PLAY GAMEWEEK {currentGW}</Text>
           </View>
+          <Text style={[
+            styles.liveUpdateText,
+            liveUpdatedAt && Date.now() - new Date(liveUpdatedAt).getTime() > 180000 && styles.liveUpdateStale,
+          ]}>
+            {liveUpdatedAt
+              ? `UPDATED ${new Date(liveUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : 'AWAITING LIVE DATA'}
+          </Text>
         </View>
+      )}
+
+      {errorMessage && (
+        <TouchableOpacity style={styles.errorBanner} onPress={() => fetchMatchdayData()}>
+          <Text style={styles.errorText}>LIVE DATA INTERRUPTED · TAP TO RETRY</Text>
+        </TouchableOpacity>
       )}
 
       {loading ? (
@@ -450,7 +487,7 @@ export default function MatchesScreen() {
                       ) : (
                         <>
                           <Text style={styles.liveScoreText}>{match.home_score}</Text>
-                          <Text style={styles.scoreSeparator}>—</Text>
+                          <Text style={styles.scoreSeparator}>-</Text>
                           <Text style={styles.liveScoreText}>{match.away_score}</Text>
                         </>
                       )}
@@ -464,6 +501,9 @@ export default function MatchesScreen() {
 
                     <View style={[styles.teamColumn, { alignItems: 'flex-end' }]}>
                       <Text style={styles.managerTitle} numberOfLines={1}>{match.away_team_name || 'Away FC'}</Text>
+                      {match.is_league_average && (
+                        <Text style={styles.averageOpponentLabel}>OTHER MANAGERS' AVERAGE</Text>
+                      )}
                       {viewMode !== 'FIXTURES' && (
                         <Text style={styles.pointsSubtext}>{match.away_fpl_points} FPL + {match.away_defcon_points} DC</Text>
                       )}
@@ -474,33 +514,54 @@ export default function MatchesScreen() {
                     <View style={styles.expansionPanel}>
                       <View style={styles.panelHeaderRow}>
                         <Text style={styles.panelHeaderTitle}>Starting XI Matchup</Text>
+                        {viewMode === 'LIVE' && (
+                          <Text style={styles.provisionalText}>Provisional · autosubs are applied when the Gameweek finishes</Text>
+                        )}
                       </View>
 
-                      <View style={styles.splitRosterGrid}>
-                        <View style={styles.rosterColumn}>
-                          {match.home_players?.map((p, idx) => (
-                            <View key={idx} style={styles.playerScoreRow}>
+                      <View style={[styles.splitRosterGrid, compactMatchup && styles.splitRosterGridCompact]}>
+                        <View style={[styles.rosterColumn, compactMatchup && styles.rosterColumnCompact]}>
+                          {compactMatchup && <Text style={styles.compactTeamLabel}>{match.home_team_name}</Text>}
+                          {match.home_players?.length === 0 && (
+                            <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
+                          )}
+                          {match.home_players?.map((p) => (
+                            <TouchableOpacity key={p.player_id} style={styles.playerScoreRow} onPress={() => setSelectedPlayer(p)}>
                               <View style={{ width: '70%' }}>
-                                <Text style={styles.pName} numberOfLines={1}>{p.web_name}</Text>
-                                <Text style={styles.pPos}>{p.element_type}</Text>
+                                <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
+                                <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
                               </View>
-                              <Text style={styles.pPoints}>{p.live_points} pts</Text>
-                            </View>
+                              <Text style={styles.pPoints}>{p.combined_points} pts</Text>
+                            </TouchableOpacity>
                           ))}
                         </View>
 
-                        <View style={styles.gridDivider} />
+                        <View style={[styles.gridDivider, compactMatchup && styles.gridDividerCompact]} />
 
-                        <View style={[styles.rosterColumn, { paddingLeft: 8, paddingRight: 0 }]}>
-                          {match.away_players?.map((p, idx) => (
-                            <View key={idx} style={[styles.playerScoreRow, { flexDirection: 'row-reverse' }]}>
-                              <View style={{ width: '70%', alignItems: 'flex-end' }}>
-                                <Text style={styles.pName} numberOfLines={1}>{p.web_name}</Text>
-                                <Text style={styles.pPos}>{p.element_type}</Text>
-                              </View>
-                              <Text style={[styles.pPoints, { textAlign: 'left' }]}>{p.live_points} pts</Text>
+                        <View style={[
+                          styles.rosterColumn,
+                          { paddingLeft: 8, paddingRight: 0 },
+                          compactMatchup && styles.rosterColumnCompact,
+                        ]}>
+                          {compactMatchup && <Text style={styles.compactTeamLabel}>{match.away_team_name}</Text>}
+                          {match.is_league_average ? (
+                            <View style={styles.averageExplanation}>
+                              <Text style={styles.averageExplanationTitle}>LEAGUE AVERAGE</Text>
+                              <Text style={styles.averageExplanationText}>
+                                Rounded average of every other manager's score. Your own score is excluded.
+                              </Text>
                             </View>
-                          ))}
+                          ) : match.away_players?.length === 0 ? (
+                            <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
+                          ) : match.away_players?.map((p) => (
+                              <TouchableOpacity key={p.player_id} style={[styles.playerScoreRow, !compactMatchup && { flexDirection: 'row-reverse' }]} onPress={() => setSelectedPlayer(p)}>
+                                <View style={{ width: '70%', alignItems: compactMatchup ? 'flex-start' : 'flex-end' }}>
+                                  <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
+                                  <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
+                                </View>
+                                <Text style={[styles.pPoints, { textAlign: compactMatchup ? 'right' : 'left' }]}>{p.combined_points} pts</Text>
+                              </TouchableOpacity>
+                            ))}
                         </View>
                       </View>
                     </View>
@@ -511,6 +572,13 @@ export default function MatchesScreen() {
           )}
         </ScrollView>
       )}
+
+      <LivePlayerBreakdownModal
+        visible={Boolean(selectedPlayer)}
+        player={selectedPlayer}
+        gameweek={selectedGameweek}
+        onClose={() => setSelectedPlayer(null)}
+      />
     </View>
   );
 }
@@ -522,6 +590,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', fontWeight: '600' },
   segmentBar: { flexDirection: 'row', backgroundColor: colors.backgroundDeep, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8 },
   segmentTab: { flex: 1, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted, borderRadius: 6 },
+  segmentTabDisabled: { opacity: 0.42 },
   segmentTabActive: { backgroundColor: colors.surfacePressed },
   segmentTabLiveActive: { backgroundColor: colors.dangerSoft },
   liveSegmentContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -540,14 +609,22 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   gwBadgeActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   gwText: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
   gwTextActive: { color: colors.accent, fontWeight: '900' },
-  liveHeaderBanner: { paddingVertical: 8, alignItems: 'center', backgroundColor: colors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: colors.border },
+  liveHeaderBanner: { paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: colors.border },
   liveBannerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.dangerBorder, gap: 6 },
   pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   liveBannerText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  liveUpdateText: { color: colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
+  liveUpdateStale: { color: colors.warning },
+  errorBanner: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.dangerSoft, borderBottomWidth: 1, borderBottomColor: colors.dangerBorder, alignItems: 'center' },
+  errorText: { color: colors.danger, fontSize: 9, fontWeight: '900', letterSpacing: 0.4 },
   scrollContent: { padding: 12, paddingBottom: 40 },
   matchupWrapper: { marginBottom: 12 },
   matchupCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 16, borderRadius: 6 },
   matchupCardExpanded: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderColor: colors.accent },
+  averageOpponentLabel: { color: colors.accent, fontSize: 7, fontWeight: '900', marginTop: 3, letterSpacing: 0.35 },
+  averageExplanation: { flex: 1, minHeight: 90, alignItems: 'center', justifyContent: 'center', padding: 10 },
+  averageExplanationTitle: { color: colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  averageExplanationText: { color: colors.textSecondary, fontSize: 9, fontWeight: '700', lineHeight: 14, textAlign: 'center', marginTop: 6 },
   teamColumn: { width: '35%' },
   managerTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 13 },
   pointsSubtext: { color: colors.textMuted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', marginTop: 3, letterSpacing: 0.5 },
@@ -565,9 +642,15 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   expansionPanel: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.accent, borderTopWidth: 0, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, padding: 12 },
   panelHeaderRow: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6, marginBottom: 10 },
   panelHeaderTitle: { color: colors.textMuted, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  provisionalText: { color: colors.warning, fontSize: 8, fontWeight: '700', marginTop: 3 },
   splitRosterGrid: { flexDirection: 'row', justifyContent: 'space-between', position: 'relative' },
+  splitRosterGridCompact: { flexDirection: 'column' },
   rosterColumn: { width: '49%', paddingRight: 8 },
+  rosterColumnCompact: { width: '100%', paddingLeft: 0, paddingRight: 0 },
+  compactTeamLabel: { color: colors.textSecondary, fontSize: 9, fontWeight: '900', letterSpacing: 0.4, marginBottom: 6, textTransform: 'uppercase' },
+  lineupUnavailable: { color: colors.textMuted, fontSize: 9, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   gridDivider: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, backgroundColor: colors.border },
+  gridDividerCompact: { position: 'relative', left: 0, top: 0, bottom: 0, width: '100%', height: 1, marginVertical: 10 },
   playerScoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, padding: 8, borderRadius: 4, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
   pName: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
   pPos: { color: colors.textMuted, fontSize: 8, fontWeight: '800', marginTop: 1 },

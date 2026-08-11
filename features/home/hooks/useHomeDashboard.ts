@@ -47,6 +47,7 @@ export interface HomeFixture {
   homeScore: number;
   awayScore: number;
   isFinished: boolean;
+  isLeagueAverage: boolean;
 }
 
 export interface HomeLineupSummary {
@@ -213,14 +214,14 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           .select('draft_status')
           .eq('league_id', activeLeagueId)
           .maybeSingle(),
-        supabase.rpc('get_league_standings', {
+        supabase.rpc('get_league_standings_v2', {
           p_league_id: activeLeagueId,
           p_gameweek: gameweekNumber,
           p_is_live: isLive,
         }),
         supabase
           .from('league_fixtures')
-          .select('id, gameweek, home_user_id, away_user_id, home_team_name, away_team_name, home_score, away_score, is_finished')
+          .select('id, gameweek, home_user_id, away_user_id, home_team_name, away_team_name, home_score, away_score, is_finished, is_league_average')
           .eq('league_id', activeLeagueId)
           .eq('gameweek', gameweekNumber)
           .or(`home_user_id.eq.${currentUserId},away_user_id.eq.${currentUserId}`)
@@ -279,6 +280,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         homeScore: Number(fixtureResponse.data.home_score || 0),
         awayScore: Number(fixtureResponse.data.away_score || 0),
         isFinished: Boolean(fixtureResponse.data.is_finished),
+        isLeagueAverage: Boolean(fixtureResponse.data.is_league_average),
       } : null;
 
       if (fixture && isLive) {

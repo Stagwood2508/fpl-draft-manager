@@ -27,6 +27,7 @@ interface StandingRow {
   total_fpl_points: number;
   total_defcon_points: number;
   last_rank?: number;
+  live_gameweek_score?: number;
 }
 
 export default function StandingsScreen() {
@@ -35,8 +36,10 @@ export default function StandingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [gameweekIsLive, setGameweekIsLive] = useState(false);
   const [currentGW, setCurrentGW] = useState(1);
   const [standings, setStandings] = useState<StandingRow[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Cache League ID to avoid unnecessary re-lookups
   const cachedLeagueId = useRef<string | null>(null);
@@ -44,16 +47,24 @@ export default function StandingsScreen() {
 
   useEffect(() => {
     if (isLive) {
-      Animated.loop(
+      const animation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      animation.start();
+      return () => animation.stop();
     } else {
       pulseAnim.setValue(0.3);
     }
   }, [isLive]);
+
+  useEffect(() => {
+    if (!isLive || !gameweekIsLive) return;
+    const interval = setInterval(() => fetchData(true), 30000);
+    return () => clearInterval(interval);
+  }, [isLive, gameweekIsLive]);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,6 +76,7 @@ export default function StandingsScreen() {
   async function fetchData(liveMode: boolean) {
     try {
       if (!refreshing && standings.length === 0) setLoading(true);
+      setErrorMessage(null);
 
       // 1. Resolve Active League ID from AsyncStorage
       const storedLeagueId = await AsyncStorage.getItem('active_league_id');
@@ -92,26 +104,42 @@ export default function StandingsScreen() {
 
       cachedLeagueId.current = targetLeagueId;
 
-      // 2. Fetch current active Gameweek
-      const { data: gwData } = await supabase
-        .from('player_gameweek_stats')
-        .select('gameweek')
-        .order('gameweek', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // 2. Resolve the authoritative league Gameweek, rather than inferring it
+      // from whichever player-stat row happened to update most recently.
+      const { data: gameweeksData, error: gameweeksError } = await supabase
+        .from('league_gameweeks')
+        .select('gameweek, gw_deadline, is_current, is_finished')
+        .eq('league_id', targetLeagueId)
+        .order('gameweek', { ascending: true });
+      if (gameweeksError) throw gameweeksError;
 
-      const activeGW = gwData?.gameweek || 1;
+      const now = Date.now();
+      const gameweeks = gameweeksData || [];
+      const activeGameweek = gameweeks.find((row: any) => row.is_current)
+        || gameweeks.find((row: any) => !row.is_finished && new Date(row.gw_deadline).getTime() <= now)
+        || gameweeks.find((row: any) => !row.is_finished)
+        || gameweeks[gameweeks.length - 1];
+      const activeGW = Number(activeGameweek?.gameweek || 1);
+      const activeIsLive = Boolean(
+        activeGameweek
+        && !activeGameweek.is_finished
+        && new Date(activeGameweek.gw_deadline).getTime() <= now
+      );
+      const effectiveLiveMode = liveMode && activeIsLive;
+
       setCurrentGW(activeGW);
+      setGameweekIsLive(activeIsLive);
+      if (liveMode && !activeIsLive) setIsLive(false);
 
       // 3. Fetch Active Standings & Baseline Standings in PARALLEL (Scoped to targetLeagueId)
       const [activeRes, lastGwRes] = await Promise.all([
-        supabase.rpc('get_league_standings', {
+        supabase.rpc('get_league_standings_v2', {
           p_league_id: targetLeagueId,
           p_gameweek: activeGW,
-          p_is_live: liveMode,
+          p_is_live: effectiveLiveMode,
         }),
-        liveMode
-          ? supabase.rpc('get_league_standings', {
+        effectiveLiveMode
+          ? supabase.rpc('get_league_standings_v2', {
               p_league_id: targetLeagueId,
               p_gameweek: activeGW,
               p_is_live: false,
@@ -122,20 +150,26 @@ export default function StandingsScreen() {
       if (activeRes.error) throw activeRes.error;
 
       const lastRankMap = new Map<string, number>();
+      const baselineScoreMap = new Map<string, number>();
       if (lastGwRes.data) {
         lastGwRes.data.forEach((row: StandingRow) => {
           lastRankMap.set(row.user_id, row.rank);
+          baselineScoreMap.set(row.user_id, Number(row.total_h2h_score || 0));
         });
       }
 
       const processedStandings: StandingRow[] = (activeRes.data || []).map((row: StandingRow) => ({
         ...row,
         last_rank: lastRankMap.get(row.user_id) || row.rank,
+        live_gameweek_score: effectiveLiveMode
+          ? Number(row.total_h2h_score || 0) - Number(baselineScoreMap.get(row.user_id) || 0)
+          : undefined,
       }));
 
       setStandings(processedStandings);
     } catch (err: any) {
       console.error('Error fetching standings:', err.message);
+      setErrorMessage(err?.message || 'The standings could not be refreshed.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -168,8 +202,9 @@ export default function StandingsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.toggleButton, isLive && styles.toggleButtonLiveActive]}
+            style={[styles.toggleButton, !gameweekIsLive && styles.toggleButtonDisabled, isLive && styles.toggleButtonLiveActive]}
             onPress={() => setIsLive(true)}
+            disabled={!gameweekIsLive}
           >
             <View style={styles.liveButtonContent}>
               <Animated.View
@@ -191,6 +226,12 @@ export default function StandingsScreen() {
         )}
       </View>
 
+      {errorMessage && (
+        <TouchableOpacity style={styles.errorBanner} onPress={() => fetchData(isLive)}>
+          <Text style={styles.errorText}>STANDINGS UPDATE INTERRUPTED · TAP TO RETRY</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.tableHeaderRow}>
         <View style={styles.colRank}><Text style={styles.thText}>Rk</Text></View>
         <View style={styles.colTeam}><Text style={styles.thText}>Team</Text></View>
@@ -198,7 +239,7 @@ export default function StandingsScreen() {
         <View style={styles.colStat}><Text style={styles.thText}>W</Text></View>
         <View style={styles.colStat}><Text style={styles.thText}>D</Text></View>
         <View style={styles.colStat}><Text style={styles.thText}>L</Text></View>
-        <View style={styles.colPfPts}><Text style={styles.thText}>PF</Text></View>
+        <View style={styles.colPfPts}><Text style={styles.thText}>{isLive ? 'GW' : 'PF'}</Text></View>
         <View style={styles.colMainPts}><Text style={[styles.thText, styles.textRight]}>PTS</Text></View>
       </View>
 
@@ -243,7 +284,11 @@ export default function StandingsScreen() {
                 <View style={styles.colStat}><Text style={styles.tdText}>{item.won ?? 0}</Text></View>
                 <View style={styles.colStat}><Text style={styles.tdText}>{item.drawn ?? 0}</Text></View>
                 <View style={styles.colStat}><Text style={styles.tdText}>{item.lost ?? 0}</Text></View>
-                <View style={styles.colPfPts}><Text style={styles.tdText}>{item.total_h2h_score ?? 0}</Text></View>
+                <View style={styles.colPfPts}>
+                  <Text style={[styles.tdText, isLive && styles.liveGameweekPoints]}>
+                    {isLive ? item.live_gameweek_score ?? 0 : item.total_h2h_score ?? 0}
+                  </Text>
+                </View>
 
                 <View style={styles.colMainPts}>
                   <Text style={[styles.tdText, styles.pointsHighlight, styles.textRight]}>
@@ -276,6 +321,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
   toggleContainer: { flexDirection: 'row', backgroundColor: colors.surfaceMuted, borderRadius: 8, padding: 2 },
   toggleButton: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6 },
+  toggleButtonDisabled: { opacity: 0.42 },
   toggleButtonActive: { backgroundColor: colors.surfacePressed },
   toggleButtonLiveActive: { backgroundColor: colors.dangerSoft },
   liveButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -295,6 +341,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
   pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   liveBadgeText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  errorBanner: { paddingVertical: 7, paddingHorizontal: 12, backgroundColor: colors.dangerSoft, borderBottomWidth: 1, borderBottomColor: colors.dangerBorder, alignItems: 'center' },
+  errorText: { color: colors.danger, fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
   tableHeaderRow: {
     flexDirection: 'row',
     paddingVertical: 10,
@@ -325,6 +373,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   rankGold: { color: colors.accent, fontWeight: '900' },
   teamHighlight: { color: colors.textPrimary, fontWeight: '700', textAlign: 'left' },
   pointsHighlight: { color: colors.accent, fontWeight: '900', fontSize: 12 },
+  liveGameweekPoints: { color: colors.accent, fontWeight: '900' },
   rankUp: { color: colors.accent, fontSize: 8, fontWeight: '900' },
   rankDown: { color: colors.danger, fontSize: 8, fontWeight: '900' },
   rankSame: { color: colors.textMuted, fontSize: 8, fontWeight: '700' },

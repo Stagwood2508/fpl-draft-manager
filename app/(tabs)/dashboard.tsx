@@ -275,7 +275,7 @@ export default function HomeDashboardScreen() {
             <Text style={styles.scoreMeta}>{opponentName ? `Opponent: ${opponentName}` : 'League fixture'}</Text>
           </View>
           <View style={[styles.teamBlock, styles.awayTeamBlock]}>
-            <Text style={styles.teamRole}>{fixture.awayUserId === currentUserId ? 'YOU' : 'AWAY'}</Text>
+            <Text style={styles.teamRole}>{fixture.isLeagueAverage ? 'AVG' : fixture.awayUserId === currentUserId ? 'YOU' : 'AWAY'}</Text>
             <Text style={[styles.teamName, styles.awayTeamName]} numberOfLines={2}>{fixture.awayTeamName}</Text>
           </View>
         </View>
@@ -579,7 +579,7 @@ export default function HomeDashboardScreen() {
                           </Text>
                         </View>
                         <View style={[styles.mobileTeamBlock, styles.awayTeamBlock]}>
-                          <Text style={styles.teamRole}>{fixture.awayUserId === currentUserId ? 'YOU' : 'AWAY'}</Text>
+                          <Text style={styles.teamRole}>{fixture.isLeagueAverage ? 'AVG' : fixture.awayUserId === currentUserId ? 'YOU' : 'AWAY'}</Text>
                           <Text style={[styles.mobileTeamName, styles.awayTeamName]} numberOfLines={1}>{fixture.awayTeamName}</Text>
                         </View>
                       </View>

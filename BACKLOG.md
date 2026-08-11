@@ -239,20 +239,42 @@ The planned V1 draft-room feature set is complete. Remaining ideas below are int
 
 ### League fixture generation and league-average opponent
 
-This bundle follows the draft and transaction integrity work above. The existing odd-manager bye behaviour is temporary; the intended rule is a fixture against the league average.
+The implementation is complete in the working tree. Deployment and a realistic dress rehearsal remain outstanding.
 
-- [ ] Audit every fixture-generation entry point and consolidate generation behind one authoritative server function.
-- [ ] Guarantee that every real manager has exactly one fixture in every Gameweek.
-- [ ] For even-sized leagues, generate complete head-to-head rounds with no duplicate or self fixtures.
-- [ ] For odd-sized leagues, replace the rotating bye with exactly one manager-versus-league-average fixture per Gameweek.
-- [ ] Rotate the league-average opponent fairly so each manager faces it as evenly as the season length permits.
-- [ ] Define the league-average score as the mean of the other managers' scores, excluding the manager playing against it, so their own score cannot influence their opponent.
-- [ ] Define and consistently apply score precision, rounding and drawn-match rules for the league-average fixture.
-- [ ] Represent the league-average opponent explicitly without creating a fake user or league member.
-- [ ] Ensure live scoring, Match Centre, completed results and league standings all handle league-average fixtures correctly.
-- [ ] Balance home and away assignments across the season where the schedule permits.
-- [ ] Make fixture generation repeat-safe and prevent regeneration after official season activity begins unless an authorised recovery action is used.
-- [ ] Add database validation and automated tests covering even and odd league sizes, all Gameweeks, duplicate fixtures, missing fixtures and manager double-booking.
+- [x] Audit every fixture-generation entry point and consolidate generation behind one authoritative server function.
+- [x] Guarantee that every real manager has exactly one fixture in every Gameweek.
+- [x] For even-sized leagues, generate complete head-to-head rounds with no duplicate or self fixtures.
+- [x] For odd-sized leagues, replace the rotating bye with exactly one manager-versus-league-average fixture per Gameweek.
+- [x] Rotate the league-average opponent fairly so each manager faces it as evenly as the season length permits.
+- [x] Define the league-average score as the mean of the other managers' scores, excluding the manager playing against it, so their own score cannot influence their opponent.
+- [x] Define and consistently apply score precision, rounding and drawn-match rules for the league-average fixture.
+  - FPL and DEFCON averages are rounded separately to the nearest whole point, then combined. Exact equal totals are draws.
+- [x] Represent the league-average opponent explicitly without creating a fake user or league member.
+- [x] Ensure live scoring, Match Centre, completed results, league standings and later waiver priority handle league-average fixtures correctly.
+- [x] Balance repeated home and away assignments across the season where the schedule permits.
+- [x] Make fixture generation repeat-safe and prevent regeneration after official season activity begins unless an authorised recovery action is used.
+- [x] Add database validation and rollback-safe tests covering league sizes from 2 to 12, all Gameweeks, opponent rotation, home/away balance, invalid fixtures and manager double-booking.
+- [ ] Apply the fixture migration and deploy the updated live-stat synchronization function.
+- [ ] Complete even- and odd-manager fixture dress rehearsals against the deployed environment.
+
+### Live Gameweek and Match Centre
+
+The implementation is complete in the working tree. It shares the fixture-generation deployment and still requires a live-data dress rehearsal.
+
+- [x] Show every Gameweek fixture to every authenticated member of the league.
+- [x] Let managers open any fixture and inspect both effective starting lineups.
+- [x] Let managers open any player for a complete, reconciled live scoring breakdown.
+  - The breakdown covers appearance, goals, assists, position-relevant clean-sheet and goals-conceded scoring, saves, penalties, cards, own goals, bonus and any official live adjustment.
+  - FPL, DEFCON and combined totals are shown separately and reconcile to the fixture score.
+  - DEFCON shows total defensive contributions plus CBI, recoveries and tackles.
+- [x] Use the authoritative league Gameweek schedule instead of inferring the active Gameweek from player-stat rows.
+- [x] Poll Match Centre and live standings every 30 seconds while a Gameweek is in play.
+- [x] Trigger the server live-stat refresh every minute during an unfinished in-play Gameweek.
+- [x] Show data freshness, stale-data warnings, retry states and provisional autosub messaging.
+- [x] Show each manager's current-Gameweek score in the live standings table, with rank movement from the official table.
+- [x] Preserve league-average fixture handling without creating a synthetic player lineup.
+- [ ] Apply the database migrations and deploy the updated live-stat synchronization function.
+- [ ] Run a live dress rehearsal covering stat updates, provisional bonus, DEFCON, stale recovery, completed results, autosubs and standings finalisation.
 
 ## V2 / future development
 
