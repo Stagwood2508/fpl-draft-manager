@@ -819,13 +819,24 @@ const [res1, res2] = await Promise.all([
   throw new Error('Your user or league session is unavailable.');
 }
 
-const { error } = await supabase
-  .from('waiver_claims')
-  .delete()
-  .eq('id', claimId)
-  .eq('user_id', userId)
-  .eq('league_id', leagueId);
+const { data, error } = await supabase.rpc('cancel_waiver_claim', {
+  p_claim_id: claimId,
+});
             if (error) throw error;
+            if (!data?.success) {
+              const messages: Record<string, string> = {
+                CLAIM_NOT_FOUND: 'This claim no longer exists. The waiver list will now refresh.',
+                CLAIM_OWNER_REQUIRED: 'Only the manager who submitted this claim can cancel it.',
+                CLAIM_ALREADY_PROCESSED: 'This claim has already been processed and cannot be cancelled.',
+                WAIVER_WINDOW_CLOSED: 'The waiver deadline has passed, so this claim can no longer be cancelled.',
+              };
+              throw new Error(messages[data?.error] || 'The claim could not be cancelled. Please try again.');
+            }
+            setPendingWaiverClaims(current =>
+              current
+                .filter(claim => claim.id !== claimId)
+                .map((claim, index) => ({ ...claim, priority_order: index + 1 }))
+            );
             await fetchTransactionContext();
           } catch (err: any) {
             Alert.alert("Cancellation Failed", err.message);
@@ -1011,7 +1022,14 @@ const { error } = await supabase
                       </View>
                     </View>
 
-                    <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancelWaiverClaim(item.id)}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      disabled={processing}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        handleCancelWaiverClaim(item.id);
+                      }}
+                    >
                       <Text style={styles.cancelButtonText}>✕</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>

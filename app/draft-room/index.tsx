@@ -67,6 +67,13 @@ interface ManagerAutopickState {
   is_away: boolean;
 }
 
+interface DraftRoomReadiness {
+  user_id: string;
+  is_ready: boolean;
+  ready_at: string | null;
+  draft_start_time: string;
+}
+
 interface WatchlistDraftedAlert {
   playerName: string;
   managerName: string;
@@ -284,12 +291,6 @@ useEffect(() => {
         />
       )}
       <View style={{ flex: 1 }}>
-        {isMyTurn && (
-          <View style={styles.yourTurnPill}>
-            <View style={styles.yourTurnLiveDot} />
-            <Text style={styles.yourTurnPillText}>YOUR PICK IS LIVE</Text>
-          </View>
-        )}
         <Text style={styles.turnLabel}>
           {activeManagerAway
             ? `${activeManagerName.toUpperCase()} IS IN AWAY MODE`
@@ -725,6 +726,9 @@ export default function LiveDraftRoomScreen() {
   const watchlistAlertSound = useAudioPlayer(
     require('../../assets/sounds/draft-watchlist-alert.wav')
   );
+  const turnAlertSound = useAudioPlayer(
+    require('../../assets/sounds/draft-watchlist-alert.wav')
+  );
 
 const isDesktop = width >= 1050;
   const [loading, setLoading] = useState(true);
@@ -793,6 +797,9 @@ const isDesktop = width >= 1050;
 
   const [draftStartTimeStr, setDraftStartTimeStr] = useState<string | null>(null);
   const [waitingRoomCountdown, setWaitingRoomCountdown] = useState<string>('00:00');
+  const [isWaitingRoomOpen, setIsWaitingRoomOpen] = useState(false);
+  const [draftReadiness, setDraftReadiness] = useState<DraftRoomReadiness[]>([]);
+  const [updatingReadyState, setUpdatingReadyState] = useState(false);
 
   const [isQuickRefVisible, setIsQuickRefVisible] = useState(false);
   const [quickRefTab, setQuickRefTab] = useState<'WATCHLIST' | 'POOL'>('WATCHLIST');
@@ -860,6 +867,31 @@ const isDesktop = width >= 1050;
     watchlistIdsRef.current = watchlistIds;
   }, [watchlistIds]);
 
+  const loadDraftRoomReadiness = useCallback(async (
+    targetLeagueId: string,
+    scheduledStartTime: string | null | undefined
+  ) => {
+    if (!scheduledStartTime) {
+      setDraftReadiness([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('draft_room_readiness')
+      .select('user_id, is_ready, ready_at, draft_start_time')
+      .eq('league_id', targetLeagueId);
+
+    if (error) {
+      console.warn('Unable to load draft-room readiness:', error.message);
+      return;
+    }
+
+    const scheduledTimestamp = new Date(scheduledStartTime).getTime();
+    setDraftReadiness(((data || []) as DraftRoomReadiness[]).filter(row =>
+      new Date(row.draft_start_time).getTime() === scheduledTimestamp
+    ));
+  }, []);
+
   useEffect(() => {
     const nextPickerId = session?.current_picker_id || null;
     const previousPickerId = previousPickerIdRef.current;
@@ -867,12 +899,12 @@ const isDesktop = width >= 1050;
     if (nextPickerId && previousPickerId && nextPickerId !== previousPickerId) {
       setHighlightedPickerId(nextPickerId);
 
-      if (
-        nextPickerId === myUserId &&
-        isHapticsEnabled &&
-        Platform.OS !== 'web'
-      ) {
-        Vibration.vibrate(70);
+      if (nextPickerId === myUserId) {
+        void playDraftSound(turnAlertSound);
+
+        if (isHapticsEnabled && Platform.OS !== 'web') {
+          Vibration.vibrate(70);
+        }
       }
 
       const highlightTimer = setTimeout(() => {
@@ -886,7 +918,13 @@ const isDesktop = width >= 1050;
     }
 
     previousPickerIdRef.current = nextPickerId;
-  }, [session?.current_picker_id, myUserId, isHapticsEnabled]);
+  }, [
+    session?.current_picker_id,
+    myUserId,
+    isHapticsEnabled,
+    playDraftSound,
+    turnAlertSound,
+  ]);
 
   useEffect(() => {
     const nextTurnKey = session
@@ -979,6 +1017,7 @@ useEffect(() => {
     session?.draft_status === 'DRAFTING' ||
     session?.draft_status === 'PAUSED'
   ) {
+    if (!draftStartTimeStr) setIsWaitingRoomOpen(false);
     return;
   }
 
@@ -987,6 +1026,7 @@ useEffect(() => {
   const calculateWaitingClock = async () => {
     const targetTime = new Date(draftStartTimeStr).getTime();
     const diff = targetTime - Date.now();
+    setIsWaitingRoomOpen(diff <= 10 * 60 * 1000);
 
     if (diff <= 0) {
       setWaitingRoomCountdown('00:00');
@@ -1071,8 +1111,11 @@ useEffect(() => {
       return;
     }
 
-    const mins = Math.floor(diff / 60000);
-    const secs = Math.floor((diff % 60000) / 1000);
+    const countdownDiff = diff > 10 * 60 * 1000
+      ? diff - 10 * 60 * 1000
+      : diff;
+    const mins = Math.floor(countdownDiff / 60000);
+    const secs = Math.floor((countdownDiff % 60000) / 1000);
 
     setWaitingRoomCountdown(
       `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
@@ -1145,6 +1188,7 @@ useEffect(() => {
         
         if (settingsData?.draft_start_time) {
           setDraftStartTimeStr(settingsData.draft_start_time);
+          await loadDraftRoomReadiness(currentLid, settingsData.draft_start_time);
         }
 
 const { data: teamsProfiles } = await supabase
@@ -1187,6 +1231,18 @@ const { data: teamsProfiles } = await supabase
               sessionRef.current = incomingSession;
               setSession(incomingSession);
               syncPipelineEngine(incomingSession, currentLid, currentUid, teamsProfiles || []);
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'draft_room_readiness',
+              filter: `league_id=eq.${currentLid}`,
+            },
+            () => {
+              void loadDraftRoomReadiness(currentLid, settingsData?.draft_start_time);
             }
           )
           .subscribe(async (status) => {
@@ -1815,6 +1871,37 @@ useEffect(() => {
     }
   };
 
+  const toggleDraftReady = async () => {
+    if (!leagueId || !myUserId || !draftStartTimeStr || updatingReadyState) return;
+
+    const currentlyReady = draftReadiness.some(
+      row => row.user_id === myUserId && row.is_ready
+    );
+
+    try {
+      setUpdatingReadyState(true);
+      const { data, error } = await supabase.rpc('set_draft_room_ready', {
+        p_league_id: leagueId,
+        p_is_ready: !currentlyReady,
+      });
+
+      if (error) throw error;
+      if (data?.success === false) {
+        throw new Error(data.error || 'Your ready status could not be updated.');
+      }
+
+      await loadDraftRoomReadiness(leagueId, draftStartTimeStr);
+    } catch (error: any) {
+      const message = error?.message === 'WAITING_ROOM_NOT_OPEN'
+        ? 'The waiting room opens ten minutes before the draft.'
+        : error?.message || 'Your ready status could not be updated.';
+      if (Platform.OS === 'web') window.alert(message);
+      else Alert.alert('Ready status', message);
+    } finally {
+      setUpdatingReadyState(false);
+    }
+  };
+
   const handleTurnDeadlineReached = useCallback(() => {
     setSelectedPlayer(null);
   }, []);
@@ -2003,9 +2090,43 @@ useEffect(() => {
   const isPaused = session?.draft_status === 'PAUSED';
   const isDraftActive = isLive || isPaused;
   const isMyTurn = isLive && session?.draft_status !== 'COMPLETED' && session?.current_picker_id === myUserId;
+  const isPreDraft = !isDraftCompleted && !isDraftActive;
+  const readyManagerIds = new Set(
+    draftReadiness.filter(row => row.is_ready).map(row => row.user_id)
+  );
+  const amIReady = Boolean(myUserId && readyManagerIds.has(myUserId));
+  const readyManagerCount = managersList.filter(manager => readyManagerIds.has(manager.user_id)).length;
   const activeManagerName = managersList.find(
     manager => manager.user_id === session?.current_picker_id
   )?.team_name || 'Current manager';
+
+  if (isPreDraft && !isWaitingRoomOpen) {
+    return (
+      <SafeAreaView style={styles.waitingRoomLockedSafeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.waitingRoomLockedCard}>
+          <View style={styles.waitingRoomLockedIcon}>
+            <Ionicons name="lock-closed" size={26} color="#00F27A" />
+          </View>
+          <Text style={styles.waitingRoomLockedEyebrow}>DRAFT WAITING ROOM</Text>
+          <Text style={styles.waitingRoomLockedTitle}>
+            {draftStartTimeStr ? 'Opens ten minutes before kickoff' : 'Draft not scheduled'}
+          </Text>
+          <Text style={styles.waitingRoomLockedCountdown}>
+            {draftStartTimeStr ? waitingRoomCountdown : '--:--'}
+          </Text>
+          <Text style={styles.waitingRoomLockedText}>
+            {draftStartTimeStr
+              ? 'Return when the room opens to ready up, review the player pool and organise your watchlist.'
+              : 'The commissioner needs to schedule the draft before the waiting room can open.'}
+          </Text>
+          <TouchableOpacity style={styles.waitingRoomBackButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={15} color="#A9B6C0" />
+            <Text style={styles.waitingRoomBackButtonText}>BACK TO LEAGUE</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
   const watchlistPlayers = availablePlayers.filter(p => watchlistIds.includes(p.id)).sort((a,b) => watchlistIds.indexOf(a.id) - watchlistIds.indexOf(b.id));
   const commissionerPlayerOptions = availablePlayers
     .filter(player => player.web_name.toLowerCase().includes(commissionerPlayerSearch.trim().toLowerCase()))
@@ -2537,13 +2658,56 @@ useEffect(() => {
           /* PRE-DRAFT WAITING ROOM HEADER */
           <View style={styles.nonBlockingWaitingRoomHeader}>
             <View style={styles.waitingHeaderMetaCol}>
-              <Text style={styles.waitingHeaderTitleText}>🔴 PRE-DRAFT PREPARATION ACTIVE</Text>
-              <Text style={styles.waitingHeaderMetaSub}>Realtime pipeline linked. Setup your watchlists below!</Text>
+              <Text style={styles.waitingHeaderTitleText}>DRAFT WAITING ROOM</Text>
+              <Text style={styles.waitingHeaderMetaSub}>Ready up, review players and build your watchlist.</Text>
             </View>
             <View style={styles.headerClockBadgeContainer}>
               <Ionicons name="time" size={14} color="#00ff87" />
               <Text style={styles.headerClockBadgeStringText}>{waitingRoomCountdown}</Text>
             </View>
+          </View>
+        )}
+
+        {isPreDraft && (
+          <View style={styles.waitingRoomReadinessPanel}>
+            <View style={styles.waitingRoomReadinessTopRow}>
+              <View>
+                <Text style={styles.waitingRoomReadinessEyebrow}>MANAGERS READY</Text>
+                <Text style={styles.waitingRoomReadinessCount}>
+                  {readyManagerCount} / {managersList.length}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.waitingRoomReadyButton, amIReady && styles.waitingRoomReadyButtonActive]}
+                onPress={() => void toggleDraftReady()}
+                disabled={updatingReadyState}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: amIReady }}
+              >
+                {updatingReadyState ? (
+                  <ActivityIndicator size="small" color={amIReady ? '#06100B' : '#00F27A'} />
+                ) : (
+                  <Ionicons name={amIReady ? 'checkmark-circle' : 'radio-button-off'} size={16} color={amIReady ? '#06100B' : '#00F27A'} />
+                )}
+                <Text style={[styles.waitingRoomReadyButtonText, amIReady && styles.waitingRoomReadyButtonTextActive]}>
+                  {amIReady ? 'READY' : "I'M READY"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.waitingRoomManagerList}>
+              {managersList.map(manager => {
+                const managerReady = readyManagerIds.has(manager.user_id);
+                return (
+                  <View key={`ready-${manager.user_id}`} style={[styles.waitingRoomManagerChip, managerReady && styles.waitingRoomManagerChipReady]}>
+                    <View style={[styles.waitingRoomManagerDot, managerReady && styles.waitingRoomManagerDotReady]} />
+                    <Text style={[styles.waitingRoomManagerName, managerReady && styles.waitingRoomManagerNameReady]} numberOfLines={1}>
+                      {manager.team_name}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
         )}
 
@@ -2625,6 +2789,35 @@ useEffect(() => {
                 </View>
 
                 <View style={styles.draftTrackerHeaderActions}>
+                  <View style={styles.compactDraftUtilities}>
+                    {Platform.OS !== 'web' && (
+                      <TouchableOpacity
+                        style={[styles.compactDraftUtilityButton, isHapticsEnabled && styles.compactDraftUtilityButtonActive]}
+                        onPress={toggleHaptics}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: isHapticsEnabled }}
+                        accessibilityLabel={`Turn vibration ${isHapticsEnabled ? 'off' : 'on'}`}
+                      >
+                        <Ionicons name={isHapticsEnabled ? 'phone-portrait' : 'phone-portrait-outline'} size={13} color={isHapticsEnabled ? '#00F27A' : '#687887'} />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.compactDraftUtilityButton, isDraftSoundEnabled && styles.compactDraftUtilityButtonActive]}
+                      onPress={toggleDraftSound}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: isDraftSoundEnabled }}
+                      accessibilityLabel={`Turn draft sounds ${isDraftSoundEnabled ? 'off' : 'on'}`}
+                    >
+                      <Ionicons name={isDraftSoundEnabled ? 'volume-high' : 'volume-mute-outline'} size={13} color={isDraftSoundEnabled ? '#00F27A' : '#687887'} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.compactDraftUtilityButton}
+                      onPress={() => router.push('/draft-results')}
+                      accessibilityLabel="Open full draft board"
+                    >
+                      <Ionicons name="grid-outline" size={13} color="#00F27A" />
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.snakeDirectionBadge}>
                     <Ionicons
                       name={
@@ -2656,68 +2849,6 @@ useEffect(() => {
                   </View>
                 </View>
               </TouchableOpacity>
-
-              <View style={styles.draftFeedbackPreferences}>
-                {Platform.OS !== 'web' && (
-                  <TouchableOpacity
-                    style={styles.hapticsPreferenceButton}
-                    onPress={toggleHaptics}
-                    activeOpacity={0.8}
-                    accessibilityRole="switch"
-                    accessibilityState={{ checked: isHapticsEnabled }}
-                    accessibilityLabel="Turn vibration alerts"
-                  >
-                    <Ionicons
-                      name={isHapticsEnabled ? 'phone-portrait' : 'phone-portrait-outline'}
-                      size={13}
-                      color={isHapticsEnabled ? '#00F27A' : '#687887'}
-                    />
-                    <Text
-                      style={[
-                        styles.hapticsPreferenceText,
-                        isHapticsEnabled && styles.hapticsPreferenceTextActive,
-                      ]}
-                    >
-                      VIBRATION {isHapticsEnabled ? 'ON' : 'OFF'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  style={styles.hapticsPreferenceButton}
-                  onPress={toggleDraftSound}
-                  activeOpacity={0.8}
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: isDraftSoundEnabled }}
-                  accessibilityLabel="Turn draft sounds on or off"
-                >
-                  <Ionicons
-                    name={isDraftSoundEnabled ? 'volume-high' : 'volume-mute-outline'}
-                    size={13}
-                    color={isDraftSoundEnabled ? '#00F27A' : '#687887'}
-                  />
-                  <Text
-                    style={[
-                      styles.hapticsPreferenceText,
-                      isDraftSoundEnabled && styles.hapticsPreferenceTextActive,
-                    ]}
-                  >
-                    SOUND {isDraftSoundEnabled ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.hapticsPreferenceButton}
-                  onPress={() => router.push('/draft-results')}
-                  activeOpacity={0.8}
-                  accessibilityLabel="Open full draft board"
-                >
-                  <Ionicons name="grid-outline" size={13} color="#00F27A" />
-                  <Text style={[styles.hapticsPreferenceText, styles.hapticsPreferenceTextActive]}>
-                    FULL BOARD
-                  </Text>
-                </TouchableOpacity>
-              </View>
 
               {isDraftTrackerExpanded && (
                 <>
@@ -3688,15 +3819,15 @@ centered: {
 },
 
 turnHeader: {
-  minHeight: 82,
+  minHeight: 58,
   flexDirection: 'row',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginHorizontal: 12,
-  marginTop: 10,
-  marginBottom: 8,
-  paddingVertical: 14,
-  paddingHorizontal: 16,
+  marginTop: 5,
+  marginBottom: 5,
+  paddingVertical: 8,
+  paddingHorizontal: 12,
   borderWidth: 1,
   borderRadius: 14,
   overflow: 'hidden',
@@ -3735,21 +3866,21 @@ completedBg: {
 
 turnLabel: {
   color: '#F7FAFC',
-  fontSize: 15,
+  fontSize: 13,
   fontWeight: '900',
   letterSpacing: 0.6,
 },
 
 turnMetaSub: {
   color: '#8B9AA8',
-  fontSize: 11,
+  fontSize: 9,
   fontWeight: '700',
-  marginTop: 5,
+  marginTop: 2,
 },
 
 turnStatusRail: {
   alignItems: 'flex-end',
-  gap: 5,
+  gap: 2,
 },
 
 connectionStatusPill: {
@@ -3771,20 +3902,20 @@ connectionStatusDotOffline: { backgroundColor: '#FF6B61' },
 connectionStatusPillText: { color: '#71818E', fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
 
 clockContainer: {
-  minWidth: 58,
+  minWidth: 54,
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'center',
   backgroundColor: 'rgba(0,0,0,0.38)',
-  paddingVertical: 4,
-  paddingHorizontal: 8,
+  paddingVertical: 3,
+  paddingHorizontal: 6,
   borderRadius: 6,
   borderWidth: 1,
   borderColor: 'rgba(255,255,255,0.08)',
 },
 
 clockText: {
-  fontSize: 14,
+  fontSize: 12,
   fontWeight: '900',
   marginLeft: 4,
   fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
@@ -3794,10 +3925,10 @@ latestPickBanner: {
   flexDirection: 'row',
   alignItems: 'center',
   marginHorizontal: 12,
-  marginBottom: 8,
+  marginBottom: 5,
   backgroundColor: '#0B1712',
-  paddingVertical: 9,
-  paddingHorizontal: 12,
+  paddingVertical: 6,
+  paddingHorizontal: 9,
   borderWidth: 1,
   borderColor: 'rgba(0,242,122,0.20)',
   borderRadius: 10,
@@ -3847,8 +3978,8 @@ watchlistDraftedDismiss: { padding: 7, marginLeft: 4 },
 tabNavbarGroup: {
   flexDirection: 'row',
   marginHorizontal: 12,
-  marginBottom: 8,
-  padding: 4,
+  marginBottom: 4,
+  padding: 2,
   backgroundColor: '#08111A',
   borderWidth: 1,
   borderColor: '#1B2A36',
@@ -3857,7 +3988,7 @@ tabNavbarGroup: {
 
 navTabBtn: {
   flex: 1,
-  minHeight: 38,
+  minHeight: 30,
   alignItems: 'center',
   justifyContent: 'center',
   borderRadius: 8,
@@ -3879,23 +4010,23 @@ navTabText: {
 navTabTextActive: {
   color: '#00F27A',
 },
-  poolFiltersContainer: { paddingVertical: 10, gap: 9 },
-  playerSearchBox: { minHeight: 40, flexDirection: 'row', alignItems: 'center', marginHorizontal: 14, paddingHorizontal: 12, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 9 },
-  playerSearchInput: { flex: 1, color: '#F7FAFC', fontSize: 12, fontWeight: '700', paddingVertical: 9, paddingHorizontal: 9 },
+  poolFiltersContainer: { paddingVertical: 4, gap: 5 },
+  playerSearchBox: { minHeight: 32, flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, paddingHorizontal: 9, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 7 },
+  playerSearchInput: { flex: 1, color: '#F7FAFC', fontSize: 11, fontWeight: '700', paddingVertical: 5, paddingHorizontal: 7 },
   clearSearchButton: { padding: 4 },
-  toolbarRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14 },
+  toolbarRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12 },
   miniPositionRow: { flexDirection: 'row', backgroundColor: '#111', padding: 2, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
-  miniPosBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 2 },
+  miniPosBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 2 },
   miniPosBadgeActive: { backgroundColor: '#222' },
   miniPosText: { color: '#555', fontSize: 10, fontWeight: '800' },
   miniPosTextActive: { color: '#00ff87' },
   disabledPositionTab: { backgroundColor: '#0A0A0A', opacity: 0.15 },
-  sortToggleBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
+  sortToggleBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
   sortToggleText: { color: '#888', fontSize: 10, fontWeight: '800', marginLeft: 6 },
-  clubFilterRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 14 },
+  clubFilterRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12 },
   clubFilterLabel: { color: '#607180', fontSize: 9, fontWeight: '900', letterSpacing: 0.6, marginRight: 8 },
   clubFilterList: { paddingRight: 14, gap: 6 },
-  clubFilterChip: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 999 },
+  clubFilterChip: { paddingVertical: 4, paddingHorizontal: 8, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 999 },
   clubFilterChipActive: { backgroundColor: '#13231C', borderColor: 'rgba(0,242,122,0.45)' },
   clubFilterChipText: { color: '#607180', fontSize: 9, fontWeight: '800' },
   clubFilterChipTextActive: { color: '#00F27A' },
@@ -4150,6 +4281,30 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
   waitingHeaderMetaSub: { color: '#555', fontSize: 10, fontWeight: '600', marginTop: 2 },
   headerClockBadgeContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
   headerClockBadgeStringText: { color: '#00ff87', fontSize: 16, fontWeight: '900', marginLeft: 6, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  waitingRoomReadinessPanel: { marginHorizontal: 12, marginTop: 7, marginBottom: 6, padding: 10, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 10 },
+  waitingRoomReadinessTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  waitingRoomReadinessEyebrow: { color: '#607180', fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
+  waitingRoomReadinessCount: { color: '#F7FAFC', fontSize: 15, fontWeight: '900', marginTop: 1 },
+  waitingRoomReadyButton: { minWidth: 104, minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, backgroundColor: '#0D1924', borderWidth: 1, borderColor: '#245E42', borderRadius: 8 },
+  waitingRoomReadyButtonActive: { backgroundColor: '#00F27A', borderColor: '#00F27A' },
+  waitingRoomReadyButtonText: { color: '#00F27A', fontSize: 9, fontWeight: '900', letterSpacing: 0.4 },
+  waitingRoomReadyButtonTextActive: { color: '#06100B' },
+  waitingRoomManagerList: { gap: 6, paddingTop: 9, paddingRight: 4 },
+  waitingRoomManagerChip: { maxWidth: 150, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 8, backgroundColor: '#0D1924', borderWidth: 1, borderColor: '#223443', borderRadius: 999 },
+  waitingRoomManagerChipReady: { backgroundColor: '#10251B', borderColor: '#245E42' },
+  waitingRoomManagerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#526473' },
+  waitingRoomManagerDotReady: { backgroundColor: '#00F27A' },
+  waitingRoomManagerName: { flexShrink: 1, color: '#82929F', fontSize: 9, fontWeight: '800' },
+  waitingRoomManagerNameReady: { color: '#B9F7D7' },
+  waitingRoomLockedSafeArea: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 18, backgroundColor: '#050A0F' },
+  waitingRoomLockedCard: { width: '100%', maxWidth: 520, alignItems: 'center', paddingVertical: 28, paddingHorizontal: 22, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 16 },
+  waitingRoomLockedIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: '#10251B', borderWidth: 1, borderColor: '#245E42', borderRadius: 14 },
+  waitingRoomLockedEyebrow: { color: '#00F27A', fontSize: 8, fontWeight: '900', letterSpacing: 1, marginTop: 16 },
+  waitingRoomLockedTitle: { color: '#F7FAFC', fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 5 },
+  waitingRoomLockedCountdown: { color: '#00F27A', fontSize: 30, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginTop: 16 },
+  waitingRoomLockedText: { color: '#82929F', fontSize: 11, fontWeight: '700', lineHeight: 17, textAlign: 'center', marginTop: 10 },
+  waitingRoomBackButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 20, paddingHorizontal: 16, backgroundColor: '#0D1924', borderWidth: 1, borderColor: '#223443', borderRadius: 8 },
+  waitingRoomBackButtonText: { color: '#A9B6C0', fontSize: 9, fontWeight: '900', letterSpacing: 0.4 },
   floatingQuickRefFab: { position: 'absolute', bottom: 85, right: 16, backgroundColor: '#00ff87', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 30, flexDirection: 'row', alignItems: 'center', elevation: 8, zIndex: 999 },
   fabLabelText: { color: '#000', fontSize: 11, fontWeight: '900', marginLeft: 4, letterSpacing: 0.5 },
   quickRefOverlayPanel: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -4171,20 +4326,20 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
 draftOrderPanel: {
   backgroundColor: '#08111A',
   marginHorizontal: 12,
-  marginBottom: 6,
+  marginBottom: 4,
   borderWidth: 1,
   borderColor: '#1B2A36',
-  borderRadius: 14,
-  paddingVertical: 2,
+  borderRadius: 10,
+  paddingVertical: 1,
   overflow: 'hidden',
 },
 
 draftOrderHeader: {
-  minHeight: 32,
+  minHeight: 38,
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
-  paddingHorizontal: 10,
+  paddingHorizontal: 8,
   marginBottom: 0,
 },
 
@@ -4193,25 +4348,47 @@ draftTrackerHeaderLeft: {
   minWidth: 0,
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 18,
+  gap: 10,
 },
 
 collapsedTrackerManager: {
   flex: 1,
   color: '#00F27A',
-  fontSize: 11,
+  fontSize: 9,
   fontWeight: '800',
 },
 
 draftTrackerHeaderActions: {
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 8,
+  gap: 4,
+},
+
+compactDraftUtilities: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 3,
+},
+
+compactDraftUtilityButton: {
+  width: 26,
+  height: 26,
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#0D1924',
+  borderWidth: 1,
+  borderColor: '#223443',
+  borderRadius: 7,
+},
+
+compactDraftUtilityButtonActive: {
+  backgroundColor: '#10251B',
+  borderColor: '#245E42',
 },
 
 collapseTrackerButton: {
-  width: 30,
-  height: 30,
+  width: 26,
+  height: 26,
   alignItems: 'center',
   justifyContent: 'center',
   backgroundColor: '#0D1924',
@@ -4222,16 +4399,16 @@ collapseTrackerButton: {
 
 draftOrderEyebrow: {
   color: '#687887',
-  fontSize: 8,
+  fontSize: 7,
   fontWeight: '900',
   letterSpacing: 0.8,
 },
 
 draftOrderRound: {
   color: '#F7FAFC',
-  fontSize: 14,
+  fontSize: 11,
   fontWeight: '900',
-  marginTop: 2,
+  marginTop: 0,
 },
 
 snakeDirectionBadge: {
@@ -4241,14 +4418,14 @@ snakeDirectionBadge: {
   borderWidth: 1,
   borderColor: '#223443',
   borderRadius: 999,
-  paddingVertical: 5,
-  paddingHorizontal: 9,
+  paddingVertical: 3,
+  paddingHorizontal: 6,
   gap: 5,
 },
 
 snakeDirectionText: {
   color: '#A7B4C2',
-  fontSize: 9,
+  fontSize: 8,
   fontWeight: '900',
 },
 
@@ -4652,34 +4829,6 @@ myTurnPulseOverlay: {
   borderRadius: 14,
 },
 
-yourTurnPill: {
-  alignSelf: 'flex-start',
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: 'rgba(0,242,122,0.14)',
-  borderWidth: 1,
-  borderColor: 'rgba(0,242,122,0.38)',
-  borderRadius: 999,
-  paddingVertical: 3,
-  paddingHorizontal: 7,
-  marginBottom: 6,
-  gap: 5,
-},
-
-yourTurnLiveDot: {
-  width: 6,
-  height: 6,
-  backgroundColor: '#00F27A',
-  borderRadius: 3,
-},
-
-yourTurnPillText: {
-  color: '#00F27A',
-  fontSize: 8,
-  fontWeight: '900',
-  letterSpacing: 0.6,
-},
-
 playerPoolRowTurnDisabled: {
   backgroundColor: '#091119',
   borderColor: '#13212C',
@@ -4698,39 +4847,6 @@ pickSelectionControlDisabled: {
   backgroundColor: '#101A23',
   borderWidth: 1,
   borderColor: '#21313D',
-},
-
-hapticsPreferenceButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingVertical: 5,
-  paddingHorizontal: 8,
-  backgroundColor: '#0D1924',
-  borderWidth: 1,
-  borderColor: '#223443',
-  borderRadius: 999,
-  gap: 5,
-},
-
-draftFeedbackPreferences: {
-  flexDirection: 'row',
-  justifyContent: 'flex-end',
-  flexWrap: 'wrap',
-  gap: 6,
-  marginTop: 2,
-  marginRight: 14,
-  marginBottom: 8,
-},
-
-hapticsPreferenceText: {
-  color: '#687887',
-  fontSize: 7,
-  fontWeight: '900',
-  letterSpacing: 0.45,
-},
-
-hapticsPreferenceTextActive: {
-  color: '#00F27A',
 },
 
 draftOrderManagerCardChanged: {
@@ -4908,7 +5024,7 @@ pausedTurnBadge: {
 },
 commissionerControlPanel: {
   marginHorizontal: 12,
-  marginBottom: 8,
+  marginBottom: 4,
   backgroundColor: '#0A141C',
   borderWidth: 1,
   borderColor: '#234337',
@@ -4916,24 +5032,24 @@ commissionerControlPanel: {
   overflow: 'hidden',
 },
 commissionerControlHeader: {
-  minHeight: 52,
+  minHeight: 38,
   flexDirection: 'row',
   alignItems: 'center',
   paddingHorizontal: 11,
 },
 commissionerControlHeaderIcon: {
-  width: 32,
-  height: 32,
+  width: 26,
+  height: 26,
   alignItems: 'center',
   justifyContent: 'center',
   backgroundColor: '#10251B',
   borderWidth: 1,
   borderColor: '#245E42',
-  borderRadius: 8,
+  borderRadius: 7,
 },
-commissionerControlHeaderCopy: { flex: 1, minWidth: 0, marginHorizontal: 9 },
+commissionerControlHeaderCopy: { flex: 1, minWidth: 0, marginHorizontal: 7 },
 commissionerControlEyebrow: { color: '#00F27A', fontSize: 7, fontWeight: '900', letterSpacing: 0.8 },
-commissionerControlTitle: { color: '#E9EFF3', fontSize: 11, fontWeight: '900', marginTop: 2 },
+commissionerControlTitle: { color: '#E9EFF3', fontSize: 10, fontWeight: '900', marginTop: 0 },
 commissionerControlStateBadge: {
   paddingVertical: 4,
   paddingHorizontal: 7,

@@ -17,6 +17,7 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
   const [activeLid, setActiveLid] = useState<string | null>(null);
   const [targetTime, setTargetTime] = useState<Date | null>(null);
   const [isDraftReady, setIsDraftReady] = useState(false);
+  const [isWaitingRoomOpen, setIsWaitingRoomOpen] = useState(false);
   const [timeString, setTimeString] = useState('00d : 00h : 00m : 00s');
 
   useEffect(() => {
@@ -32,12 +33,12 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
   useEffect(() => {
     if (!targetTime) return;
 
-    const interval = setInterval(() => {
+    const updateCountdown = () => {
       const now = new Date().getTime();
       const distance = targetTime.getTime() - now;
+      setIsWaitingRoomOpen(distance <= 10 * 60 * 1000);
 
       if (distance <= 0) {
-        clearInterval(interval);
         setIsDraftReady(true);
         setTimeString('00d : 00h : 00m : 00s');
       } else {
@@ -51,7 +52,10 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
           `${String(days).padStart(2, '0')}d : ${String(hours).padStart(2, '0')}h : ${String(minutes).padStart(2, '0')}m : ${String(seconds).padStart(2, '0')}s`
         );
       }
-    }, 1000);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
   }, [targetTime]);
@@ -89,8 +93,10 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
         setTargetTime(parsedDate);
         if (parsedDate.getTime() - new Date().getTime() <= 0) {
           setIsDraftReady(true);
+          setIsWaitingRoomOpen(true);
         } else {
           setIsDraftReady(false);
+          setIsWaitingRoomOpen(parsedDate.getTime() - new Date().getTime() <= 10 * 60 * 1000);
         }
       } else {
         setTargetTime(null);
@@ -133,6 +139,19 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
             <Ionicons name="flash" size={16} color="#000" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         </View>
+      ) : isWaitingRoomOpen ? (
+        <View style={{ width: '100%' }}>
+          <Text style={[styles.heading, { color: appColors.accent, textAlign: 'center' }]}>DRAFT WAITING ROOM OPEN</Text>
+          <Text style={styles.waitingRoomClock}>{timeString}</Text>
+          <Text style={styles.subtextCenter}>Ready up, inspect the player pool and finish your watchlist before kickoff.</Text>
+          <TouchableOpacity
+            style={styles.enterRoomButton}
+            onPress={() => router.push({ pathname: '/draft-room', params: { leagueId: activeLid } })}
+          >
+            <Text style={styles.buttonText}>ENTER WAITING ROOM</Text>
+            <Ionicons name="people" size={16} color="#000" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+        </View>
       ) : (
         <View>
           <Text style={styles.heading}>⏳ Scheduled Live Draft Kickoff</Text>
@@ -148,6 +167,7 @@ const styles = StyleSheet.create({
   cardContainer: { minHeight: 142, justifyContent: 'center', padding: appSpacing.xl, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large, alignSelf: 'stretch' },
   heading: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 14 },
   clockNumbers: { color: appColors.accent, fontSize: 21, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginVertical: 10, letterSpacing: 0.8 },
+  waitingRoomClock: { color: appColors.textPrimary, fontSize: 15, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', textAlign: 'center', marginTop: 8 },
   subtext: { ...appTypography.body, color: appColors.textMuted, lineHeight: 18 },
   subtextCenter: { ...appTypography.body, color: appColors.textSecondary, textAlign: 'center', marginTop: 5, marginBottom: 14 },
   enterRoomButton: { minHeight: 42, backgroundColor: appColors.accent, borderRadius: appRadius.small, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
