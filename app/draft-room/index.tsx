@@ -1132,35 +1132,8 @@ useEffect(() => {
         waitingTimer = null;
       }
 
-      if (session?.draft_status === 'WAITING_ROOM' && leagueId) {
-        console.log(
-          '🚀 Kickoff time reached! Launching draft via update_league_draft_status...'
-        );
-
-        try {
-          const { data, error } = await supabase.rpc(
-            'update_league_draft_status',
-            {
-              p_league_id: leagueId,
-              p_status: 'LIVE',
-            }
-          );
-
-          if (error) {
-            throw error;
-          } else {
-            console.log(
-              'Draft successfully transitioned to LIVE:',
-              data
-            );
-          }
-        } catch (err: any) {
-          console.error(
-            'Failed to execute live draft launch:',
-            err.message || err
-          );
-        }
-      }
+      // Draft kickoff is owned by the production scheduler. Realtime delivers
+      // the LIVE session as soon as the server starts it.
 
       return;
     }
