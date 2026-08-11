@@ -140,6 +140,7 @@ The planned V1 draft-room feature set is complete. Remaining ideas below are int
 - [x] Separate normal squad browsing from an explicit Edit Lineup mode.
 - [x] Open the existing rich player card from the squad, including recent scores and upcoming fixtures.
 - [x] Show player availability flags, news, watchlist state and transfer-list state.
+- [x] Show each player's next unfinished Premier League fixture beside their position, including home/away venue.
 - [x] Let managers add, update or remove a transfer listing directly from the squad player-details card.
 - [x] Show roster position limits and formation warnings.
 - [x] Allow valid cross-position starter/substitute swaps when the resulting XI remains legal.
@@ -268,6 +269,7 @@ The implementation is complete in the working tree. It shares the fixture-genera
 
 - [x] Show every Gameweek fixture to every authenticated member of the league.
 - [x] Let managers open any fixture and inspect both effective starting lineups.
+  - Mobile uses a two-team lineup switcher with tappable team tabs and horizontal swiping, while desktop retains the side-by-side comparison.
 - [x] Let managers open any player for a complete, reconciled live scoring breakdown.
   - The breakdown covers appearance, goals, assists, position-relevant clean-sheet and goals-conceded scoring, saves, penalties, cards, own goals, bonus and any official live adjustment.
   - FPL, DEFCON and combined totals are shown separately and reconcile to the fixture score.

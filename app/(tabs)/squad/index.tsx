@@ -48,6 +48,7 @@ interface PlayerData {
   status?: string;
   news?: string;
   chance_of_playing_next_round?: number | null;
+  next_fixture?: string | null;
 }
 
 interface RosterItem {
@@ -190,7 +191,7 @@ export default function SquadScreen() {
     else setLoading(true);
 
     try {
-      const [rosterResponse, memberResponse, leagueResponse, gameweekResponse, watchlistResponse, auditResponse] = await Promise.all([
+      const [rosterResponse, memberResponse, leagueResponse, gameweekResponse, watchlistResponse, auditResponse, fixturesResponse] = await Promise.all([
         supabase
           .from('rosters')
           .select('id, player_id, is_starting, is_gk, bench_order, is_transfer_listed, trade_note, players(*)')
@@ -228,10 +229,29 @@ export default function SquadScreen() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase
+          .from('fixtures')
+          .select('gameweek, home_team_id, away_team_id, home_team_short, away_team_short, kickoff_time, is_finished')
+          .eq('is_finished', false)
+          .not('kickoff_time', 'is', null)
+          .order('gameweek', { ascending: true })
+          .order('kickoff_time', { ascending: true }),
       ]);
 
       const requestError = rosterResponse.error || memberResponse.error || leagueResponse.error;
       if (requestError) throw requestError;
+
+      const nextFixtureByTeam = new Map<number, string>();
+      (fixturesResponse.data || []).forEach((fixture: any) => {
+        const homeTeamId = Number(fixture.home_team_id);
+        const awayTeamId = Number(fixture.away_team_id);
+        if (!nextFixtureByTeam.has(homeTeamId)) {
+          nextFixtureByTeam.set(homeTeamId, `${fixture.away_team_short || 'OPP'} H`);
+        }
+        if (!nextFixtureByTeam.has(awayTeamId)) {
+          nextFixtureByTeam.set(awayTeamId, `${fixture.home_team_short || 'OPP'} A`);
+        }
+      });
 
       const structured = (rosterResponse.data || [])
         .map((item: any) => ({
@@ -242,7 +262,12 @@ export default function SquadScreen() {
           bench_order: item.bench_order === null ? null : Number(item.bench_order),
           is_transfer_listed: Boolean(item.is_transfer_listed),
           trade_note: item.trade_note || null,
-          players: Array.isArray(item.players) ? item.players[0] : item.players,
+          players: (() => {
+            const player = Array.isArray(item.players) ? item.players[0] : item.players;
+            return player
+              ? { ...player, next_fixture: nextFixtureByTeam.get(Number(player.team_id)) || null }
+              : player;
+          })(),
         }))
         .filter((item: RosterItem) => Boolean(item.players)) as RosterItem[];
 
@@ -508,6 +533,10 @@ export default function SquadScreen() {
     const imageCode = item.players.photo_code || item.players.code || item.players.id;
     const imageFailed = failedImageIds.has(item.player_id);
     const isBenchOutfield = !item.is_starting && item.players.element_type !== 'GKP';
+    const roleLabel = benchPriority
+      ? `SUB ${benchPriority} · ${item.players.element_type}`
+      : item.players.element_type;
+    const fixtureLabel = item.players.next_fixture ? ` (${item.players.next_fixture})` : '';
 
     return (
       <View key={item.id} style={[styles.playerSlot, isCompact && styles.playerSlotCompact]}>
@@ -546,8 +575,8 @@ export default function SquadScreen() {
           <Text style={[styles.playerName, isCompact && styles.playerNameCompact]} numberOfLines={1}>
             {item.players.web_name}
           </Text>
-          <Text style={[styles.playerMeta, { color: POSITION_COLORS[item.players.element_type as SquadPosition] || appColors.textMuted }]}>
-            {benchPriority ? `SUB ${benchPriority}` : item.players.element_type}
+          <Text numberOfLines={1} style={[styles.playerMeta, { color: POSITION_COLORS[item.players.element_type as SquadPosition] || appColors.textMuted }]}>
+            {roleLabel}{fixtureLabel}
             {!isCompact && ` · ${item.players.event_points ?? item.players.total_points ?? 0} PTS`}
           </Text>
         </Pressable>
