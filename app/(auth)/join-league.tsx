@@ -35,8 +35,6 @@ export default function JoinLeagueScreen() {
         router.replace('/(auth)/login');
         return;
       }
-      const user = session.user;
-
       // 2. Fetch League by Invite Code
       const { data: league, error: lookupErr } = await supabase
         .from('leagues')
@@ -54,7 +52,6 @@ export default function JoinLeagueScreen() {
       // 3. Execute Validated Join via Postgres RPC
       const { data: joinResult, error: rpcErr } = await supabase.rpc('join_league_with_validation', {
         p_league_id: league.id,
-        p_user_id: user.id,
         p_team_name: cleanTeamName,
       });
 
@@ -80,6 +77,20 @@ switch (result.error) {
     Alert.alert(
       'Draft In Progress',
       'You cannot join this league because the draft has already started or finished.'
+    );
+    return;
+
+  case 'TEAM_NAME_TAKEN':
+    Alert.alert(
+      'Team Name Taken',
+      'Another manager in this league is already using that team name.'
+    );
+    return;
+
+  case 'AUTH_REQUIRED':
+    Alert.alert(
+      'Session Expired',
+      'Please sign out and log back in before joining the league.'
     );
     return;
 
