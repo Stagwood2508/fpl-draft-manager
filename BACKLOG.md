@@ -224,6 +224,36 @@ The planned V1 draft-room feature set is complete. Remaining ideas below are int
   - Managers can independently enable or disable announcement, trade, waiver and future match notifications.
   - Inbox data and preferences are account-scoped and protected by row-level access rules.
 
+## Pre-launch hardening
+
+### Draft and transaction integrity
+
+- [x] Secure waiver submission and waiver-priority reordering entirely on the server.
+- [x] Guarantee a legal starting lineup after every flexible waiver or free-agent roster change.
+- [x] Reject manual draft picks submitted after the authoritative server deadline.
+- [x] Remove legacy client-side and direct-write fallback paths for draft and transaction changes.
+- [x] Add repeatable lifecycle and concurrency regression tests for drafts, waivers, free agents, trades, lineups and autosubs.
+  - Added a rollback-safe transaction hardening test for waiver ordering, cancellation, stale-order rejection, privilege boundaries and flexible-lineup repair.
+  - Existing rollback tests continue to cover lineup deadlines and repeat-safe autosubs.
+- [ ] Complete full pre-launch dress rehearsals using realistic leagues and concurrent managers.
+
+### League fixture generation and league-average opponent
+
+This bundle follows the draft and transaction integrity work above. The existing odd-manager bye behaviour is temporary; the intended rule is a fixture against the league average.
+
+- [ ] Audit every fixture-generation entry point and consolidate generation behind one authoritative server function.
+- [ ] Guarantee that every real manager has exactly one fixture in every Gameweek.
+- [ ] For even-sized leagues, generate complete head-to-head rounds with no duplicate or self fixtures.
+- [ ] For odd-sized leagues, replace the rotating bye with exactly one manager-versus-league-average fixture per Gameweek.
+- [ ] Rotate the league-average opponent fairly so each manager faces it as evenly as the season length permits.
+- [ ] Define the league-average score as the mean of the other managers' scores, excluding the manager playing against it, so their own score cannot influence their opponent.
+- [ ] Define and consistently apply score precision, rounding and drawn-match rules for the league-average fixture.
+- [ ] Represent the league-average opponent explicitly without creating a fake user or league member.
+- [ ] Ensure live scoring, Match Centre, completed results and league standings all handle league-average fixtures correctly.
+- [ ] Balance home and away assignments across the season where the schedule permits.
+- [ ] Make fixture generation repeat-safe and prevent regeneration after official season activity begins unless an authorised recovery action is used.
+- [ ] Add database validation and automated tests covering even and odd league sizes, all Gameweeks, duplicate fixtures, missing fixtures and manager double-booking.
+
 ## V2 / future development
 
 - [ ] Explore draft grades and post-draft analysis after the V1 draft flow is established.

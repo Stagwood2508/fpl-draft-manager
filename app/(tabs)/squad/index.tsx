@@ -20,12 +20,13 @@ import { useRouter } from 'expo-router';
 import KitIcon from '@/components/KitIcon';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import {
-  appColors,
+  AppColors,
   appRadius,
   appSpacing,
   appTypography,
 } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { supabase } from '@/utils/supabase';
 
 type SquadPosition = 'GKP' | 'DEF' | 'MID' | 'FWD';
@@ -134,7 +135,7 @@ const normalizeBenchPriority = (items: RosterItem[]) => {
   }));
 };
 
-const getAvailability = (player: PlayerData) => {
+const getAvailability = (player: PlayerData, appColors: AppColors) => {
   const status = (player.status || 'a').toLowerCase();
   if (status === 'a') return { label: 'Available', color: appColors.accent };
   if (status === 'd') return { label: 'Doubtful', color: appColors.warning };
@@ -145,6 +146,8 @@ const getAvailability = (player: PlayerData) => {
 };
 
 export default function SquadScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
   const isFocused = useIsFocused();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
@@ -320,7 +323,7 @@ export default function SquadScreen() {
   );
   const starterCounts = useMemo(() => getCounts(roster, true), [roster]);
   const formation = `${starterCounts.DEF}-${starterCounts.MID}-${starterCounts.FWD}`;
-  const unavailableCount = roster.filter(item => getAvailability(item.players).label !== 'Available').length;
+  const unavailableCount = roster.filter(item => getAvailability(item.players, appColors).label !== 'Available').length;
   const listedCount = roster.filter(item => item.is_transfer_listed).length;
   const lineupLocked = Boolean(
     gameweekDeadline
@@ -471,20 +474,17 @@ export default function SquadScreen() {
     setListingSaving(true);
     try {
       const normalizedNote = isListed ? note?.trim() || null : null;
-      const { data, error } = await supabase
-        .from('rosters')
-        .update({
-          is_transfer_listed: isListed,
-          trade_note: normalizedNote,
-        })
-        .eq('id', inspectingRosterItem.id)
-        .eq('user_id', currentUserId)
-        .eq('league_id', activeLeagueId)
-        .select('id')
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('set_transfer_listing', {
+        p_league_id: activeLeagueId,
+        p_roster_id: inspectingRosterItem.id,
+        p_is_listed: isListed,
+        p_trade_note: normalizedNote,
+      });
 
       if (error) throw error;
-      if (!data) throw new Error('The player listing could not be updated. Refresh and try again.');
+      if (!data?.success) {
+        throw new Error(data?.error || 'The player listing could not be updated. Refresh and try again.');
+      }
 
       const applyListing = (item: RosterItem) => item.id === inspectingRosterItem.id
         ? { ...item, is_transfer_listed: isListed, trade_note: normalizedNote }
@@ -504,7 +504,7 @@ export default function SquadScreen() {
 
   const renderPlayer = (item: RosterItem, benchPriority?: number) => {
     const selected = selectedRosterId === item.id;
-    const availability = getAvailability(item.players);
+    const availability = getAvailability(item.players, appColors);
     const imageCode = item.players.photo_code || item.players.code || item.players.id;
     const imageFailed = failedImageIds.has(item.player_id);
     const isBenchOutfield = !item.is_starting && item.players.element_type !== 'GKP';
@@ -715,9 +715,9 @@ export default function SquadScreen() {
           </View>
         )}
         {roster
-          .filter(item => getAvailability(item.players).label !== 'Available' || item.is_transfer_listed)
+          .filter(item => getAvailability(item.players, appColors).label !== 'Available' || item.is_transfer_listed)
           .map(item => {
-            const availability = getAvailability(item.players);
+            const availability = getAvailability(item.players, appColors);
             return (
               <TouchableOpacity key={`status-${item.id}`} style={styles.statusRow} onPress={() => setInspectingPlayerId(item.player_id)}>
                 <View style={[styles.statusIcon, { borderColor: `${availability.color}66` }]}>
@@ -733,7 +733,7 @@ export default function SquadScreen() {
               </TouchableOpacity>
             );
           })}
-        {roster.every(item => getAvailability(item.players).label === 'Available' && !item.is_transfer_listed) && (
+        {roster.every(item => getAvailability(item.players, appColors).label === 'Available' && !item.is_transfer_listed) && (
           <View style={styles.allClearRow}>
             <Ionicons name="shield-checkmark" size={18} color={appColors.accent} />
             <Text style={styles.allClearText}>All players are currently available and no squad members are transfer listed.</Text>
@@ -931,7 +931,7 @@ export default function SquadScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: appColors.background },
   scroll: { flex: 1 },
   page: { padding: appSpacing.sm, paddingBottom: 32 },

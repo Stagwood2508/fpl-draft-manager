@@ -17,8 +17,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
-import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import {
   HomeLeagueMembership,
   useHomeDashboard,
@@ -43,12 +44,6 @@ const formatCountdown = (target: string | null, now: number) => {
 
 const statusLabel = (status?: string | null) =>
   String(status || 'UPCOMING').replaceAll('_', ' ');
-
-const activityMeta = {
-  WAIVER: { icon: 'swap-vertical' as const, color: '#9B8CFF', label: 'WAIVER' },
-  FREE_AGENT: { icon: 'flash' as const, color: appColors.info, label: 'FREE AGENT' },
-  TRADE: { icon: 'people' as const, color: appColors.accent, label: 'TRADE' },
-};
 
 const activityMovement = (activity: LeagueActivityItem) => {
   const incoming = activity.playersIn.map(player => player.web_name).filter(Boolean).join(', ');
@@ -96,6 +91,8 @@ interface SummaryCardProps {
 }
 
 function SummaryCard({ icon, label, value, meta, tone = 'default', onPress }: SummaryCardProps) {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
   const accent = tone === 'warning'
     ? appColors.warning
     : tone === 'info'
@@ -118,6 +115,13 @@ function SummaryCard({ icon, label, value, meta, tone = 'default', onPress }: Su
 }
 
 export default function HomeDashboardScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
+  const activityMeta = useMemo(() => ({
+    WAIVER: { icon: 'swap-vertical' as const, color: '#7967D8', label: 'WAIVER' },
+    FREE_AGENT: { icon: 'flash' as const, color: appColors.info, label: 'FREE AGENT' },
+    TRADE: { icon: 'people' as const, color: appColors.accent, label: 'TRADE' },
+  }), [appColors]);
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 900;
@@ -818,7 +822,7 @@ export default function HomeDashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: appColors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: appSpacing.md, backgroundColor: appColors.background },
   loadingText: { ...appTypography.body, color: appColors.textMuted },

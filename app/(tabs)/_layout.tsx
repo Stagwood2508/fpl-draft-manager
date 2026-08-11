@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 import { supabase } from '@/utils/supabase';
-import { appColors } from '@/constants/theme';
+import { AppColors } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import SettingsDropdown from '@/components/SettingsDropdown';
@@ -12,6 +13,8 @@ import NotificationBell from '@/components/NotificationBell';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const { currentUserId, activeLeagueId } = useAppSession();
 
@@ -90,16 +93,16 @@ useEffect(() => {
         headerShown: true,
 
        headerStyle: {
-  backgroundColor: appColors.backgroundDeep,
+  backgroundColor: colors.backgroundDeep,
 },
 
-headerTintColor: appColors.textPrimary,
+headerTintColor: colors.textPrimary,
 headerShadowVisible: false,
 
 headerTitleStyle: {
   fontSize: 13,
   fontWeight: '900',
-  color: appColors.textPrimary,
+  color: colors.textPrimary,
 },
 
 headerTitleContainerStyle: {
@@ -118,16 +121,16 @@ headerRightContainerStyle: {
         ),
 
        tabBarStyle: {
-  backgroundColor: appColors.backgroundDeep,
-  borderTopColor: appColors.border,
+  backgroundColor: colors.backgroundDeep,
+  borderTopColor: colors.border,
   borderTopWidth: 1,
   height: 58 + Math.max(insets.bottom, 8),
   paddingTop: 7,
   paddingBottom: Math.max(insets.bottom, 8),
 },
 
-tabBarActiveTintColor: appColors.accent,
-tabBarInactiveTintColor: appColors.textMuted,
+tabBarActiveTintColor: colors.accent,
+tabBarInactiveTintColor: colors.textMuted,
 
 tabBarLabelStyle: {
   fontSize: 9,
@@ -240,7 +243,7 @@ tabBarLabelStyle: {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,6 +262,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#FF3B30',
     borderWidth: 2,
-    borderColor: appColors.backgroundDeep,
+    borderColor: colors.backgroundDeep,
   },
 });

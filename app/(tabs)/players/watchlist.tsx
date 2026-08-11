@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -15,6 +15,8 @@ import { useIsFocused } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerAsset {
   id: number;
@@ -32,6 +34,8 @@ const POSITION_COLORS: Record<string, string> = {
 };
 
 export default function WatchlistScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -210,7 +214,7 @@ export default function WatchlistScreen() {
           onPress={() => handleRemoveItem(item.id)}
           activeOpacity={0.8}
         >
-          <Ionicons name="trash-outline" size={15} color="#FF3B30" />
+          <Ionicons name="trash-outline" size={15} color={colors.danger} />
         </TouchableOpacity>
       </View>
     );
@@ -233,7 +237,7 @@ export default function WatchlistScreen() {
 
       {/* WATCHLIST FEED */}
       {loading && !refreshing ? (
-        <View style={styles.centered}><ActivityIndicator size="large" color="#00ff87" /></View>
+        <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       ) : (
         <FlatList
           data={filteredPlayers}
@@ -244,13 +248,13 @@ export default function WatchlistScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#00ff87"
-              colors={['#00ff87']}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="bookmark-outline" size={48} color="#222" style={{ marginBottom: 12 }} />
+              <Ionicons name="bookmark-outline" size={48} color={colors.textDisabled} style={{ marginBottom: 12 }} />
               <Text style={styles.emptyText}>Your watchlist is empty.</Text>
               <Text style={styles.emptySubText}>Tap bookmarks on the Scout screen to queue key recruitment targets here.</Text>
             </View>
@@ -273,32 +277,32 @@ export default function WatchlistScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeContainer: { flex: 1, backgroundColor: '#0A0A0A', paddingTop: 16 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  safeContainer: { flex: 1, backgroundColor: colors.background, paddingTop: 16 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   
   pillsContainerRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16 },
-  pillBtn: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, marginRight: 6 },
-  pillBtnActive: { backgroundColor: '#00ff87', borderColor: '#00ff87' },
-  pillText: { color: '#888', fontSize: 11, fontWeight: '800' },
-  pillTextActive: { color: '#000', fontWeight: '900' },
+  pillBtn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, marginRight: 6 },
+  pillBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pillText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
+  pillTextActive: { color: colors.black, fontWeight: '900' },
 
-  playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderWidth: 1, borderColor: '#191919', paddingRight: 8, borderRadius: 4, marginBottom: 4 },
+  playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingRight: 8, borderRadius: 4, marginBottom: 4 },
   playerCardMainTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },
   playerMeta: { flex: 1, marginLeft: 2, paddingRight: 4, justifyContent: 'center' },
   playerRowFlow: { flexDirection: 'row', alignItems: 'center' },
-  playerName: { color: '#FFF', fontSize: 14, fontWeight: '800', marginRight: 8 },
-  playerClubShort: { color: '#666', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
+  playerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '800', marginRight: 8 },
+  playerClubShort: { color: colors.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
-  positionChipText: { color: '#000', fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
+  positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
   
   pointsColumn: { alignItems: 'center', justifyContent: 'center', marginRight: 8, minWidth: 28 },
-  pointsValueText: { color: '#00ff87', fontSize: 14, fontWeight: '900' }, 
-  pointsLabelText: { color: '#444', fontSize: 7, fontWeight: '900', marginTop: -3 },
+  pointsValueText: { color: colors.accent, fontSize: 14, fontWeight: '900' },
+  pointsLabelText: { color: colors.textDisabled, fontSize: 7, fontWeight: '900', marginTop: -3 },
   
-  removeBtn: { width: 36, height: 28, backgroundColor: '#1C0F10', borderRadius: 4, borderWidth: 1, borderColor: '#FF3B3033', justifyContent: 'center', alignItems: 'center' },
+  removeBtn: { width: 36, height: 28, backgroundColor: colors.dangerSoft, borderRadius: 4, borderWidth: 1, borderColor: colors.dangerBorder, justifyContent: 'center', alignItems: 'center' },
   
   emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 80, paddingHorizontal: 32 },
-  emptyText: { color: '#FFF', textAlign: 'center', fontWeight: '800', fontSize: 15, marginBottom: 6 },
-  emptySubText: { color: '#444', textAlign: 'center', fontWeight: '600', fontSize: 12, lineHeight: 18 }
+  emptyText: { color: colors.textPrimary, textAlign: 'center', fontWeight: '800', fontSize: 15, marginBottom: 6 },
+  emptySubText: { color: colors.textMuted, textAlign: 'center', fontWeight: '600', fontSize: 12, lineHeight: 18 }
 });

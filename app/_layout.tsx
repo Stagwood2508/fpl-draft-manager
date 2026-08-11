@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import {
@@ -6,6 +6,7 @@ import {
   View,
   ActivityIndicator,
   StyleSheet,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
@@ -19,16 +20,23 @@ import {
   AppSessionProvider,
 } from '@/features/account/context/AppSessionContext';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { AppColors } from '@/constants/theme';
+import { AppearanceProvider } from '@/features/appearance/context/AppearanceContext';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 export default function RootLayout() {
   return (
-    <AppSessionProvider>
-      <RootLayoutContent />
-    </AppSessionProvider>
+    <AppearanceProvider>
+      <AppSessionProvider>
+        <RootLayoutContent />
+      </AppSessionProvider>
+    </AppearanceProvider>
   );
 }
 
 function RootLayoutContent() {
+  const { colors, resolvedMode, appearanceReady } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const rawSegments = useSegments();
   const router = useRouter();
 
@@ -50,6 +58,7 @@ function RootLayoutContent() {
   const membershipReady = !sessionActive || hasLeague !== null;
 
   const appReady =
+    appearanceReady &&
     authInitialized &&
     fontsReady &&
     membershipReady;
@@ -141,13 +150,18 @@ function RootLayoutContent() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
+        <StatusBar
+          barStyle={resolvedMode === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={colors.backgroundDeep}
+        />
         <Stack
           screenOptions={{
             headerStyle: {
-              backgroundColor: '#0A0A0A',
+              backgroundColor: colors.backgroundDeep,
             },
             headerShadowVisible: false,
-            headerTintColor: '#FFF',
+            headerTintColor: colors.textPrimary,
+            contentStyle: { backgroundColor: colors.background },
             headerTitleStyle: {
               fontWeight: '900',
               fontSize: 15,
@@ -163,7 +177,7 @@ function RootLayoutContent() {
 
         {!appReady && (
           <View style={styles.loaderOverlay}>
-            <ActivityIndicator size="large" color="#00ff87" />
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
         )}
       </SafeAreaProvider>
@@ -171,7 +185,7 @@ function RootLayoutContent() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   root: {
     flex: 1,
   },
@@ -180,7 +194,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A0A0A',
+    backgroundColor: colors.background,
     zIndex: 999,
   },
 });

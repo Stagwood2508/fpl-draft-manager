@@ -15,8 +15,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { supabase } from '@/utils/supabase';
 
 type NotificationCategory = 'ANNOUNCEMENT' | 'TRADE' | 'WAIVER' | 'MATCH' | 'SYSTEM';
@@ -48,14 +49,6 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   match_updates_enabled: true,
 };
 
-const categoryMeta: Record<NotificationCategory, { icon: React.ComponentProps<typeof Ionicons>['name']; color: string; label: string }> = {
-  ANNOUNCEMENT: { icon: 'megaphone-outline', color: appColors.accent, label: 'ANNOUNCEMENT' },
-  TRADE: { icon: 'people-outline', color: appColors.info, label: 'TRADE' },
-  WAIVER: { icon: 'swap-vertical-outline', color: '#9B8CFF', label: 'WAIVER' },
-  MATCH: { icon: 'football-outline', color: appColors.warning, label: 'MATCH' },
-  SYSTEM: { icon: 'information-circle-outline', color: appColors.textSecondary, label: 'SYSTEM' },
-};
-
 const firstRelation = <T,>(value: T | T[] | null | undefined): T | null => Array.isArray(value) ? value[0] || null : value || null;
 
 const relativeTime = (timestamp: string) => {
@@ -71,6 +64,15 @@ const relativeTime = (timestamp: string) => {
 };
 
 export default function NotificationCentreScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
+  const categoryMeta = useMemo<Record<NotificationCategory, { icon: React.ComponentProps<typeof Ionicons>['name']; color: string; label: string }>>(() => ({
+    ANNOUNCEMENT: { icon: 'megaphone-outline', color: appColors.accent, label: 'ANNOUNCEMENT' },
+    TRADE: { icon: 'people-outline', color: appColors.info, label: 'TRADE' },
+    WAIVER: { icon: 'swap-vertical-outline', color: '#7967D8', label: 'WAIVER' },
+    MATCH: { icon: 'football-outline', color: appColors.warning, label: 'MATCH' },
+    SYSTEM: { icon: 'information-circle-outline', color: appColors.textSecondary, label: 'SYSTEM' },
+  }), [appColors]);
   const router = useRouter();
   const { currentUserId } = useAppSession();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -239,7 +241,7 @@ export default function NotificationCentreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: appColors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.background },
   header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: appSpacing.sm, paddingHorizontal: appSpacing.md, backgroundColor: appColors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: appColors.border },

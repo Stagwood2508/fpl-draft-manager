@@ -1,17 +1,20 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
-import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface DraftCountdownCardProps {
   leagueId?: string | null;
 }
 
 export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps) {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeLid, setActiveLid] = useState<string | null>(null);
@@ -163,7 +166,7 @@ export default function DraftCountdownCard({ leagueId }: DraftCountdownCardProps
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   cardContainer: { minHeight: 142, justifyContent: 'center', padding: appSpacing.xl, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large, alignSelf: 'stretch' },
   heading: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 14 },
   clockNumbers: { color: appColors.accent, fontSize: 21, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', marginVertical: 10, letterSpacing: 0.8 },

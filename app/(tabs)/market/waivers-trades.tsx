@@ -1,28 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Modal,
-  Dimensions,
   Platform,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import {
-  appColors,
+  AppColors,
   appRadius,
   appSpacing,
   appTypography,
 } from '@/constants/theme';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface PlayerAsset {
   id: number;
@@ -91,6 +88,8 @@ const POSITION_COLORS: Record<string, string> = {
 
 export default function TransactionsScreen() {
   const isFocused = useIsFocused();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { tab } = useLocalSearchParams<{ tab?: string | string[] }>();
 
   const {
@@ -780,23 +779,25 @@ if (!userId || !leagueId) {
   throw new Error('Your user or league session is unavailable.');
 }
 
-const [res1, res2] = await Promise.all([
-  supabase
-    .from('waiver_claims')
-    .update({ priority_order: claimB.priority_order })
-    .eq('id', selectedWaiverClaimId)
-    .eq('user_id', userId)
-    .eq('league_id', leagueId),
+      const nextOrder = [...pendingWaiverClaims]
+        .sort((left, right) => left.priority_order - right.priority_order)
+        .map(claim => claim.id);
+      const firstIndex = nextOrder.indexOf(selectedWaiverClaimId);
+      const secondIndex = nextOrder.indexOf(targetId);
+      [nextOrder[firstIndex], nextOrder[secondIndex]] = [nextOrder[secondIndex], nextOrder[firstIndex]];
 
-  supabase
-    .from('waiver_claims')
-    .update({ priority_order: claimA.priority_order })
-    .eq('id', targetId)
-    .eq('user_id', userId)
-    .eq('league_id', leagueId),
-]);
-      if (res1.error) throw res1.error;
-      if (res2.error) throw res2.error;
+      const { data, error } = await supabase.rpc('reorder_waiver_claims', {
+        p_league_id: leagueId,
+        p_claim_ids: nextOrder,
+      });
+      if (error) throw error;
+      if (!data?.success) {
+        const messages: Record<string, string> = {
+          WAIVER_WINDOW_CLOSED: 'The waiver deadline has passed, so priorities can no longer be changed.',
+          CLAIM_ORDER_MISMATCH: 'Your waiver queue changed elsewhere. It has been refreshed.',
+        };
+        throw new Error(messages[data?.error] || 'The server rejected the new waiver order.');
+      }
       setSelectedWaiverClaimId(null);
       await fetchTransactionContext();
     } catch (err: any) {
@@ -933,55 +934,49 @@ const { data, error } = await supabase.rpc('cancel_waiver_claim', {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.waiverStatusCard}>
-          <View style={styles.waiverStatusHeadingRow}>
-            <View>
-              <Text style={styles.waiverStatusEyebrow}>WAIVER WINDOW</Text>
-              <Text style={styles.waiverStatusTitle}>
-                {waiverStatus?.gameweek ? `Gameweek ${waiverStatus.gameweek}` : 'Next processing window'}
-              </Text>
-            </View>
-            <View style={styles.marketStatusBadge}>
-              <Text style={styles.marketStatusText}>{(waiverStatus?.market_status || 'SCHEDULED').replaceAll('_', ' ')}</Text>
-            </View>
-          </View>
+        {activeTab === 'WAIVERS' && (
+          <View style={styles.waiverStatusCard}>
+            <View style={styles.waiverStatusMainRow}>
+              <View style={styles.waiverWindowIdentity}>
+                <Text style={styles.waiverStatusEyebrow}>WAIVER WINDOW</Text>
+                <Text style={styles.waiverStatusTitle}>
+                  {waiverStatus?.gameweek ? `GW ${waiverStatus.gameweek}` : 'NEXT'}
+                </Text>
+              </View>
 
-          <View style={styles.waiverStatusGrid}>
-            <View style={styles.waiverStatusMetric}>
-              <Text style={styles.waiverStatusMetricLabel}>YOUR PRIORITY</Text>
-              <Text style={styles.waiverStatusMetricValue}>
-                {waiverStatus?.priority ? `#${waiverStatus.priority}` : '—'}
-                {waiverStatus?.manager_count ? <Text style={styles.waiverStatusMetricMax}> / {waiverStatus.manager_count}</Text> : null}
-              </Text>
-              <Text style={styles.waiverStatusMetricMeta}>
-                {waiverStatus?.priority_source === 'LEAGUE_POSITION'
-                  ? 'Calculated bottom-to-top from the league table'
-                  : waiverStatus?.priority_source === 'DRAFT_ORDER'
-                    ? 'First window follows the draft order'
-                    : 'First window uses reverse draft order'}
-              </Text>
-            </View>
-            <View style={styles.waiverStatusMetric}>
-              <Text style={styles.waiverStatusMetricLabel}>WAIVER DEADLINE</Text>
-              <Text style={styles.waiverDeadlineValue}>
-                {waiverStatus?.waiver_deadline
-                  ? new Date(waiverStatus.waiver_deadline).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                  : 'Awaiting schedule'}
-              </Text>
-              <Text style={styles.waiverStatusMetricMeta}>Claims can be reordered until this time</Text>
-            </View>
-          </View>
+              <View style={styles.waiverStatusDivider} />
 
-          <View style={styles.marketRulesRow}>
-            <Text style={styles.marketRuleText}>
-              Trades close at {waiverStatus?.trade_cutoff_rule === 'GAMEWEEK_DEADLINE' ? 'the Gameweek deadline' : 'the waiver deadline'}
-            </Text>
-            <Text style={styles.marketRuleDivider}>•</Text>
-            <Text style={styles.marketRuleText}>
-              Dropped players: {waiverStatus?.dropped_player_rule === 'IMMEDIATE_FREE_AGENT' ? 'immediate free agents' : 'protected until next waivers'}
+              <View style={styles.waiverCompactMetric}>
+                <Text style={styles.waiverStatusMetricLabel}>PRIORITY</Text>
+                <Text style={styles.waiverStatusMetricValue}>
+                  {waiverStatus?.priority ? `#${waiverStatus.priority}` : '—'}
+                  {waiverStatus?.manager_count ? <Text style={styles.waiverStatusMetricMax}>/{waiverStatus.manager_count}</Text> : null}
+                </Text>
+              </View>
+
+              <View style={styles.waiverStatusDivider} />
+
+              <View style={styles.waiverDeadlineMetric}>
+                <View style={styles.waiverDeadlineHeadingRow}>
+                  <Text style={styles.waiverStatusMetricLabel}>DEADLINE</Text>
+                  <View style={styles.marketStatusBadge}>
+                    <Text style={styles.marketStatusText}>{(waiverStatus?.market_status || 'SCHEDULED').replaceAll('_', ' ')}</Text>
+                  </View>
+                </View>
+                <Text style={styles.waiverDeadlineValue} numberOfLines={1}>
+                  {waiverStatus?.waiver_deadline
+                    ? new Date(waiverStatus.waiver_deadline).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : 'Awaiting schedule'}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.marketRuleText} numberOfLines={2}>
+              Trades: {waiverStatus?.trade_cutoff_rule === 'GAMEWEEK_DEADLINE' ? 'Gameweek deadline' : 'waiver deadline'}{'  •  '}
+              Drops: {waiverStatus?.dropped_player_rule === 'IMMEDIATE_FREE_AGENT' ? 'immediate free agents' : 'protected until next waivers'}
             </Text>
           </View>
-        </View>
+        )}
 
         {activeTab === 'WAIVERS' && (
           <View style={styles.card}>
@@ -1145,7 +1140,6 @@ const { data, error } = await supabase.rpc('cancel_waiver_claim', {
                     const pos = p.element_type;
                     const demandedPlayers = rivalCounterRoster.filter(r => rivalSelectedTradeIds.includes(r.id));
                     const totalDemandedOfThisPos = demandedPlayers.filter(r => r.element_type === pos).length;
-                    const currentlySelectedOfThisPos = myCounterRoster.filter(r => mySelectedTradeIds.includes(r.id) && r.element_type === pos).length;
                     const isSelectionDisabled =
   !isSelected && totalDemandedOfThisPos === 0;
 
@@ -1217,7 +1211,7 @@ const { data, error } = await supabase.rpc('cancel_waiver_claim', {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: appColors.background,
@@ -1272,28 +1266,29 @@ const styles = StyleSheet.create({
   },
 
   waiverStatusCard: {
-    padding: appSpacing.lg,
-    marginBottom: appSpacing.lg,
+    paddingHorizontal: appSpacing.md,
+    paddingVertical: 10,
+    marginBottom: appSpacing.md,
     backgroundColor: appColors.backgroundElevated,
     borderWidth: 1,
     borderColor: appColors.accentBorder,
-    borderRadius: appRadius.large,
+    borderRadius: appRadius.medium,
   },
-  waiverStatusHeadingRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: appSpacing.md },
+  waiverStatusMainRow: { flexDirection: 'row', alignItems: 'center', minHeight: 42 },
+  waiverWindowIdentity: { width: 66 },
   waiverStatusEyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
-  waiverStatusTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary, marginTop: 3 },
-  marketStatusBadge: { paddingHorizontal: 8, paddingVertical: 5, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.pill },
-  marketStatusText: { ...appTypography.label, color: appColors.accent, fontSize: 7 },
-  waiverStatusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: appSpacing.md },
-  waiverStatusMetric: { flex: 1, flexBasis: 220, minHeight: 92, justifyContent: 'center', padding: appSpacing.md, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
+  waiverStatusTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary, marginTop: 1, fontSize: 15 },
+  waiverStatusDivider: { width: 1, height: 32, backgroundColor: appColors.border, marginHorizontal: 10 },
+  waiverCompactMetric: { width: 48, alignItems: 'flex-start' },
+  waiverDeadlineMetric: { flex: 1, minWidth: 0 },
+  waiverDeadlineHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  marketStatusBadge: { paddingHorizontal: 6, paddingVertical: 3, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.pill },
+  marketStatusText: { ...appTypography.label, color: appColors.accent, fontSize: 6 },
   waiverStatusMetricLabel: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
-  waiverStatusMetricValue: { color: appColors.accent, fontSize: 25, fontWeight: '900', marginTop: 4 },
-  waiverStatusMetricMax: { color: appColors.textMuted, fontSize: 12, fontWeight: '800' },
-  waiverDeadlineValue: { color: appColors.textPrimary, fontSize: 14, fontWeight: '900', marginTop: 6 },
-  waiverStatusMetricMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 4 },
-  marketRulesRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 9, paddingHorizontal: 2 },
-  marketRuleText: { ...appTypography.metadata, color: appColors.textSecondary },
-  marketRuleDivider: { color: appColors.accent, fontSize: 10 },
+  waiverStatusMetricValue: { color: appColors.accent, fontSize: 18, fontWeight: '900', marginTop: 1 },
+  waiverStatusMetricMax: { color: appColors.textMuted, fontSize: 9, fontWeight: '800' },
+  waiverDeadlineValue: { color: appColors.textPrimary, fontSize: 11, fontWeight: '900', marginTop: 3 },
+  marketRuleText: { ...appTypography.metadata, color: appColors.textMuted, fontSize: 9, marginTop: 7 },
 
   card: {
     backgroundColor: appColors.surface,

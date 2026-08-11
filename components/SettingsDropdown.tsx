@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,9 +8,13 @@ import {
 import { useRouter } from 'expo-router';
 
 import { supabase } from '@/utils/supabase';
+import { AppColors, appRadius, appTypography } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 export default function SettingsDropdown() {
   const router = useRouter();
+  const { colors, resolvedMode, toggleMode } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [isCommish, setIsCommish] = useState(false);
@@ -118,6 +122,23 @@ export default function SettingsDropdown() {
             <Text style={styles.menuItemText}>👤 My Profile</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => void toggleMode()}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: resolvedMode === 'light' }}
+            accessibilityLabel="Use light mode"
+          >
+            <View style={styles.appearanceRow}>
+              <Text style={styles.menuItemText}>
+                {resolvedMode === 'light' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+              </Text>
+              <View style={[styles.modeSwitch, resolvedMode === 'light' && styles.modeSwitchLight]}>
+                <View style={[styles.modeSwitchThumb, resolvedMode === 'light' && styles.modeSwitchThumbLight]} />
+              </View>
+            </View>
+          </TouchableOpacity>
+
           {isCommish && (
             <TouchableOpacity
               style={styles.menuItem}
@@ -152,7 +173,7 @@ export default function SettingsDropdown() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   anchorContainer: {
     position: 'relative',
     zIndex: 9999,
@@ -165,7 +186,7 @@ const styles = StyleSheet.create({
 
   cogIconText: {
     fontSize: 18,
-    color: '#FFF',
+    color: colors.textPrimary,
   },
 
   dropdownBox: {
@@ -173,11 +194,11 @@ const styles = StyleSheet.create({
     top: 40,
     right: 0,
     width: 210,
-    backgroundColor: '#111',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#222',
-    borderRadius: 4,
-    shadowColor: '#000',
+    borderColor: colors.borderStrong,
+    borderRadius: appRadius.medium,
+    shadowColor: colors.black,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -191,7 +212,7 @@ const styles = StyleSheet.create({
   menuItem: {
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#1c1c1c',
+    borderBottomColor: colors.border,
   },
 
   lastMenuItem: {
@@ -199,16 +220,50 @@ const styles = StyleSheet.create({
   },
 
   menuItemText: {
-    color: '#DDD',
+    ...appTypography.body,
+    color: colors.textPrimary,
     fontSize: 13,
-    fontWeight: '700',
+  },
+
+  appearanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  modeSwitch: {
+    width: 34,
+    height: 20,
+    padding: 2,
+    borderRadius: 10,
+    backgroundColor: colors.surfacePressed,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+
+  modeSwitchLight: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentBorder,
+  },
+
+  modeSwitchThumb: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.textMuted,
+  },
+
+  modeSwitchThumbLight: {
+    alignSelf: 'flex-end',
+    backgroundColor: colors.accent,
   },
 
   commissionerText: {
-    color: '#00ff87',
+    color: colors.accent,
   },
 
   signOutText: {
-    color: '#FF453A',
+    color: colors.danger,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,11 +16,12 @@ import { supabase } from '@/utils/supabase';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import {
-  appColors,
+  AppColors,
   appRadius,
   appSpacing,
   appTypography,
 } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerAsset {
   id: number;
@@ -61,6 +62,8 @@ const POSITION_ORDER: Record<string, number> = {
 };
 
 export default function TransferMarketScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
   const isFocused = useIsFocused();
 
   const {
@@ -206,15 +209,14 @@ if (!userId || !leagueId) {
   throw new Error('Your user or league session is unavailable.');
 }
 
-const { error } = await supabase
-  .from('rosters')
-  .update({
-    is_transfer_listed: nextStatus,
-    trade_note: nextStatus ? note : null,
-  })
-  .eq('id', rosterId)
-  .eq('user_id', userId)
-  .eq('league_id', leagueId);
+const { data, error } = await supabase.rpc('set_transfer_listing', {
+  p_league_id: leagueId,
+  p_roster_id: rosterId,
+  p_is_listed: nextStatus,
+  p_trade_note: nextStatus ? note : null,
+});
+if (error) throw error;
+if (!data?.success) throw new Error(data?.error || 'The transfer listing could not be updated.');
 
       setMyPersonalRoster(prev =>
         prev.map(item => (item.id === rosterId ? { ...item, is_transfer_listed: nextStatus, trade_note: note } : item))
@@ -438,7 +440,7 @@ const { error } = await supabase
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: appColors.background,

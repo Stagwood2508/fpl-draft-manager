@@ -23,6 +23,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { supabase } from '../../utils/supabase';
 import PlayerCardModal from '../../components/PlayerCardModal';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 interface DraftSession {
   current_round: number;
@@ -159,6 +161,8 @@ const IsolatedTurnClock = React.memo(({
   activeManagerAway: boolean;
   onDeadlineReached?: () => void;
 }) => {
+  const { colors } = useAppTheme();
+  const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const turnPulse = useRef(new Animated.Value(0)).current;
   const handledDeadlineRef = useRef<string | null>(null);
@@ -244,20 +248,22 @@ useEffect(() => {
 
   if (status === 'COMPLETED') {
     return (
-      <View style={[styles.turnHeader, styles.completedBg]}>
-        <Text style={styles.turnLabel}>DRAFT COMPLETED</Text>
+      <View style={[styles.turnHeader, themeStyles.turnHeader, styles.completedBg, themeStyles.rivalTurnBg]}>
+        <Text style={[styles.turnLabel, themeStyles.textPrimary]}>DRAFT COMPLETED</Text>
       </View>
     );
   }
 
-  let headerStyle = isMyTurn ? styles.myTurnBg : styles.rivalTurnBg;
+  let headerStyle: any[] = isMyTurn
+    ? [styles.myTurnBg, themeStyles.myTurnBg]
+    : [styles.rivalTurnBg, themeStyles.rivalTurnBg];
   let clockTextColor = '#00ff87';
 
   if (secondsLeft <= 5) {
-    headerStyle = styles.criticalRedBg;
+    headerStyle = [styles.criticalRedBg];
     clockTextColor = '#FF453A';
   } else if (secondsLeft <= 15) {
-    headerStyle = styles.warningAmberBg;
+    headerStyle = [styles.warningAmberBg];
     clockTextColor = '#FF9500';
   } else if (!isMyTurn) {
     clockTextColor = '#888';
@@ -267,7 +273,7 @@ useEffect(() => {
   const activeManagerName = activeManager?.team_name || 'RIVAL MANAGER';
 
   return (
-    <View style={[styles.turnHeader, headerStyle]}>
+    <View style={[styles.turnHeader, themeStyles.turnHeader, headerStyle]}>
       {isMyTurn && (
         <Animated.View
           pointerEvents="none"
@@ -291,14 +297,14 @@ useEffect(() => {
         />
       )}
       <View style={{ flex: 1 }}>
-        <Text style={styles.turnLabel}>
+        <Text style={[styles.turnLabel, themeStyles.textPrimary]}>
           {activeManagerAway
             ? `${activeManagerName.toUpperCase()} IS IN AWAY MODE`
             : isMyTurn
               ? 'YOUR TURN TO PICK'
               : `${activeManagerName.toUpperCase()} IS DRAFTING`}
         </Text>
-        <Text style={styles.turnMetaSub}>
+        <Text style={[styles.turnMetaSub, themeStyles.textSecondary]}>
           Pick #{currentPickIndex} • {isMyTurn ? 'Your pick is active' : `${picksUntilMyTurn} picks until your turn`}
         </Text>
       </View>
@@ -358,6 +364,8 @@ const PlayerPoolRow = React.memo(({
   onMoveUp?: (p: DraftedPlayer) => void;
   onMoveDown?: (p: DraftedPlayer) => void;
 }) => {
+  const { colors } = useAppTheme();
+  const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const isPickDisabled = showPickCheckbox && !isMyTurn;
   const [isInfoHovered, setIsInfoHovered] = useState(false);
 
@@ -365,7 +373,9 @@ const PlayerPoolRow = React.memo(({
   <View
     style={[
       styles.playerPoolRow,
+      themeStyles.playerPoolRow,
       isSelected && styles.playerPoolRowSelected,
+      isSelected && themeStyles.playerPoolRowSelected,
       isPickDisabled && styles.playerPoolRowTurnDisabled,
     ]}
   >
@@ -387,7 +397,7 @@ const PlayerPoolRow = React.memo(({
         <Text style={styles.watchlistIndexNumberText}>{watchlistIndex}. </Text>
       )}
       <View style={styles.poolPlayerIdentity}>
-        <Text style={styles.poolPlayerNameText} numberOfLines={1}>{item.web_name}</Text>
+        <Text style={[styles.poolPlayerNameText, themeStyles.textPrimary]} numberOfLines={1}>{item.web_name}</Text>
         <Text style={styles.poolPlayerTeamText} numberOfLines={1}>
           {item.team_name} · #{item.draft_rank === 999 ? 'N/A' : item.draft_rank} · {item.total_points} pts
         </Text>
@@ -718,6 +728,8 @@ const PlayerRowAction = React.memo(({
 });
 
 export default function LiveDraftRoomScreen() {
+  const { colors } = useAppTheme();
+  const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const router = useRouter();
   const pickConfirmedSound = useAudioPlayer(
@@ -800,9 +812,6 @@ const isDesktop = width >= 1050;
   const [isWaitingRoomOpen, setIsWaitingRoomOpen] = useState(false);
   const [draftReadiness, setDraftReadiness] = useState<DraftRoomReadiness[]>([]);
   const [updatingReadyState, setUpdatingReadyState] = useState(false);
-
-  const [isQuickRefVisible, setIsQuickRefVisible] = useState(false);
-  const [quickRefTab, setQuickRefTab] = useState<'WATCHLIST' | 'POOL'>('WATCHLIST');
 
   const [myRoster, setMyRoster] = useState<Record<string, (DraftedPlayer | null)[]>>({
     GKP: [null, null], DEF: [null, null, null, null, null], MID: [null, null, null, null, null], FWD: [null, null, null]
@@ -1051,49 +1060,7 @@ useEffect(() => {
           );
 
           if (error) {
-            console.warn(
-              'update_league_draft_status RPC Error:',
-              error.message
-            );
-
-            const fallback = await supabase.rpc(
-              'initialize_draft_session',
-              {
-                p_league_id: leagueId,
-              }
-            );
-
-            if (fallback.error) {
-              console.warn(
-                'RPC fallbacks failed. Performing direct table launch...',
-                fallback.error.message
-              );
-
-              const {
-                data: { user },
-              } = await supabase.auth.getUser();
-
-              await supabase
-                .from('draft_sessions')
-                .update({
-                  draft_status: 'LIVE',
-                  current_pick_index: 1,
-                  current_round: 1,
-                  current_picker_id: user?.id,
-                  pick_deadline: new Date(
-                    Date.now() + (turnDurationSeconds || 60) * 1000
-                  ).toISOString(),
-                })
-                .eq('league_id', leagueId);
-
-              await supabase
-                .from('leagues')
-                .update({
-                  draft_status: 'DRAFTING',
-                  status: 'DRAFTING',
-                })
-                .eq('id', leagueId);
-            }
+            throw error;
           } else {
             console.log(
               'Draft successfully transitioned to LIVE:',
@@ -1994,6 +1961,9 @@ useEffect(() => {
         } else if (pickResult.error === 'NOT_YOUR_TURN') {
           Alert.alert('Not Your Turn', 'The draft moved on before this pick reached the server.');
           setSelectedPlayer(null);
+        } else if (pickResult.error === 'PICK_DEADLINE_EXPIRED') {
+          Alert.alert('Time Expired', 'The server clock expired before this pick arrived. The draft is resyncing safely.');
+          setSelectedPlayer(null);
         } else {
           setPickSubmissionError('The pick was not accepted. Check the selection and try again.');
         }
@@ -2021,6 +1991,13 @@ useEffect(() => {
       console.error('MANUAL PICK FAILED', err);
 
       const serverMessage = String(err?.message || err?.details || '');
+      if (serverMessage.includes('PICK_DEADLINE_EXPIRED')) {
+        setSelectedPlayer(null);
+        setPickSubmissionError(null);
+        await resyncDraftRoom(leagueId, myUserId, managersList);
+        Alert.alert('Time Expired', 'The server clock expired before this pick arrived. The latest draft state is now shown.');
+        return;
+      }
       if (serverMessage.includes('POSITION_FULL')) {
         setSelectedPlayer(null);
         setPickSubmissionError('That position has reached its roster limit. Choose another position.');
@@ -2220,7 +2197,7 @@ useEffect(() => {
 
     return (
       <SafeAreaView
-        style={styles.completionSafeArea}
+        style={[styles.completionSafeArea, themeStyles.container]}
         edges={['top', 'left', 'right', 'bottom']}
       >
         <ScrollView
@@ -2230,6 +2207,7 @@ useEffect(() => {
           <View
             style={[
               styles.completionCard,
+              themeStyles.surface,
               isDesktop && styles.completionCardDesktop,
             ]}
           >
@@ -2381,7 +2359,7 @@ useEffect(() => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+    <SafeAreaView style={[styles.container, themeStyles.container]} edges={['top', 'left', 'right', 'bottom']}>
       <View style={{ flex: 1 }}>
         {/* 📢 DYNAMIC HEADER STATE ENGINE */}
         {isDraftActive || session?.draft_status === 'COMPLETED' ? (
@@ -2611,7 +2589,7 @@ useEffect(() => {
 
             {/* Single Latest Pick Announcement Banner */}
             {isLive && latestPickAlert && (
-              <View style={styles.latestPickBanner}>
+              <View style={[styles.latestPickBanner, themeStyles.accentSurface]}>
                 <Ionicons name="flash" size={14} color="#00ff87" />
                 {latestPickAlert.pickSource !== 'MANUAL' && (
                   <View style={styles.autopickReasonBadge}>
@@ -3011,10 +2989,10 @@ useEffect(() => {
 >
   <View style={styles.primaryWorkspace}>
 
-        <View style={styles.tabNavbarGroup}>
+        <View style={[styles.tabNavbarGroup, themeStyles.surface]}>
           {(['POOL', 'WATCHLIST', 'SQUAD'] as MainTab[]).map((tab) => (
             <TouchableOpacity key={tab} style={[styles.navTabBtn, activeTab === tab && styles.navTabBtnActive]} onPress={() => setActiveTab(tab)}>
-              <Text style={[styles.navTabText, activeTab === tab && styles.navTabTextActive]}>
+              <Text style={[styles.navTabText, themeStyles.textSecondary, activeTab === tab && styles.navTabTextActive]}>
                 {tab === 'POOL' ? 'PLAYER POOL' : tab === 'WATCHLIST' ? 'WATCHLIST' : 'MY SQUAD'}
               </Text>
             </TouchableOpacity>
@@ -3033,10 +3011,10 @@ useEffect(() => {
               ListEmptyComponent={<Text style={styles.emptyNoticeText}>No eligible players match the current filters.</Text>}
               ListHeaderComponent={
                 <View style={styles.poolFiltersContainer}>
-                  <View style={styles.playerSearchBox}>
+                  <View style={[styles.playerSearchBox, themeStyles.surface]}>
                     <Ionicons name="search" size={16} color="#607180" />
                     <TextInput
-                      style={styles.playerSearchInput}
+                      style={[styles.playerSearchInput, themeStyles.textPrimary]}
                       value={playerSearch}
                       onChangeText={setPlayerSearch}
                       placeholder="Search players by name"
@@ -3057,7 +3035,7 @@ useEffect(() => {
                   </View>
 
                   <View style={styles.toolbarRow}>
-                    <View style={styles.miniPositionRow}>
+                    <View style={[styles.miniPositionRow, themeStyles.surface]}>
                       {['ALL', 'GKP', 'DEF', 'MID', 'FWD'].map(pos => (
                         <TouchableOpacity
                           key={pos} disabled={pos !== 'ALL' && filledPositions[pos]}
@@ -3068,7 +3046,7 @@ useEffect(() => {
                         </TouchableOpacity>
                       ))}
                     </View>
-                    <TouchableOpacity style={styles.sortToggleBtn} onPress={() => setSortOrder(sortOrder === 'RANK' ? 'POINTS' : 'RANK')}>
+                    <TouchableOpacity style={[styles.sortToggleBtn, themeStyles.surface]} onPress={() => setSortOrder(sortOrder === 'RANK' ? 'POINTS' : 'RANK')}>
                       <Ionicons name="swap-vertical" size={12} color="#00ff87" />
                       <Text style={styles.sortToggleText}>SORT: {sortOrder}</Text>
                     </TouchableOpacity>
@@ -3084,7 +3062,7 @@ useEffect(() => {
                       {['ALL', ...clubOptions].map(club => (
                         <TouchableOpacity
                           key={club}
-                          style={[styles.clubFilterChip, activeClub === club && styles.clubFilterChipActive]}
+                          style={[styles.clubFilterChip, themeStyles.surface, activeClub === club && styles.clubFilterChipActive]}
                           onPress={() => setActiveClub(club)}
                         >
                           <Text style={[styles.clubFilterChipText, activeClub === club && styles.clubFilterChipTextActive]}>
@@ -3494,6 +3472,19 @@ useEffect(() => {
     </SafeAreaView>
   );
 }
+
+const createDraftThemeStyles = (colors: AppColors) => StyleSheet.create({
+  container: { backgroundColor: colors.background },
+  surface: { backgroundColor: colors.surface, borderColor: colors.border },
+  accentSurface: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  turnHeader: { borderColor: colors.border },
+  myTurnBg: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  rivalTurnBg: { backgroundColor: colors.surface, borderColor: colors.border },
+  playerPoolRow: { backgroundColor: colors.surface, borderColor: colors.borderSubtle },
+  playerPoolRowSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  textPrimary: { color: colors.textPrimary },
+  textSecondary: { color: colors.textSecondary },
+});
 
 const styles = StyleSheet.create({
 completionSafeArea: {

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 interface H2HRecord {
   manager_a_id: string;
@@ -22,6 +24,8 @@ interface ViewProps {
 }
 
 export default function H2HMatrixView({ startGw = 1, endGw = 38 }: ViewProps) {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [matrixData, setMatrixData] = useState<H2HRecord[]>([]);
 
@@ -101,7 +105,7 @@ export default function H2HMatrixView({ startGw = 1, endGw = 38 }: ViewProps) {
           <Ionicons
             name={isDominant ? 'shield-checkmark' : isTied ? 'remove' : 'close-circle'}
             size={12}
-            color={isDominant ? '#00FF87' : isTied ? '#888' : '#FF1751'}
+            color={isDominant ? colors.accent : isTied ? colors.textSecondary : colors.danger}
           />
         </View>
       </View>
@@ -116,7 +120,7 @@ export default function H2HMatrixView({ startGw = 1, endGw = 38 }: ViewProps) {
       contentContainerStyle={styles.listContent}
       ListHeaderComponent={
         <View style={styles.headerBox}>
-          <Ionicons name="swap-horizontal" size={18} color="#00FF87" />
+          <Ionicons name="swap-horizontal" size={18} color={colors.accent} />
           <Text style={styles.headerTitle}>HEAD-TO-HEAD MATRIX</Text>
           <Text style={styles.headerSub}>
             Your direct win/loss history and point differential against rival managers.
@@ -130,21 +134,21 @@ export default function H2HMatrixView({ startGw = 1, endGw = 38 }: ViewProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   centered: { padding: 40, justifyContent: 'center', alignItems: 'center' },
   listContent: { paddingBottom: 20 },
-  headerBox: { backgroundColor: '#141416', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#222', marginBottom: 12 },
-  headerTitle: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
-  headerSub: { color: '#888', fontSize: 11, lineHeight: 15, marginTop: 2 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161616', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#262626', marginBottom: 6 },
+  headerBox: { backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  headerTitle: { color: colors.textPrimary, fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
+  headerSub: { color: colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 6 },
   opponentInfo: { flex: 1, paddingRight: 8 },
-  opponentName: { color: '#FFF', fontSize: 14, fontWeight: '800' },
-  pointsSub: { color: '#777', fontSize: 11, marginTop: 2, fontWeight: '600' },
-  recordBadge: { backgroundColor: '#111', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: '#222', marginRight: 8 },
-  recordText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  opponentName: { color: colors.textPrimary, fontSize: 14, fontWeight: '800' },
+  pointsSub: { color: colors.textSecondary, fontSize: 11, marginTop: 2, fontWeight: '600' },
+  recordBadge: { backgroundColor: colors.backgroundElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
+  recordText: { color: colors.textPrimary, fontSize: 12, fontWeight: '800' },
   statusPill: { padding: 6, borderRadius: 4, borderWidth: 1 },
-  winPill: { backgroundColor: '#00FF8710', borderColor: '#00FF8744' },
-  drawPill: { backgroundColor: '#222', borderColor: '#333' },
-  lossPill: { backgroundColor: '#FF175110', borderColor: '#FF175144' },
-  emptyText: { color: '#555', fontSize: 12, textAlign: 'center', marginTop: 30, fontStyle: 'italic' },
+  winPill: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  drawPill: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  lossPill: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder },
+  emptyText: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 30, fontStyle: 'italic' },
 });

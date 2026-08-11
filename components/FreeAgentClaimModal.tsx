@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerAsset {
   id: number;
@@ -44,6 +46,8 @@ export default function FreeAgentClaimModal({
   onClose,
   onSuccess,
 }: FreeAgentClaimModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resolvedLid, setResolvedLid] = useState<string | null>(null);
@@ -178,24 +182,12 @@ export default function FreeAgentClaimModal({
       setSubmitting(true);
 
       // Call Atomic Postgres RPC Function (validates final squad counts)
-      let { data, error } = await supabase.rpc('claim_free_agent_with_history', {
+      const { data, error } = await supabase.rpc('claim_free_agent_with_history', {
         p_league_id: targetLeagueId,
         p_add_player_id: targetPlayer.id,
         p_drop_player_id: selectedDropPlayerId,
         p_gameweek: currentGameweek,
       });
-
-      // Keep development builds usable until the accompanying database migration is deployed.
-      if (error?.code === 'PGRST202') {
-        const fallback = await supabase.rpc('claim_free_agent', {
-          p_league_id: targetLeagueId,
-          p_add_player_id: targetPlayer.id,
-          p_drop_player_id: selectedDropPlayerId,
-          p_gameweek: currentGameweek,
-        });
-        data = fallback.data;
-        error = fallback.error;
-      }
 
       if (error) throw error;
 
@@ -338,7 +330,7 @@ export default function FreeAgentClaimModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',
@@ -347,16 +339,16 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalCard: {
-    backgroundColor: '#121212',
+    backgroundColor: colors.surface,
     width: '100%',
     maxHeight: '85%',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#262626',
+    borderColor: colors.borderStrong,
     padding: 16,
   },
   modalBadge: {
-    color: '#00ff87',
+    color: colors.accent,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1,
@@ -364,7 +356,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalTitle: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
@@ -373,14 +365,14 @@ const styles = StyleSheet.create({
   },
 
   addPlayerContainer: {
-    backgroundColor: '#0A0A0A',
+    backgroundColor: colors.backgroundDeep,
     borderWidth: 1,
-    borderColor: '#00ff8744',
+    borderColor: colors.accentBorder,
     borderRadius: 8,
     padding: 10,
   },
   boxLabel: {
-    color: '#00ff87',
+    color: colors.accent,
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -395,12 +387,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   addPlayerName: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '800',
   },
   addPlayerMeta: {
-    color: '#666',
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: '700',
     marginTop: 2,
@@ -411,7 +403,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   swapArrowText: {
-    color: '#666',
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.8,
@@ -430,36 +422,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     borderRadius: 6,
     padding: 10,
     marginBottom: 6,
   },
   dropPlayerCardSelected: {
-    borderColor: '#FF3B30',
-    backgroundColor: '#2A1010',
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerSoft,
   },
   dropPlayerCardDisabled: {
     opacity: 0.3,
-    backgroundColor: '#0E0E0E',
-    borderColor: '#181818',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.borderSubtle,
   },
   dropPlayerName: {
-    color: '#DDD',
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '700',
   },
   dropPlayerNameSelected: {
-    color: '#FF3B30',
+    color: colors.danger,
     fontWeight: '900',
   },
   disabledText: {
-    color: '#555',
+    color: colors.textDisabled,
   },
   dropPlayerMeta: {
-    color: '#666',
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: '600',
     marginTop: 1,
@@ -476,13 +468,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   posBadgeText: {
-    color: '#000',
+    color: colors.black,
     fontSize: 9,
     fontWeight: '900',
   },
 
   noticeText: {
-    color: '#666',
+    color: colors.textMuted,
     fontSize: 10,
     textAlign: 'center',
     marginBottom: 16,
@@ -496,19 +488,19 @@ const styles = StyleSheet.create({
   },
   btnCancel: {
     flex: 1,
-    backgroundColor: '#222',
+    backgroundColor: colors.surfacePressed,
     paddingVertical: 12,
     borderRadius: 6,
     alignItems: 'center',
   },
   btnCancelText: {
-    color: '#AAA',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '800',
   },
   btnConfirm: {
     flex: 1,
-    backgroundColor: '#00ff87',
+    backgroundColor: colors.accent,
     paddingVertical: 12,
     borderRadius: 6,
     alignItems: 'center',
@@ -517,7 +509,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   btnConfirmText: {
-    color: '#000',
+    color: colors.black,
     fontSize: 12,
     fontWeight: '900',
   },

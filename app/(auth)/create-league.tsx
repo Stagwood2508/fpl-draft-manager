@@ -3,6 +3,8 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityInd
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 
 // Helper function for web & native alert safety
@@ -15,6 +17,8 @@ const notifyUser = (title: string, message: string) => {
 };
 
 export default function CreateLeagueScreen() {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
     const { refreshLeagueMembership } = useAppSession();
   const [name, setName] = useState('');
@@ -246,7 +250,7 @@ const handleEnterDashboard = async () => {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#000" size="small" />
+              <ActivityIndicator color={colors.black} size="small" />
             ) : (
               <Text style={styles.btnText}>GENERATE LEAGUE</Text>
             )}
@@ -269,7 +273,7 @@ const handleEnterDashboard = async () => {
   disabled={loading}
 >
   {loading ? (
-    <ActivityIndicator color="#000" size="small" />
+    <ActivityIndicator color={colors.black} size="small" />
   ) : (
     <Text style={styles.btnText}>
       ENTER MY SQUAD DASHBOARD
@@ -282,22 +286,22 @@ const handleEnterDashboard = async () => {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A', padding: 20, justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '900', color: '#FFF', textTransform: 'uppercase', marginBottom: 20 },
-  label: { fontSize: 11, color: '#666', fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
-  input: { backgroundColor: '#111', borderColor: '#222', borderWidth: 1, color: '#FFF', padding: 14, borderRadius: 2, marginBottom: 16 },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background, padding: 20, justifyContent: 'center' },
+  title: { fontSize: 22, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase', marginBottom: 20 },
+  label: { fontSize: 11, color: colors.textSecondary, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
+  input: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, color: colors.textPrimary, padding: 14, borderRadius: 2, marginBottom: 16 },
   rosterTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  rosterTypeBtn: { flex: 1, backgroundColor: '#111', borderColor: '#222', borderWidth: 1, padding: 12, alignItems: 'center', borderRadius: 2 },
-  rosterTypeBtnActive: { borderColor: '#00ff87', backgroundColor: '#121915' },
-  rosterTypeText: { color: '#666', fontSize: 10, fontWeight: '800' },
-  rosterTypeTextActive: { color: '#00ff87' },
-  btn: { backgroundColor: '#00ff87', padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
+  rosterTypeBtn: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, padding: 12, alignItems: 'center', borderRadius: 2 },
+  rosterTypeBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  rosterTypeText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
+  rosterTypeTextActive: { color: colors.accent },
+  btn: { backgroundColor: colors.accent, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#000', fontWeight: '900', fontSize: 13 },
-  codeContainer: { alignItems: 'center', backgroundColor: '#111', padding: 24, borderWidth: 1, borderColor: '#00ff87' },
-  successText: { color: '#FFF', fontWeight: '800', fontSize: 16, marginBottom: 16 },
-  codeLabel: { color: '#666', fontSize: 10, fontWeight: '800' },
-  codeDisplay: { color: '#00ff87', fontSize: 36, fontWeight: '900', letterSpacing: 4, marginVertical: 10 },
-  hint: { color: '#444', fontSize: 11, textAlign: 'center', fontWeight: '600' }
+  btnText: { color: colors.black, fontWeight: '900', fontSize: 13 },
+  codeContainer: { alignItems: 'center', backgroundColor: colors.surface, padding: 24, borderWidth: 1, borderColor: colors.accent },
+  successText: { color: colors.textPrimary, fontWeight: '800', fontSize: 16, marginBottom: 16 },
+  codeLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
+  codeDisplay: { color: colors.accent, fontSize: 36, fontWeight: '900', letterSpacing: 4, marginVertical: 10 },
+  hint: { color: colors.textMuted, fontSize: 11, textAlign: 'center', fontWeight: '600' }
 });

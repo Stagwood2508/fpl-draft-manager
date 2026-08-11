@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import KitIcon from '@/components/KitIcon';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerDetails {
   id: number;
@@ -126,6 +128,8 @@ export default function PlayerCardModal({
   transferListing,
   onClose,
 }: PlayerCardModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'HISTORY' | 'SCHEDULE' | 'TRANSFER'>('OVERVIEW');
   const [loading, setLoading] = useState<boolean>(true);
   const [imageError, setImageError] = useState<boolean>(false);
@@ -341,7 +345,7 @@ export default function PlayerCardModal({
               <Ionicons
                 name={player?.owner_name ? 'shield' : 'people'}
                 size={12}
-                color={player?.owner_name ? '#FFC107' : '#00FF87'}
+                color={player?.owner_name ? colors.warning : colors.accent}
               />
               <Text style={styles.ownershipText}>
                 {player?.owner_name ? `OWNED BY ${player.owner_name.toUpperCase()}` : 'FREE AGENT'}
@@ -418,7 +422,7 @@ export default function PlayerCardModal({
             )}
           </View> : (
             <View style={styles.seasonBanner}>
-              <Ionicons name="stats-chart" size={14} color="#00FF87" />
+              <Ionicons name="stats-chart" size={14} color={colors.accent} />
               <Text style={styles.seasonBannerText}>
                 {seasonLabel || getPreviousSeasonLabel()} LAST-SEASON STATS
               </Text>
@@ -428,7 +432,7 @@ export default function PlayerCardModal({
           {/* CONTENT BODY */}
           {loading ? (
             <View style={styles.loaderBox}>
-              <ActivityIndicator size="large" color="#00FF87" />
+              <ActivityIndicator size="large" color={colors.accent} />
             </View>
           ) : (
             <View style={styles.bodyContainer}>
@@ -566,7 +570,7 @@ export default function PlayerCardModal({
                     <>
                       <Text style={styles.sectionHeader}>Tactical Defensive Contributions (CBIT/CBIRT)</Text>
                       <View style={styles.cbitBanner}>
-                        <Ionicons name="shield-checkmark" size={18} color="#00FF87" />
+                        <Ionicons name="shield-checkmark" size={18} color={colors.accent} />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={styles.cbitBannerTitle}>Custom Tier Points Earned</Text>
                           <Text style={styles.cbitBannerSub}>
@@ -611,7 +615,7 @@ export default function PlayerCardModal({
                           <Text style={[styles.tdCell, { width: 35 }]}>{row.minutes}'</Text>
                           <Text style={[styles.tdCell, { width: 25 }]}>{row.goals}</Text>
                           <Text style={[styles.tdCell, { width: 25 }]}>{row.assists}</Text>
-                          <Text style={[styles.tdCell, { width: 30, color: '#00FF87' }]}>
+                          <Text style={[styles.tdCell, { width: 30, color: colors.accent }]}>
                             +{row.cbit_points}
                           </Text>
                           <Text style={[styles.tdCell, styles.ptsCell]}>{row.total_points}</Text>
@@ -664,7 +668,7 @@ export default function PlayerCardModal({
                         <Ionicons
                           name="swap-horizontal"
                           size={18}
-                          color={transferListing.isListed ? '#00FF87' : '#A3AAA7'}
+                          color={transferListing.isListed ? colors.accent : colors.textSecondary}
                         />
                         <View style={styles.transferListingCopy}>
                           <Text style={styles.transferListingTitle}>
@@ -687,7 +691,7 @@ export default function PlayerCardModal({
                       maxLength={160}
                       multiline
                       placeholder="Optional note — e.g. looking for a midfielder"
-                      placeholderTextColor="#5F6864"
+                      placeholderTextColor={colors.textMuted}
                       style={styles.transferListingInput}
                     />
                     <Text style={styles.transferListingCount}>{tradeNoteText.length}/160</Text>
@@ -713,10 +717,10 @@ export default function PlayerCardModal({
                         activeOpacity={0.8}
                       >
                         {transferListing.saving ? (
-                          <ActivityIndicator size="small" color="#06110C" />
+                          <ActivityIndicator size="small" color={colors.black} />
                         ) : (
                           <>
-                            <Ionicons name="megaphone" size={14} color="#06110C" />
+                            <Ionicons name="megaphone" size={14} color={colors.black} />
                             <Text style={styles.saveListingButtonText}>
                               {transferListing.isListed ? 'UPDATE LISTING' : 'LIST PLAYER'}
                             </Text>
@@ -742,7 +746,7 @@ export default function PlayerCardModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',
@@ -751,13 +755,13 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   cardContainer: {
-    backgroundColor: '#121212',
+    backgroundColor: colors.surface,
     width: '100%',
     maxWidth: 560,
     maxHeight: '90%',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#262626',
+    borderColor: colors.borderStrong,
     padding: 16,
   },
   topBar: {
@@ -769,24 +773,24 @@ const styles = StyleSheet.create({
   ownershipBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
   ownershipText: {
-    color: '#AAA',
+    color: colors.textSecondary,
     fontSize: 9,
     fontWeight: '900',
     marginLeft: 6,
     letterSpacing: 0.5,
   },
   bottomCloseBtn: {
-    backgroundColor: '#1E1E22',
+    backgroundColor: colors.surfacePressed,
     borderWidth: 1,
-    borderColor: '#33333C',
+    borderColor: colors.borderStrong,
     paddingVertical: 12,
     borderRadius: 6,
     alignItems: 'center',
@@ -794,7 +798,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   bottomCloseBtnText: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1,
@@ -805,16 +809,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
+    borderBottomColor: colors.border,
     paddingBottom: 12,
   },
   avatarWrapper: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: '#00FF87',
+    borderColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -825,21 +829,21 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   heroMain: { flex: 1 },
-  playerName: { color: '#FFF', fontSize: 18, fontWeight: '900', textTransform: 'uppercase' },
-  playerMeta: { color: '#666', fontSize: 11, fontWeight: '700', marginTop: 2 },
+  playerName: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', textTransform: 'uppercase' },
+  playerMeta: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 2 },
   positionBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
-  positionBadgeText: { color: '#000', fontSize: 10, fontWeight: '900' },
+  positionBadgeText: { color: colors.black, fontSize: 10, fontWeight: '900' },
 
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#000',
+    backgroundColor: colors.backgroundDeep,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     padding: 3,
     marginBottom: 16,
   },
@@ -849,60 +853,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 2,
   },
-  tabBtnActive: { backgroundColor: '#00FF87' },
-  tabText: { color: '#666', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  tabTextActive: { color: '#000' },
+  tabBtnActive: { backgroundColor: colors.accent },
+  tabText: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  tabTextActive: { color: colors.black },
   seasonBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#071A12',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: '#00FF8744',
+    borderColor: colors.accentBorder,
     borderRadius: 6,
     paddingVertical: 9,
     marginBottom: 16,
   },
   transferListingPanel: {
     padding: 12,
-    backgroundColor: '#0C1712',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: '#214A35',
+    borderColor: colors.accentBorder,
     borderRadius: 8,
   },
   transferListingHeader: { marginBottom: 9 },
   transferTabContent: { flex: 1, justifyContent: 'center' },
   transferListingTitleRow: { flexDirection: 'row', alignItems: 'center' },
   transferListingCopy: { flex: 1, marginLeft: 8 },
-  transferListingTitle: { color: '#F4F7F5', fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
-  transferListingSubtitle: { color: '#8D9993', fontSize: 9, lineHeight: 13, marginTop: 2 },
-  transferListingFieldLabel: { color: '#8D9993', fontSize: 8, fontWeight: '900', letterSpacing: 0.5, marginBottom: 5 },
+  transferListingTitle: { color: colors.textPrimary, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
+  transferListingSubtitle: { color: colors.textSecondary, fontSize: 9, lineHeight: 13, marginTop: 2 },
+  transferListingFieldLabel: { color: colors.textSecondary, fontSize: 8, fontWeight: '900', letterSpacing: 0.5, marginBottom: 5 },
   transferListingInput: {
     minHeight: 52,
     maxHeight: 76,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    color: '#F4F7F5',
+    color: colors.textPrimary,
     fontSize: 11,
     textAlignVertical: 'top',
-    backgroundColor: '#111B17',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#293A32',
+    borderColor: colors.border,
     borderRadius: 6,
   },
   transferListingActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 7, marginTop: 9 },
-  transferListingCount: { color: '#5F6864', fontSize: 8, fontWeight: '700', textAlign: 'right', marginTop: 3 },
+  transferListingCount: { color: colors.textMuted, fontSize: 8, fontWeight: '700', textAlign: 'right', marginTop: 3 },
   removeListingButton: {
     minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
-    backgroundColor: '#261518',
+    backgroundColor: colors.dangerSoft,
     borderWidth: 1,
-    borderColor: '#63323A',
+    borderColor: colors.dangerBorder,
     borderRadius: 6,
   },
-  removeListingButtonText: { color: '#FF899B', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  removeListingButtonText: { color: colors.danger, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
   saveListingButton: {
     flex: 1,
     minHeight: 38,
@@ -911,13 +915,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#00FF87',
+    backgroundColor: colors.accent,
     borderRadius: 6,
   },
-  saveListingButtonText: { color: '#06110C', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  saveListingButtonText: { color: colors.black, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
   listingButtonDisabled: { opacity: 0.55 },
   seasonBannerText: {
-    color: '#00FF87',
+    color: colors.accent,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.7,
@@ -930,18 +934,18 @@ const styles = StyleSheet.create({
   kpiGrid: { flexDirection: 'row', gap: 6, marginBottom: 16 },
   kpiCard: {
     flex: 1,
-    backgroundColor: '#18181B',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     borderRadius: 6,
     paddingVertical: 10,
     alignItems: 'center',
   },
-  kpiValue: { color: '#00FF87', fontSize: 16, fontWeight: '900' },
-  kpiLabel: { color: '#555', fontSize: 8, fontWeight: '800', marginTop: 2 },
+  kpiValue: { color: colors.accent, fontSize: 16, fontWeight: '900' },
+  kpiLabel: { color: colors.textMuted, fontSize: 8, fontWeight: '800', marginTop: 2 },
 
   sectionHeader: {
-    color: '#FFF',
+    color: colors.textPrimary,
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -950,9 +954,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   statsBox: {
-    backgroundColor: '#18181B',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     borderRadius: 6,
     padding: 12,
     marginBottom: 16,
@@ -962,32 +966,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#222226',
+    borderBottomColor: colors.borderSubtle,
   },
-  statLabel: { color: '#AAA', fontSize: 12, fontWeight: '700' },
-  statVal: { color: '#FFF', fontSize: 12, fontWeight: '900' },
+  statLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+  statVal: { color: colors.textPrimary, fontSize: 12, fontWeight: '900' },
   ictHeroCard: {
-    backgroundColor: '#071A12',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: '#00FF8744',
+    borderColor: colors.accentBorder,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
-  ictHeroLabel: { color: '#6B8C7B', fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
-  ictHeroValue: { color: '#00FF87', fontSize: 26, fontWeight: '900', marginTop: 1 },
+  ictHeroLabel: { color: colors.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  ictHeroValue: { color: colors.accent, fontSize: 26, fontWeight: '900', marginTop: 1 },
   ictBreakdown: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#173729',
+    borderTopColor: colors.accentBorder,
     marginTop: 10,
     paddingTop: 10,
   },
   ictBreakdownItem: { flex: 1, alignItems: 'center' },
-  ictBreakdownValue: { color: '#FFF', fontSize: 13, fontWeight: '900' },
-  ictBreakdownLabel: { color: '#5F766B', fontSize: 8, fontWeight: '800', marginTop: 2 },
+  ictBreakdownValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '900' },
+  ictBreakdownLabel: { color: colors.textMuted, fontSize: 8, fontWeight: '800', marginTop: 2 },
   dataAvailabilityNote: {
-    color: '#66716C',
+    color: colors.textMuted,
     fontSize: 10,
     lineHeight: 14,
     marginTop: -6,
@@ -997,59 +1001,59 @@ const styles = StyleSheet.create({
   cbitBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#00FF8710',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: '#00FF8744',
+    borderColor: colors.accentBorder,
     padding: 12,
     borderRadius: 6,
     marginBottom: 12,
   },
-  cbitBannerTitle: { color: '#00FF87', fontSize: 12, fontWeight: '900' },
-  cbitBannerSub: { color: '#888', fontSize: 10, marginTop: 1 },
-  cbitBannerVal: { color: '#00FF87', fontSize: 14, fontWeight: '900' },
+  cbitBannerTitle: { color: colors.accent, fontSize: 12, fontWeight: '900' },
+  cbitBannerSub: { color: colors.textSecondary, fontSize: 10, marginTop: 1 },
+  cbitBannerVal: { color: colors.accent, fontSize: 14, fontWeight: '900' },
 
   tableHeaderRow: {
     flexDirection: 'row',
-    backgroundColor: '#000',
+    backgroundColor: colors.backgroundDeep,
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     borderRadius: 4,
     marginBottom: 6,
   },
-  thCell: { color: '#666', fontSize: 9, fontWeight: '900', textAlign: 'left' },
+  thCell: { color: colors.textMuted, fontSize: 9, fontWeight: '900', textAlign: 'left' },
   tableBodyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#18181B',
+    backgroundColor: colors.surfaceRaised,
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderRadius: 4,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
   },
-  tdCell: { color: '#DDD', fontSize: 11, fontWeight: '700' },
-  ptsCell: { width: 35, textAlign: 'right', color: '#00FF87', fontWeight: '900' },
+  tdCell: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
+  ptsCell: { width: 35, textAlign: 'right', color: colors.accent, fontWeight: '900' },
 
-  emptyText: { color: '#555', fontSize: 12, fontStyle: 'italic', textAlign: 'center', marginTop: 40 },
+  emptyText: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic', textAlign: 'center', marginTop: 40 },
 
   fixtureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#18181B',
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     padding: 10,
     borderRadius: 6,
     marginBottom: 6,
   },
   fixGwBox: { width: 50 },
-  fixGwText: { color: '#00FF87', fontSize: 11, fontWeight: '900' },
+  fixGwText: { color: colors.accent, fontSize: 11, fontWeight: '900' },
   fixInfoBox: { flex: 1 },
-  fixOpponentText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  fixVenueText: { color: '#555', fontSize: 10, fontWeight: '600', marginTop: 1 },
+  fixOpponentText: { color: colors.textPrimary, fontSize: 13, fontWeight: '800' },
+  fixVenueText: { color: colors.textMuted, fontSize: 10, fontWeight: '600', marginTop: 1 },
   fdrBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 3 },
   fdrText: { fontSize: 9, fontWeight: '900' },
 });

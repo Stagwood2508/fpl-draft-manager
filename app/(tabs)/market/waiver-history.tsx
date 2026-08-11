@@ -14,12 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 
 import {
-  appColors,
+  AppColors,
   appRadius,
   appSpacing,
   appTypography,
 } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import {
   getLeagueActivity,
   isCompletedActivityStatus,
@@ -38,12 +39,6 @@ const CATEGORY_FILTERS: { key: ActivityFilter; label: string; icon: keyof typeof
   { key: 'TRADE', label: 'Trades', icon: 'people' },
 ];
 
-const categoryMeta: Record<LeagueActivityCategory, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  WAIVER: { label: 'WAIVER', color: '#9B8CFF', icon: 'swap-vertical' },
-  FREE_AGENT: { label: 'FREE AGENT', color: '#00CFFF', icon: 'flash' },
-  TRADE: { label: 'TRADE', color: appColors.accent, icon: 'people' },
-};
-
 const isCompletedStatus = isCompletedActivityStatus;
 
 const formatActivityDate = (value: string) => {
@@ -61,6 +56,13 @@ const formatActivityDate = (value: string) => {
 const playerLabel = (player: LeagueActivityPlayer) => player.web_name || 'Unknown player';
 
 export default function TransactionHistoryScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
+  const categoryMeta = useMemo<Record<LeagueActivityCategory, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }>>(() => ({
+    WAIVER: { label: 'WAIVER', color: '#7967D8', icon: 'swap-vertical' },
+    FREE_AGENT: { label: 'FREE AGENT', color: appColors.info, icon: 'flash' },
+    TRADE: { label: 'TRADE', color: appColors.accent, icon: 'people' },
+  }), [appColors]);
   const isFocused = useIsFocused();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
@@ -274,7 +276,7 @@ export default function TransactionHistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: appColors.background },
   listContent: { paddingHorizontal: appSpacing.md, paddingBottom: 110, gap: appSpacing.sm },
   listContentDesktop: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: appSpacing.xl },

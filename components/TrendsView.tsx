@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Alert, Dimension
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-gifted-charts';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 interface TrendRecord {
   gameweek: number;
@@ -19,6 +21,8 @@ interface ViewProps {
 const screenWidth = Dimensions.get('window').width;
 
 export default function TrendsView({ startGw = 1, endGw = 38 }: ViewProps) {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState<TrendRecord[]>([]);
 
@@ -88,7 +92,7 @@ export default function TrendsView({ startGw = 1, endGw = 38 }: ViewProps) {
     <ScrollView contentContainerStyle={styles.scrollContent}>
       {/* HEADER */}
       <View style={styles.headerBox}>
-        <Ionicons name="trending-up" size={18} color="#00FF87" />
+        <Ionicons name="trending-up" size={18} color={colors.accent} />
         <Text style={styles.headerTitle}>PERFORMANCE TRENDS</Text>
         <Text style={styles.headerSub}>
           Weekly point scores with match outcomes (Green = Win, Red = Loss).
@@ -121,15 +125,15 @@ export default function TrendsView({ startGw = 1, endGw = 38 }: ViewProps) {
             data={chartPoints}
             width={screenWidth - 80}
             height={180}
-            color="#00FF87"
+            color={colors.accent}
             thickness={2}
             startOpacity={0.2}
             endOpacity={0.0}
             noOfSections={4}
-            yAxisColor="#222"
-            xAxisColor="#222"
-            yAxisTextStyle={{ color: '#666', fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: '#666', fontSize: 9 }}
+            yAxisColor={colors.border}
+            xAxisColor={colors.border}
+            yAxisTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
+            xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 9 }}
             hideRules
           />
         </View>
@@ -138,18 +142,18 @@ export default function TrendsView({ startGw = 1, endGw = 38 }: ViewProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   centered: { padding: 40, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingBottom: 20 },
-  headerBox: { backgroundColor: '#141416', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#222', marginBottom: 12 },
-  headerTitle: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
-  headerSub: { color: '#888', fontSize: 11, lineHeight: 15, marginTop: 2 },
+  headerBox: { backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  headerTitle: { color: colors.textPrimary, fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
+  headerSub: { color: colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 2 },
   summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  summaryCard: { flex: 1, backgroundColor: '#161616', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#262626', alignItems: 'center' },
-  summaryLabel: { color: '#666', fontSize: 10, fontWeight: '700' },
-  summaryVal: { color: '#00FF87', fontSize: 14, fontWeight: '900', marginTop: 2 },
-  chartCard: { backgroundColor: '#161616', padding: 14, borderRadius: 8, borderWidth: 1, borderColor: '#262626' },
-  chartTitle: { color: '#FFF', fontSize: 14, fontWeight: '800', marginBottom: 12 },
+  summaryCard: { flex: 1, backgroundColor: colors.surface, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  summaryLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
+  summaryVal: { color: colors.accent, fontSize: 14, fontWeight: '900', marginTop: 2 },
+  chartCard: { backgroundColor: colors.surface, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  chartTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '800', marginBottom: 12 },
   chartWrapper: { alignItems: 'center', marginTop: 8 },
-  emptyText: { color: '#555', fontSize: 12, textAlign: 'center', marginTop: 30, fontStyle: 'italic' },
+  emptyText: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 30, fontStyle: 'italic' },
 });

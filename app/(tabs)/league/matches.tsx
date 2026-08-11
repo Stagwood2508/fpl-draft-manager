@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,6 +11,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 const POSITION_ORDER: Record<string, number> = {
   GKP: 1,
@@ -52,6 +54,8 @@ interface MatchupItem {
 }
 
 export default function MatchesScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   
   const [viewMode, setViewMode] = useState<ViewMode>('LIVE');
@@ -342,7 +346,7 @@ export default function MatchesScreen() {
             <Animated.View
               style={[
                 styles.liveDot,
-                { opacity: viewMode === 'LIVE' ? pulseAnim : 0.3, backgroundColor: viewMode === 'LIVE' ? '#FF3B30' : '#666' },
+                { opacity: viewMode === 'LIVE' ? pulseAnim : 0.3, backgroundColor: viewMode === 'LIVE' ? colors.danger : colors.textMuted },
               ]}
             />
             <Text style={[styles.segmentText, viewMode === 'LIVE' && styles.segmentTextActive]}>LIVE</Text>
@@ -408,7 +412,7 @@ export default function MatchesScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="small" color="#00ff87" />
+          <ActivityIndicator size="small" color={colors.accent} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -511,61 +515,61 @@ export default function MatchesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   emptyContainer: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#666', fontSize: 13, textAlign: 'center', fontWeight: '600' },
-  segmentBar: { flexDirection: 'row', backgroundColor: '#0F0F0F', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1A1A1A', gap: 8 },
-  segmentTab: { flex: 1, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1A1A', borderRadius: 6 },
-  segmentTabActive: { backgroundColor: '#2A2A2A' },
-  segmentTabLiveActive: { backgroundColor: '#3A1414' },
+  emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center', fontWeight: '600' },
+  segmentBar: { flexDirection: 'row', backgroundColor: colors.backgroundDeep, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8 },
+  segmentTab: { flex: 1, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted, borderRadius: 6 },
+  segmentTabActive: { backgroundColor: colors.surfacePressed },
+  segmentTabLiveActive: { backgroundColor: colors.dangerSoft },
   liveSegmentContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
-  segmentText: { color: '#888', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  segmentTextActive: { color: '#FFF' },
-  filterTrack: { paddingVertical: 8, backgroundColor: '#121212', borderBottomWidth: 1, borderBottomColor: '#1C1C1C' },
-  filterLabel: { fontSize: 9, color: '#666', textTransform: 'uppercase', fontWeight: '800', marginLeft: 12, marginBottom: 6, letterSpacing: 0.5 },
-  teamFilterBadge: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2A2A2A', paddingVertical: 6, paddingHorizontal: 12, marginRight: 6, borderRadius: 4 },
-  teamFilterBadgeActive: { borderColor: '#00ff87', backgroundColor: '#14251c' },
-  teamFilterText: { color: '#888', fontSize: 10, fontWeight: '800' },
-  teamFilterTextActive: { color: '#00ff87' },
-  gameweekTrack: { paddingVertical: 10, backgroundColor: '#111', borderBottomWidth: 1, borderBottomColor: '#222' },
+  segmentText: { color: colors.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  segmentTextActive: { color: colors.textPrimary },
+  filterTrack: { paddingVertical: 8, backgroundColor: colors.backgroundElevated, borderBottomWidth: 1, borderBottomColor: colors.border },
+  filterLabel: { fontSize: 9, color: colors.textMuted, textTransform: 'uppercase', fontWeight: '800', marginLeft: 12, marginBottom: 6, letterSpacing: 0.5 },
+  teamFilterBadge: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 12, marginRight: 6, borderRadius: 4 },
+  teamFilterBadgeActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  teamFilterText: { color: colors.textMuted, fontSize: 10, fontWeight: '800' },
+  teamFilterTextActive: { color: colors.accent },
+  gameweekTrack: { paddingVertical: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   trackScroll: { paddingHorizontal: 10 },
-  gwBadge: { backgroundColor: '#000', borderWidth: 1, borderColor: '#333', paddingVertical: 6, paddingHorizontal: 14, marginRight: 8, borderRadius: 4 },
-  gwBadgeActive: { borderColor: '#00ff87', backgroundColor: '#14251c' },
-  gwText: { color: '#777', fontSize: 11, fontWeight: '700' },
-  gwTextActive: { color: '#00ff87', fontWeight: '900' },
-  liveHeaderBanner: { paddingVertical: 8, alignItems: 'center', backgroundColor: '#0F0F0F', borderBottomWidth: 1, borderBottomColor: '#1A1A1A' },
-  liveBannerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#220808', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#551111', gap: 6 },
-  pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
-  liveBannerText: { color: '#FF3B30', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  gwBadge: { backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: 6, paddingHorizontal: 14, marginRight: 8, borderRadius: 4 },
+  gwBadgeActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  gwText: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
+  gwTextActive: { color: colors.accent, fontWeight: '900' },
+  liveHeaderBanner: { paddingVertical: 8, alignItems: 'center', backgroundColor: colors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: colors.border },
+  liveBannerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.dangerBorder, gap: 6 },
+  pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
+  liveBannerText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   scrollContent: { padding: 12, paddingBottom: 40 },
   matchupWrapper: { marginBottom: 12 },
-  matchupCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 6 },
-  matchupCardExpanded: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderColor: '#00ff87' },
+  matchupCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 16, borderRadius: 6 },
+  matchupCardExpanded: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderColor: colors.accent },
   teamColumn: { width: '35%' },
-  managerTitle: { color: '#FFF', fontWeight: '800', fontSize: 13 },
-  pointsSubtext: { color: '#666', fontSize: 9, fontWeight: '700', textTransform: 'uppercase', marginTop: 3, letterSpacing: 0.5 },
+  managerTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 13 },
+  pointsSubtext: { color: colors.textMuted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', marginTop: 3, letterSpacing: 0.5 },
   scoreContainer: { width: '30%', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', position: 'relative' },
-  liveScoreText: { color: '#FFF', fontSize: 18, fontWeight: '900', marginHorizontal: 4 },
-  scoreSeparator: { color: '#333', fontSize: 14, fontWeight: '700' },
-  vsBadge: { backgroundColor: '#1A1A1A', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 4, borderWidth: 1, borderColor: '#333' },
-  vsText: { color: '#888', fontSize: 11, fontWeight: '900' },
-  statusBadge: { position: 'absolute', top: -16, backgroundColor: '#14251c', borderWidth: 0.5, borderColor: '#00ff8755', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 3 },
-  statusText: { color: '#00ff87', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
-  finishedBadge: { backgroundColor: '#222', borderColor: '#444' },
-  finishedText: { color: '#888' },
-  upcomingBadge: { backgroundColor: '#1A1A1A', borderColor: '#333' },
-  upcomingText: { color: '#AAA' },
-  expansionPanel: { backgroundColor: '#09090b', borderWidth: 1, borderColor: '#00ff87', borderTopWidth: 0, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, padding: 12 },
-  panelHeaderRow: { borderBottomWidth: 1, borderBottomColor: '#1c1c1c', paddingBottom: 6, marginBottom: 10 },
-  panelHeaderTitle: { color: '#555', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  liveScoreText: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', marginHorizontal: 4 },
+  scoreSeparator: { color: colors.borderStrong, fontSize: 14, fontWeight: '700' },
+  vsBadge: { backgroundColor: colors.surfaceMuted, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong },
+  vsText: { color: colors.textMuted, fontSize: 11, fontWeight: '900' },
+  statusBadge: { position: 'absolute', top: -16, backgroundColor: colors.accentSoft, borderWidth: 0.5, borderColor: colors.accentBorder, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 3 },
+  statusText: { color: colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
+  finishedBadge: { backgroundColor: colors.surfacePressed, borderColor: colors.borderStrong },
+  finishedText: { color: colors.textMuted },
+  upcomingBadge: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  upcomingText: { color: colors.textSecondary },
+  expansionPanel: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.accent, borderTopWidth: 0, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, padding: 12 },
+  panelHeaderRow: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6, marginBottom: 10 },
+  panelHeaderTitle: { color: colors.textMuted, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   splitRosterGrid: { flexDirection: 'row', justifyContent: 'space-between', position: 'relative' },
   rosterColumn: { width: '49%', paddingRight: 8 },
-  gridDivider: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, backgroundColor: '#1c1c1c' },
-  playerScoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: 8, borderRadius: 4, marginBottom: 6, borderWidth: 0.5, borderColor: '#222' },
-  pName: { color: '#CCC', fontSize: 11, fontWeight: '700' },
-  pPos: { color: '#555', fontSize: 8, fontWeight: '800', marginTop: 1 },
-  pPoints: { color: '#00ff87', fontSize: 11, fontWeight: '800', width: '30%', textAlign: 'right' },
+  gridDivider: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, backgroundColor: colors.border },
+  playerScoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, padding: 8, borderRadius: 4, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
+  pName: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
+  pPos: { color: colors.textMuted, fontSize: 8, fontWeight: '800', marginTop: 1 },
+  pPoints: { color: colors.accent, fontSize: 11, fontWeight: '800', width: '30%', textAlign: 'right' },
 });

@@ -6,10 +6,14 @@ import LuckIndexView from '@/components/LuckIndexView';
 import H2HMatrixView from '@/components/H2HMatrixView';
 import TrendsView from '@/components/TrendsView';
 import SquadBreakdownView from '@/components/SquadBreakdownView';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 type FilterMode = 'ALL' | 'LAST5' | 'GW';
 
 export default function StatsScreen() {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [activeSegment, setActiveSegment] = useState<'LUCK' | 'H2H' | 'TRENDS' | 'BREAKDOWN'>('LUCK');
   
   // Filter States
@@ -34,7 +38,7 @@ export default function StatsScreen() {
             style={[styles.filterPill, filterMode === 'ALL' && styles.filterPillActive]}
             onPress={() => setFilterMode('ALL')}
           >
-            <Ionicons name="calendar-outline" size={12} color={filterMode === 'ALL' ? '#000' : '#888'} />
+            <Ionicons name="calendar-outline" size={12} color={filterMode === 'ALL' ? colors.black : colors.textSecondary} />
             <Text style={[styles.filterText, filterMode === 'ALL' && styles.filterTextActive]}>All Season</Text>
           </TouchableOpacity>
 
@@ -42,7 +46,7 @@ export default function StatsScreen() {
             style={[styles.filterPill, filterMode === 'LAST5' && styles.filterPillActive]}
             onPress={() => setFilterMode('LAST5')}
           >
-            <Ionicons name="flash-outline" size={12} color={filterMode === 'LAST5' ? '#000' : '#888'} />
+            <Ionicons name="flash-outline" size={12} color={filterMode === 'LAST5' ? colors.black : colors.textSecondary} />
             <Text style={[styles.filterText, filterMode === 'LAST5' && styles.filterTextActive]}>Last 5 GWs</Text>
           </TouchableOpacity>
 
@@ -50,7 +54,7 @@ export default function StatsScreen() {
             style={[styles.filterPill, filterMode === 'GW' && styles.filterPillActive]}
             onPress={() => setFilterMode('GW')}
           >
-            <Ionicons name="options-outline" size={12} color={filterMode === 'GW' ? '#000' : '#888'} />
+            <Ionicons name="options-outline" size={12} color={filterMode === 'GW' ? colors.black : colors.textSecondary} />
             <Text style={[styles.filterText, filterMode === 'GW' && styles.filterTextActive]}>
               {filterMode === 'GW' ? `GW ${selectedGw} Only` : 'Single GW'}
             </Text>
@@ -100,24 +104,24 @@ export default function StatsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, paddingTop: 50, paddingBottom: 8 },
-  headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
   
   // Filter Styles
   filterContainer: { marginBottom: 10 },
   filterScroll: { paddingHorizontal: 12, gap: 8 },
-  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#141416', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#222' },
-  filterPillActive: { backgroundColor: '#00FF87', borderColor: '#00FF87' },
-  filterText: { color: '#888', fontSize: 11, fontWeight: '800' },
-  filterTextActive: { color: '#000' },
+  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+  filterPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  filterText: { color: colors.textSecondary, fontSize: 11, fontWeight: '800' },
+  filterTextActive: { color: colors.black },
 
   // Segment Styles
-  segmentedControl: { flexDirection: 'row', backgroundColor: '#121212', marginHorizontal: 12, borderRadius: 8, padding: 3, borderWidth: 1, borderColor: '#222' },
+  segmentedControl: { flexDirection: 'row', backgroundColor: colors.surface, marginHorizontal: 12, borderRadius: 8, padding: 3, borderWidth: 1, borderColor: colors.border },
   segmentBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
-  segmentActive: { backgroundColor: '#00FF87' },
-  segmentText: { color: '#888', fontSize: 10, fontWeight: '800' },
-  segmentTextActive: { color: '#000' },
+  segmentActive: { backgroundColor: colors.accent },
+  segmentText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
+  segmentTextActive: { color: colors.black },
   contentContainer: { flex: 1, marginTop: 12 },
 });

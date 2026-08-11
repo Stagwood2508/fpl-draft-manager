@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -42,6 +44,8 @@ interface FixtureDifficulty {
 }
 
 export default function PlayerAnalysisScreen() {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [playerPool, setPlayerPool] = useState<PlayerAsset[]>([]);
@@ -116,7 +120,7 @@ export default function PlayerAnalysisScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#00ff87" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -204,38 +208,38 @@ export default function PlayerAnalysisScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
-  pickerContainer: { paddingVertical: 12, backgroundColor: '#111', borderBottomWidth: 1, borderBottomColor: '#222' },
-  metaLabel: { fontSize: 10, color: '#666', textTransform: 'uppercase', fontWeight: '800', marginLeft: 14, marginBottom: 8, letterSpacing: 0.5 },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  pickerContainer: { paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  metaLabel: { fontSize: 10, color: colors.textSecondary, textTransform: 'uppercase', fontWeight: '800', marginLeft: 14, marginBottom: 8, letterSpacing: 0.5 },
   pickerScroll: { paddingHorizontal: 10 },
-  pickerBadge: { backgroundColor: '#000', borderWidth: 1, borderColor: '#333', paddingVertical: 8, paddingHorizontal: 14, marginRight: 8, borderRadius: 2 },
-  pickerBadgeActive: { borderColor: '#00ff87', backgroundColor: '#14251c' },
-  pickerText: { color: '#777', fontSize: 12, fontWeight: '700' },
-  pickerTextActive: { color: '#00ff87', fontWeight: '900' },
+  pickerBadge: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, paddingVertical: 8, paddingHorizontal: 14, marginRight: 8, borderRadius: 2 },
+  pickerBadgeActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  pickerText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
+  pickerTextActive: { color: colors.accent, fontWeight: '900' },
   content: { padding: 14, paddingBottom: 40 },
-  sectionTitle: { fontSize: 12, fontWeight: '900', color: '#FFF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginTop: 14 },
+  sectionTitle: { fontSize: 12, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginTop: 14 },
   
   // MATRIX LAYOUT STYLES
   matrixContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 },
   matrixCard: { width: (SCREEN_WIDTH - 28) / 5.4, borderWidth: 1, paddingVertical: 10, borderRadius: 2, alignItems: 'center', position: 'relative' },
-  matrixGw: { color: '#666', fontSize: 9, fontWeight: '800' },
-  matrixOpp: { color: '#FFF', fontSize: 14, fontWeight: '900', marginTop: 4 },
-  matrixLoc: { color: '#aaa', fontSize: 8, fontWeight: '700', marginTop: 2 },
+  matrixGw: { color: colors.textSecondary, fontSize: 9, fontWeight: '800' },
+  matrixOpp: { color: colors.textPrimary, fontSize: 14, fontWeight: '900', marginTop: 4 },
+  matrixLoc: { color: colors.textSecondary, fontSize: 8, fontWeight: '700', marginTop: 2 },
   difficultyIndicator: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3 },
 
   // LOG PERFORMANCE CARDS
-  logCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 14, marginBottom: 10, borderRadius: 2 },
-  logHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#222', paddingBottom: 8, marginBottom: 10 },
-  logGwText: { color: '#FFF', fontWeight: '800', fontSize: 13, width: '35%' },
-  logOppText: { color: '#555', fontWeight: '700', fontSize: 12, width: '35%' },
-  logPointsBadge: { color: '#00ff87', fontWeight: '900', fontSize: 13, width: '30%', textAlign: 'right' },
+  logCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10, borderRadius: 2 },
+  logHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 10 },
+  logGwText: { color: colors.textPrimary, fontWeight: '800', fontSize: 13, width: '35%' },
+  logOppText: { color: colors.textSecondary, fontWeight: '700', fontSize: 12, width: '35%' },
+  logPointsBadge: { color: colors.accent, fontWeight: '900', fontSize: 13, width: '30%', textAlign: 'right' },
   metricsGrid: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap' },
-  metricItem: { width: '23%', alignItems: 'center', backgroundColor: '#000', paddingVertical: 8, borderWidth: 1, borderColor: '#1a1a1a', borderRadius: 2 },
-  metricLabel: { color: '#444', fontSize: 8, fontWeight: '800', textTransform: 'uppercase' },
-  metricValue: { color: '#FFF', fontSize: 13, fontWeight: '800', marginTop: 3 },
-  traitRow: { flexDirection: 'row', marginTop: 10, borderTopWidth: 1, borderTopColor: '#1c1c1c', paddingTop: 8 },
-  traitLabel: { color: '#666', fontSize: 11, fontWeight: '600' },
-  traitValue: { color: '#00ff87', fontSize: 11, fontWeight: '800' }
+  metricItem: { width: '23%', alignItems: 'center', backgroundColor: colors.backgroundElevated, paddingVertical: 8, borderWidth: 1, borderColor: colors.borderSubtle, borderRadius: 2 },
+  metricLabel: { color: colors.textMuted, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' },
+  metricValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '800', marginTop: 3 },
+  traitRow: { flexDirection: 'row', marginTop: 10, borderTopWidth: 1, borderTopColor: colors.borderSubtle, paddingTop: 8 },
+  traitLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },
+  traitValue: { color: colors.accent, fontSize: 11, fontWeight: '800' }
 });

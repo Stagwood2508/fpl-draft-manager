@@ -1,18 +1,19 @@
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { withLayoutContext } from 'expo-router';
 import { Platform } from 'react-native';
-import { appColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
 export const MaterialTopTabs = withLayoutContext(Navigator);
 
 export default function MarketLayout() {
+  const { colors } = useAppTheme();
   return (
     <MaterialTopTabs
       screenOptions={{
-        tabBarActiveTintColor: appColors.accent,
-        tabBarInactiveTintColor: appColors.textMuted,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
 
         tabBarLabelStyle: {
           fontSize: 10,
@@ -22,14 +23,14 @@ export default function MarketLayout() {
         },
 
         tabBarIndicatorStyle: {
-          backgroundColor: appColors.accent,
+          backgroundColor: colors.accent,
           height: 2,
         },
 
         tabBarStyle: {
-          backgroundColor: appColors.backgroundDeep,
+          backgroundColor: colors.backgroundDeep,
           borderBottomWidth: 1,
-          borderBottomColor: appColors.border,
+          borderBottomColor: colors.border,
           elevation: 0,
           shadowOpacity: 0,
         },

@@ -12,12 +12,16 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 type TournamentFormat = 'PURE' | 'TWO_LEG' | 'GROUP_KO' | 'EXECUTIONER' | 'DOUBLE_ELIM';
 type SeedingMethod = 'RANDOM' | 'RANK_WEIGHTED';
 type TieBreaker = 'HIGHEST_PLAYER' | 'LOWEST_BENCH' | 'MOST_GOALS' | 'CAPTAIN_SCORE';
 
 export default function CupWizardScreen() {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -415,40 +419,40 @@ export default function CupWizardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 50 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
-  title: { fontSize: 24, fontWeight: '900', color: '#FFF', textTransform: 'uppercase', letterSpacing: 1 },
-  subtitle: { fontSize: 13, color: '#00ff87', marginBottom: 20, fontWeight: '600' },
-  card: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', borderRadius: 4, padding: 14, marginBottom: 16 },
-  sectionHeader: { fontSize: 14, fontWeight: '800', color: '#FFF', textTransform: 'uppercase', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: '#222', paddingBottom: 6, letterSpacing: 0.5 },
-  label: { fontSize: 11, color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: 6, marginTop: 10 },
-  input: { backgroundColor: '#000', borderWidth: 1, borderColor: '#333', color: '#FFF', padding: 12, borderRadius: 2, fontSize: 14, marginTop: 4 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  title: { fontSize: 24, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase', letterSpacing: 1 },
+  subtitle: { fontSize: 13, color: colors.accent, marginBottom: 20, fontWeight: '600' },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 4, padding: 14, marginBottom: 16 },
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textPrimary, textTransform: 'uppercase', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6, letterSpacing: 0.5 },
+  label: { fontSize: 11, color: colors.textSecondary, textTransform: 'uppercase', fontWeight: '700', marginBottom: 6, marginTop: 10 },
+  input: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.borderStrong, color: colors.textPrimary, padding: 12, borderRadius: 2, fontSize: 14, marginTop: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   segmentContainer: { marginTop: 4 },
-  segmentBtn: { backgroundColor: '#000', borderLeftWidth: 2, borderLeftColor: '#333', padding: 12, marginBottom: 6 },
-  segmentBtnActive: { borderLeftColor: '#00ff87', backgroundColor: '#14251c' },
-  segmentText: { color: '#666', fontSize: 13, fontWeight: '600' },
-  segmentTextActive: { color: '#00ff87', fontWeight: '800' },
-  dynamicSubPanel: { marginTop: 10, borderLeftWidth: 1, borderLeftColor: '#00ff87', paddingLeft: 12 },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, backgroundColor: '#000', padding: 10, borderWidth: 1, borderColor: '#222' },
-  toggleTitle: { color: '#FFF', fontSize: 13, fontWeight: '700' },
-  toggleSub: { color: '#555', fontSize: 11, marginTop: 2 },
-  miniBtn: { flex: 1, backgroundColor: '#000', borderWidth: 1, borderColor: '#222', padding: 10, alignItems: 'center', marginHorizontal: 2 },
-  miniBtnActive: { borderColor: '#00ff87', backgroundColor: '#14251c' },
-  miniBtnText: { color: '#555', fontSize: 12, fontWeight: '600' },
-  miniBtnTextActive: { color: '#00ff87', fontWeight: '700' },
-  halfBtn: { width: '49%', backgroundColor: '#000', borderWidth: 1, borderColor: '#222', padding: 12, alignItems: 'center' },
-  halfBtnActive: { borderColor: '#00ff87', backgroundColor: '#14251c' },
-  halfBtnText: { color: '#555', fontSize: 12, fontWeight: '600' },
-  halfBtnTextActive: { color: '#00ff87', fontWeight: '700' },
-  matrixRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', borderWidth: 1, borderColor: '#222', padding: 10, marginBottom: 6, borderRadius: 2 },
-  matrixIndex: { color: '#00ff87', fontWeight: '900', width: '10%', fontSize: 14 },
-  matrixLabel: { color: '#CCC', width: '70%', fontSize: 12, fontWeight: '500', paddingRight: 4 },
+  segmentBtn: { backgroundColor: colors.backgroundElevated, borderLeftWidth: 2, borderLeftColor: colors.borderStrong, padding: 12, marginBottom: 6 },
+  segmentBtnActive: { borderLeftColor: colors.accent, backgroundColor: colors.accentSoft },
+  segmentText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  segmentTextActive: { color: colors.accent, fontWeight: '800' },
+  dynamicSubPanel: { marginTop: 10, borderLeftWidth: 1, borderLeftColor: colors.accent, paddingLeft: 12 },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, backgroundColor: colors.backgroundElevated, padding: 10, borderWidth: 1, borderColor: colors.border },
+  toggleTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
+  toggleSub: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  miniBtn: { flex: 1, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, padding: 10, alignItems: 'center', marginHorizontal: 2 },
+  miniBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  miniBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  miniBtnTextActive: { color: colors.accent, fontWeight: '700' },
+  halfBtn: { width: '49%', backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, padding: 12, alignItems: 'center' },
+  halfBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  halfBtnText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  halfBtnTextActive: { color: colors.accent, fontWeight: '700' },
+  matrixRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, padding: 10, marginBottom: 6, borderRadius: 2 },
+  matrixIndex: { color: colors.accent, fontWeight: '900', width: '10%', fontSize: 14 },
+  matrixLabel: { color: colors.textSecondary, width: '70%', fontSize: 12, fontWeight: '500', paddingRight: 4 },
   matrixActions: { width: '20%', flexDirection: 'row', justifyContent: 'space-between' },
-  arrowBtn: { backgroundColor: '#111', borderWidth: 1, borderColor: '#333', padding: 6, borderRadius: 2, width: '46%', alignItems: 'center' },
-  arrowText: { color: '#888', fontSize: 10 },
-  compileBtn: { backgroundColor: '#00ff87', padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10, borderWidth: 1, borderColor: '#00ff87' },
-  compileBtnText: { color: '#000', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 }
+  arrowBtn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, padding: 6, borderRadius: 2, width: '46%', alignItems: 'center' },
+  arrowText: { color: colors.textSecondary, fontSize: 10 },
+  compileBtn: { backgroundColor: colors.accent, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10, borderWidth: 1, borderColor: colors.accent },
+  compileBtnText: { color: colors.black, fontWeight: '900', fontSize: 14, letterSpacing: 0.5 }
 });

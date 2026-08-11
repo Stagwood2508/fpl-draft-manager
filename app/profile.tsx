@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -11,8 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/utils/supabase';
+import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 export default function GenericProfileScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   
@@ -96,7 +100,7 @@ export default function GenericProfileScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#00ff87" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -116,7 +120,7 @@ export default function GenericProfileScreen() {
             value={displayName} 
             onChangeText={setDisplayName} 
             placeholder="e.g., Gaffer Dave" 
-            placeholderTextColor="#444" 
+            placeholderTextColor={colors.textMuted}
           />
 
           <Text style={styles.label}>Change Password (Optional)</Text>
@@ -126,7 +130,7 @@ export default function GenericProfileScreen() {
             value={newPassword} 
             onChangeText={setNewPassword} 
             placeholder="Enter a new password" 
-            placeholderTextColor="#444" 
+            placeholderTextColor={colors.textMuted}
           />
 
           <TouchableOpacity style={styles.btn} onPress={handleUpdateProfile} disabled={updating}>
@@ -153,21 +157,21 @@ export default function GenericProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeContainer: { flex: 1, backgroundColor: '#0A0A0A' },
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
-  title: { fontSize: 22, fontWeight: '900', color: '#FFF', textTransform: 'uppercase', marginBottom: 20 },
-  card: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 16, borderRadius: 4 },
-  label: { fontSize: 11, color: '#666', fontWeight: '800', textTransform: 'uppercase', marginBottom: 6 },
-  input: { backgroundColor: '#000', borderColor: '#222', borderWidth: 1, color: '#FFF', padding: 12, borderRadius: 2, marginBottom: 16 },
-  disabledInput: { color: '#444', backgroundColor: '#050505' },
-  btn: { backgroundColor: '#00ff87', padding: 14, alignItems: 'center', borderRadius: 2, marginTop: 10 },
-  btnText: { color: '#000', fontWeight: '900', fontSize: 13 },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  safeContainer: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  title: { ...appTypography.screenTitle, color: colors.textPrimary, textTransform: 'uppercase', marginBottom: appSpacing.xl },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: appSpacing.lg, borderRadius: appRadius.medium },
+  label: { ...appTypography.label, color: colors.textMuted, textTransform: 'uppercase', marginBottom: 6 },
+  input: { backgroundColor: colors.backgroundDeep, borderColor: colors.border, borderWidth: 1, color: colors.textPrimary, padding: 12, borderRadius: appRadius.small, marginBottom: 16 },
+  disabledInput: { color: colors.textDisabled, backgroundColor: colors.surfaceMuted },
+  btn: { backgroundColor: colors.accent, padding: 14, alignItems: 'center', borderRadius: appRadius.small, marginTop: 10 },
+  btnText: { color: colors.black, fontWeight: '900', fontSize: 13 },
   leagueSection: { marginTop: 24 },
-  sectionTitle: { fontSize: 14, fontWeight: '900', color: '#00ff87', textTransform: 'uppercase', marginBottom: 12 },
-  teamCard: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', padding: 14, borderRadius: 4, marginBottom: 8 },
-  leagueName: { color: '#666', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
-  teamName: { color: '#FFF', fontSize: 16, fontWeight: '900', marginTop: 2 },
-  emptyText: { color: '#555', fontSize: 13, fontStyle: 'italic' }
+  sectionTitle: { ...appTypography.sectionTitle, color: colors.accent, textTransform: 'uppercase', marginBottom: 12 },
+  teamCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 14, borderRadius: appRadius.medium, marginBottom: 8 },
+  leagueName: { color: colors.textMuted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  teamName: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', marginTop: 2 },
+  emptyText: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }
 });

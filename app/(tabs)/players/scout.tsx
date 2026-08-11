@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -20,6 +20,8 @@ import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import FreeAgentClaimModal from '@/components/FreeAgentClaimModal';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerAsset {
   id: number;
@@ -46,6 +48,8 @@ const POSITION_COLORS: Record<string, string> = {
 };
 
 export default function PlayerPoolScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -327,15 +331,27 @@ export default function PlayerPoolScreen() {
     if (!selectedPoolPlayer || !selectedRosterPlayerId || !activeLeagueId) return;
     try {
       setSubmittingWaiver(true);
-      const { count } = await supabase.from('waiver_claims').select('*', { count: 'exact', head: true }).eq('user_id', currentUserId).eq('league_id', activeLeagueId).eq('status', 'pending');
-      const nextPriority = (count || 0) + 1;
-
-      const { error } = await supabase.from('waiver_claims').insert({
-        league_id: activeLeagueId, user_id: currentUserId, player_to_add: selectedPoolPlayer.id, player_to_drop: selectedRosterPlayerId, priority_order: nextPriority
+      const { data, error } = await supabase.rpc('submit_waiver_claim', {
+        p_league_id: activeLeagueId,
+        p_add_player_id: selectedPoolPlayer.id,
+        p_drop_player_id: selectedRosterPlayerId,
+        p_gameweek: currentGameweek,
       });
       if (error) throw error;
+      if (!data?.success) {
+        const messages: Record<string, string> = {
+          WAIVER_WINDOW_CLOSED: 'The waiver deadline has passed, so this claim was not submitted.',
+          WAIVER_WINDOW_NOT_FOUND: 'There is no open waiver window for this Gameweek.',
+          TARGET_PLAYER_TAKEN: 'Another manager already owns this player.',
+          DROP_PLAYER_NOT_OWNED: 'The player you selected to drop is no longer in your squad.',
+          DUPLICATE_PENDING_CLAIM: 'You already have a pending claim for this player.',
+          POSITION_MISMATCH: 'That swap does not comply with this league’s roster rules.',
+          CLAIM_CONFLICT: 'Your waiver queue changed at the same time. Refresh it and try again.',
+        };
+        throw new Error(messages[data?.error] || 'The server rejected this waiver claim.');
+      }
 
-      Alert.alert("Claim Submitted", `Waiver request successfully filed under Priority #${nextPriority}.`);
+      Alert.alert("Claim Submitted", `Waiver request successfully filed under Priority #${data.priority_order}.`);
       setIsWaiverModalVisible(false);
     } catch (err: any) {
       Alert.alert("Claim Failed", err.message);
@@ -382,7 +398,7 @@ export default function PlayerPoolScreen() {
         </TouchableOpacity>
         
         <TouchableOpacity style={[styles.watchlistBtn, isSaved && styles.watchlistBtnActive]} onPress={() => handleWatchlistToggle(item.id)}>
-          <Ionicons name={isSaved ? "star" : "star-outline"} size={14} color={isSaved ? "#000" : "#00ff87"} />
+          <Ionicons name={isSaved ? "star" : "star-outline"} size={14} color={isSaved ? colors.black : colors.accent} />
         </TouchableOpacity>
 
         {owner ? (
@@ -392,8 +408,8 @@ export default function PlayerPoolScreen() {
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={[styles.waiverClaimAddBtn, isWaiverLocked && { backgroundColor: '#26313A' }]} onPress={() => handlePlusButtonPress(item)}>
-            <Ionicons name={isWaiverLocked ? "lock-closed" : "add"} size={isWaiverLocked ? 13 : 16} color={isWaiverLocked ? "#91A0AC" : "#000"} />
+          <TouchableOpacity style={[styles.waiverClaimAddBtn, isWaiverLocked && { backgroundColor: colors.surfacePressed }]} onPress={() => handlePlusButtonPress(item)}>
+            <Ionicons name={isWaiverLocked ? "lock-closed" : "add"} size={isWaiverLocked ? 13 : 16} color={isWaiverLocked ? colors.textSecondary : colors.black} />
           </TouchableOpacity>
         )}
       </View>
@@ -404,8 +420,8 @@ export default function PlayerPoolScreen() {
     <SafeAreaView style={styles.safeContainer} edges={['bottom', 'left', 'right']}>
       {/* Top Search Input */}
       <View style={styles.searchBoxRow}>
-        <Ionicons name="search" size={16} color="#666" style={{ marginRight: 8 }} />
-        <TextInput style={styles.searchInputField} placeholder="Search player name..." placeholderTextColor="#555" value={searchQuery} onChangeText={setSearchQuery} />
+        <Ionicons name="search" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
+        <TextInput style={styles.searchInputField} placeholder="Search player name..." placeholderTextColor={colors.textMuted} value={searchQuery} onChangeText={setSearchQuery} />
       </View>
 
       {/* Position Filters */}
@@ -419,7 +435,7 @@ export default function PlayerPoolScreen() {
 
       {/* Main List with Pull-To-Refresh */}
       {loading && allPlayers.length === 0 ? (
-        <View style={styles.centered}><ActivityIndicator size="large" color="#00ff87" /></View>
+        <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       ) : (
         <FlatList 
           data={filteredPlayers} 
@@ -434,8 +450,8 @@ export default function PlayerPoolScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#00ff87"
-              colors={['#00ff87']}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
             />
           }
         />
@@ -470,7 +486,7 @@ export default function PlayerPoolScreen() {
                       const p = eligibleRosterPlayers.find(x => x.id === selectedRosterPlayerId);
                       return (
                         <>
-                          <Text style={[styles.swapPlayerName, { color: '#FF3B30' }]}>{p?.web_name}</Text>
+                          <Text style={[styles.swapPlayerName, { color: colors.danger }]}>{p?.web_name}</Text>
                           <Text style={styles.swapPlayerMeta}>{p?.team_name}</Text>
                         </>
                       );
@@ -506,7 +522,7 @@ export default function PlayerPoolScreen() {
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.modalButtonConfirm, !selectedRosterPlayerId && styles.modalButtonDisabled]} disabled={!selectedRosterPlayerId || submittingWaiver} onPress={handleSubmitWaiverClaim}>
-                {submittingWaiver ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.modalButtonConfirmText}>Create Claim</Text>}
+                {submittingWaiver ? <ActivityIndicator size="small" color={colors.black} /> : <Text style={styles.modalButtonConfirmText}>Create Claim</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -543,59 +559,59 @@ export default function PlayerPoolScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeContainer: { flex: 1, backgroundColor: '#0A0A0A' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' },
-  searchBoxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderColor: '#222', borderWidth: 1, paddingHorizontal: 12, margin: 16, borderRadius: 6, height: 44 },
-  searchInputField: { flex: 1, color: '#FFF', fontSize: 13, fontWeight: '600' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  safeContainer: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  searchBoxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, paddingHorizontal: 12, margin: 16, borderRadius: 6, height: 44 },
+  searchInputField: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   pillsContainerRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16 },
-  pillBtn: { backgroundColor: '#111', borderWidth: 1, borderColor: '#222', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, marginRight: 6 },
-  pillBtnActive: { backgroundColor: '#00ff87', borderColor: '#00ff87' },
-  pillText: { color: '#888', fontSize: 11, fontWeight: '800' },
-  pillTextActive: { color: '#000', fontWeight: '900' },
-  playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderWidth: 1, borderColor: '#191919', paddingRight: 8, borderRadius: 4, marginBottom: 4 },
+  pillBtn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, marginRight: 6 },
+  pillBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pillText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
+  pillTextActive: { color: colors.black, fontWeight: '900' },
+  playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingRight: 8, borderRadius: 4, marginBottom: 4 },
   playerCardMainTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },
   playerMeta: { flex: 1, marginLeft: 2, paddingRight: 4, justifyContent: 'center' },
   playerRowFlow: { flexDirection: 'row', alignItems: 'center' },
-  playerName: { color: '#FFF', fontSize: 14, fontWeight: '800', marginRight: 8 },
-  playerClubShort: { color: '#666', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
+  playerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '800', marginRight: 8 },
+  playerClubShort: { color: colors.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
-  positionChipText: { color: '#000', fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
+  positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
   pointsColumn: { alignItems: 'center', justifyContent: 'center', marginRight: 8, minWidth: 28 },
-  pointsValueText: { color: '#00ff87', fontSize: 14, fontWeight: '900' }, 
-  pointsLabelText: { color: '#444', fontSize: 7, fontWeight: '900', marginTop: -3 },
-  watchlistBtn: { padding: 6, backgroundColor: '#191919', borderRadius: 4, borderWidth: 1, borderColor: '#222', marginRight: 4 },
-  watchlistBtnActive: { backgroundColor: '#00ff87', borderColor: '#00ff87' },
-  waiverClaimAddBtn: { width: 36, height: 28, backgroundColor: '#00ff87', borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
-  ownerBadge: { width: 36, height: 28, backgroundColor: '#1F1F1F', borderRadius: 4, borderWidth: 1, borderColor: '#333', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 2 },
+  pointsValueText: { color: colors.accent, fontSize: 14, fontWeight: '900' },
+  pointsLabelText: { color: colors.textDisabled, fontSize: 7, fontWeight: '900', marginTop: -3 },
+  watchlistBtn: { padding: 6, backgroundColor: colors.surfaceMuted, borderRadius: 4, borderWidth: 1, borderColor: colors.border, marginRight: 4 },
+  watchlistBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  waiverClaimAddBtn: { width: 36, height: 28, backgroundColor: colors.accent, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
+  ownerBadge: { width: 36, height: 28, backgroundColor: colors.surfacePressed, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 2 },
   myOwnerBadge: { backgroundColor: '#0052cc33', borderColor: '#0052cc' },
-  ownerBadgeText: { color: '#AAA', fontSize: 9, fontWeight: '800', textAlign: 'center' },
+  ownerBadgeText: { color: colors.textSecondary, fontSize: 9, fontWeight: '800', textAlign: 'center' },
   myOwnerBadgeText: { color: '#0052cc', fontWeight: '900' },
-  emptyText: { color: '#444', textAlign: 'center', marginTop: 40, fontWeight: '700', fontSize: 13 },
+  emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: 40, fontWeight: '700', fontSize: 13 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#161616', width: '90%', maxHeight: '80%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#333' },
-  modalHeader: { color: '#FFF', fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
-  swapVisualContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0F0F0F', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#222', marginBottom: 16 },
-  swapCard: { flex: 1, alignItems: 'center', padding: 10, backgroundColor: '#1A1A1A', borderRadius: 6, borderWidth: 1, borderColor: '#333', minHeight: 74, justifyContent: 'center' },
-  swapCardEmpty: { backgroundColor: '#151515', borderStyle: 'dashed', borderColor: '#444' },
-  swapLabel: { fontSize: 9, fontWeight: '900', color: '#666', marginBottom: 6 },
-  swapPlayerName: { color: '#00ff87', fontSize: 13, fontWeight: '800', textAlign: 'center' },
-  swapPlayerMeta: { color: '#666', fontSize: 10, fontWeight: '700', marginTop: 2, textAlign: 'center' },
-  emptySwapText: { color: '#444', fontSize: 11, fontWeight: '700', textAlign: 'center', paddingHorizontal: 4 },
-  swapArrow: { color: '#888', fontSize: 20, fontWeight: '700', marginHorizontal: 8 },
-  selectionTitle: { color: '#888', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 },
-  rosterSelectorList: { maxHeight: 200, borderWidth: 1, borderColor: '#222', borderRadius: 8, backgroundColor: '#111', padding: 8 },
-  rosterSelectRow: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#1A1A1A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 4, marginBottom: 4 },
-  rosterSelectRowActive: { backgroundColor: '#00ff8711', borderBottomColor: 'transparent' },
-  rosterSelectName: { color: '#AAA', fontSize: 13, fontWeight: '700' },
-  rosterSelectNameActive: { color: '#00ff87' },
-  rosterSelectTeam: { color: '#555', fontSize: 11, fontWeight: '600' },
-  noPlayersText: { color: '#666', textAlign: 'center', padding: 20, fontSize: 12, fontWeight: '700' },
+  modalContent: { backgroundColor: colors.surface, width: '90%', maxHeight: '80%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.borderStrong },
+  modalHeader: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
+  swapVisualContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.backgroundElevated, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
+  swapCard: { flex: 1, alignItems: 'center', padding: 10, backgroundColor: colors.surfaceRaised, borderRadius: 6, borderWidth: 1, borderColor: colors.borderStrong, minHeight: 74, justifyContent: 'center' },
+  swapCardEmpty: { backgroundColor: colors.surfaceMuted, borderStyle: 'dashed', borderColor: colors.borderStrong },
+  swapLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, marginBottom: 6 },
+  swapPlayerName: { color: colors.accent, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  swapPlayerMeta: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  emptySwapText: { color: colors.textDisabled, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingHorizontal: 4 },
+  swapArrow: { color: colors.textMuted, fontSize: 20, fontWeight: '700', marginHorizontal: 8 },
+  selectionTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 },
+  rosterSelectorList: { maxHeight: 200, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface, padding: 8 },
+  rosterSelectRow: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 4, marginBottom: 4 },
+  rosterSelectRowActive: { backgroundColor: colors.accentSoft, borderBottomColor: 'transparent' },
+  rosterSelectName: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  rosterSelectNameActive: { color: colors.accent },
+  rosterSelectTeam: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  noPlayersText: { color: colors.textMuted, textAlign: 'center', padding: 20, fontSize: 12, fontWeight: '700' },
   modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
   modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 6, justifyContent: 'center' },
-  modalButtonCancel: { backgroundColor: '#333' },
-  modalButtonConfirm: { backgroundColor: '#00ff87' },
-  modalButtonDisabled: { backgroundColor: '#222' },
-  modalButtonCancelText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
-  modalButtonConfirmText: { color: '#000', fontWeight: '800', fontSize: 13 },
+  modalButtonCancel: { backgroundColor: colors.surfacePressed },
+  modalButtonConfirm: { backgroundColor: colors.accent },
+  modalButtonDisabled: { backgroundColor: colors.surfaceMuted },
+  modalButtonCancelText: { color: colors.textPrimary, fontWeight: '800', fontSize: 13 },
+  modalButtonConfirmText: { color: colors.black, fontWeight: '800', fontSize: 13 },
 });

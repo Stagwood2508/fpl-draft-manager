@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,8 @@ import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 type HistoryView = 'BOARD' | 'LIST' | 'AUDIT';
 type PositionFilter = 'ALL' | 'GKP' | 'DEF' | 'MID' | 'FWD';
@@ -112,15 +113,19 @@ const getAuditLabel = (eventType: string) => ({
 }[eventType] || eventType.replaceAll('_', ' '));
 
 const PositionBadge = ({ position }: { position: Exclude<PositionFilter, 'ALL'> }) => {
+  const { colors: themeColors } = useAppTheme();
+  const badgeStyles = useMemo(() => createStyles(themeColors), [themeColors]);
   const colors = positionColors[position];
   return (
-    <View style={[styles.positionBadge, { backgroundColor: colors.bg }]}>
-      <Text style={[styles.positionBadgeText, { color: colors.text }]}>{position}</Text>
+    <View style={[badgeStyles.positionBadge, { backgroundColor: colors.bg }]}>
+      <Text style={[badgeStyles.positionBadgeText, { color: colors.text }]}>{position}</Text>
     </View>
   );
 };
 
 export default function DraftResultsScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
@@ -721,7 +726,56 @@ export default function DraftResultsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const remapDraftResultTheme = (value: unknown, colors: AppColors): any => {
+  const colorMap: Record<string, string> = {
+    '#050A0F': colors.background,
+    '#081018': colors.backgroundDeep,
+    '#08111A': colors.backgroundElevated,
+    '#09131B': colors.backgroundElevated,
+    '#0A131B': colors.surface,
+    '#0B151E': colors.surface,
+    '#0C171F': colors.surfaceRaised,
+    '#0E1A23': colors.surfaceRaised,
+    '#0F1A23': colors.surfaceMuted,
+    '#101B24': colors.surfaceMuted,
+    '#101D27': colors.surfaceMuted,
+    '#182733': colors.borderSubtle,
+    '#1B2A36': colors.border,
+    '#1C2B36': colors.border,
+    '#20313D': colors.border,
+    '#243542': colors.borderStrong,
+    '#F5F8FA': colors.textPrimary,
+    '#F2F6F8': colors.textPrimary,
+    '#F1F5F7': colors.textPrimary,
+    '#F0F4F6': colors.textPrimary,
+    '#EEF3F6': colors.textPrimary,
+    '#EDF2F5': colors.textPrimary,
+    '#DDE5EA': colors.textPrimary,
+    '#C7D1DA': colors.textSecondary,
+    '#81909C': colors.textSecondary,
+    '#71818E': colors.textSecondary,
+    '#697B88': colors.textSecondary,
+    '#687A88': colors.textSecondary,
+    '#657786': colors.textSecondary,
+    '#647684': colors.textSecondary,
+    '#607180': colors.textMuted,
+    '#526474': colors.textMuted,
+    '#354754': colors.textDisabled,
+    '#00F27A': colors.accent,
+    '#00150B': colors.black,
+  };
+
+  if (typeof value === 'string') return colorMap[value.toUpperCase()] ?? value;
+  if (Array.isArray(value)) return value.map(item => remapDraftResultTheme(item, colors));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, remapDraftResultTheme(item, colors)])
+    );
+  }
+  return value;
+};
+
+const createStyles = (colors: AppColors) => StyleSheet.create(remapDraftResultTheme({
   screen: { flex: 1, backgroundColor: '#050A0F' },
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#71818E', fontSize: 10, fontWeight: '900', letterSpacing: 0.8, marginTop: 12 },
@@ -991,4 +1045,4 @@ const styles = StyleSheet.create({
   clubPickerOptionActive: { backgroundColor: '#0D251A' },
   clubPickerOptionText: { color: '#A8B4BC', fontSize: 10, fontWeight: '800' },
   clubPickerOptionTextActive: { color: '#00F27A' },
-});
+}, colors));

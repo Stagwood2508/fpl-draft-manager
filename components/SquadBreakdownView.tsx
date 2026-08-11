@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 interface PlayerBreakdown {
   player_id: string;
@@ -20,6 +22,8 @@ interface ViewProps {
 }
 
 export default function SquadBreakdownView({ startGw = 1, endGw = 38 }: ViewProps) {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [players, setPlayers] = useState<PlayerBreakdown[]>([]);
 
@@ -168,32 +172,32 @@ export default function SquadBreakdownView({ startGw = 1, endGw = 38 }: ViewProp
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   centered: { padding: 40, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingBottom: 20 },
-  headerBox: { backgroundColor: '#141416', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#222', marginBottom: 12 },
-  headerTitle: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
-  headerSub: { color: '#888', fontSize: 11, lineHeight: 15, marginTop: 2 },
-  card: { backgroundColor: '#161616', padding: 14, borderRadius: 8, borderWidth: 1, borderColor: '#262626', marginBottom: 12 },
-  cardTitle: { color: '#FFF', fontSize: 14, fontWeight: '800', marginBottom: 12 },
+  headerBox: { backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  headerTitle: { color: colors.textPrimary, fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
+  headerSub: { color: colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  card: { backgroundColor: colors.surface, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  cardTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '800', marginBottom: 12 },
   posList: { gap: 12 },
   posRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   posLabelBox: { width: 110, flexDirection: 'row', alignItems: 'center', gap: 6 },
   posBadge: { fontSize: 11, fontWeight: '900', width: 30 },
-  posTitle: { color: '#AAA', fontSize: 11, fontWeight: '700' },
-  barTrack: { flex: 1, height: 10, backgroundColor: '#222', borderRadius: 5, overflow: 'hidden' },
+  posTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+  barTrack: { flex: 1, height: 10, backgroundColor: colors.surfaceMuted, borderRadius: 5, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 5 },
-  posPtsText: { color: '#FFF', fontSize: 11, fontWeight: '800', width: 85, textAlign: 'right' },
+  posPtsText: { color: colors.textPrimary, fontSize: 11, fontWeight: '800', width: 85, textAlign: 'right' },
   playerList: { gap: 8 },
-  playerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', padding: 10, borderRadius: 6, borderWidth: 1, borderColor: '#222' },
-  rankText: { color: '#555', fontSize: 11, fontWeight: '900', width: 26 },
+  playerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundElevated, padding: 10, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+  rankText: { color: colors.textMuted, fontSize: 11, fontWeight: '900', width: 26 },
   playerMeta: { flex: 1, paddingRight: 8 },
   playerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  playerName: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  teamTag: { color: '#666', fontSize: 10, fontWeight: '700', backgroundColor: '#222', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 },
-  playerSub: { color: '#777', fontSize: 10, marginTop: 2 },
+  playerName: { color: colors.textPrimary, fontSize: 13, fontWeight: '800' },
+  teamTag: { color: colors.textSecondary, fontSize: 10, fontWeight: '700', backgroundColor: colors.surfaceMuted, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 },
+  playerSub: { color: colors.textSecondary, fontSize: 10, marginTop: 2 },
   statBox: { alignItems: 'flex-end' },
-  statPts: { color: '#00FF87', fontSize: 13, fontWeight: '900' },
-  statPct: { color: '#666', fontSize: 10, fontWeight: '700', marginTop: 1 },
-  emptyText: { color: '#555', fontSize: 12, fontStyle: 'italic' },
+  statPts: { color: colors.accent, fontSize: 13, fontWeight: '900' },
+  statPct: { color: colors.textSecondary, fontSize: 10, fontWeight: '700', marginTop: 1 },
+  emptyText: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic' },
 });

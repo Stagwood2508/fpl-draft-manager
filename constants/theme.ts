@@ -1,4 +1,4 @@
-export const appColors = {
+export const darkAppColors = {
   // Main backgrounds
   background: '#06101A',
   backgroundDeep: '#030A11',
@@ -86,3 +86,47 @@ export const appTypography = {
     letterSpacing: 0.4,
   },
 };
+
+export type AppColors = typeof darkAppColors;
+
+export const lightAppColors: AppColors = {
+  background: '#F3F6F8',
+  backgroundDeep: '#FFFFFF',
+  backgroundElevated: '#EAF0F3',
+
+  surface: '#FFFFFF',
+  surfaceRaised: '#F7FAFB',
+  surfaceMuted: '#E7EDF1',
+  surfacePressed: '#DDE6EB',
+
+  border: '#CED9E0',
+  borderStrong: '#AEBEC8',
+  borderSubtle: '#DEE6EB',
+
+  textPrimary: '#10202B',
+  textSecondary: '#4C5D68',
+  textMuted: '#71808A',
+  textDisabled: '#A4ADB4',
+
+  accent: '#008A49',
+  accentDark: '#006C39',
+  accentSoft: 'rgba(0, 138, 73, 0.10)',
+  accentBorder: 'rgba(0, 138, 73, 0.32)',
+
+  danger: '#C73545',
+  dangerSoft: 'rgba(199, 53, 69, 0.10)',
+  dangerBorder: 'rgba(199, 53, 69, 0.30)',
+
+  warning: '#A86B00',
+  warningSoft: 'rgba(168, 107, 0, 0.10)',
+
+  info: '#147AC2',
+  infoSoft: 'rgba(20, 122, 194, 0.10)',
+
+  white: '#FFFFFF',
+  black: '#000000',
+};
+
+// Compatibility export for legacy screens while they are migrated to
+// useAppTheme(). New and updated screens should use the dynamic palette.
+export const appColors = darkAppColors;

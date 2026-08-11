@@ -3,6 +3,8 @@ import { Platform, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } 
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 import { saveDeviceTokenToProfile } from './login';
 
 // Helper function to render alerts reliably across Web and Mobile
@@ -15,6 +17,8 @@ const notifyUser = (title: string, message: string) => {
 };
 
 export default function RegisterScreen() {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -111,7 +115,7 @@ export default function RegisterScreen() {
       {/* INLINE ERROR BANNER FOR BROWSER / MOBILE FEEDBACK */}
       {errorMessage && (
         <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={16} color="#FF453A" />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
           <Text style={styles.errorBannerText}>{errorMessage}</Text>
         </View>
       )}
@@ -119,7 +123,7 @@ export default function RegisterScreen() {
       <TextInput 
         style={styles.input} 
         placeholder="First Name" 
-        placeholderTextColor="#555" 
+        placeholderTextColor={colors.textMuted}
         value={firstName} 
         onChangeText={(txt) => handleTextChange(setFirstName, txt)} 
         autoCapitalize="words" 
@@ -127,7 +131,7 @@ export default function RegisterScreen() {
       <TextInput 
         style={styles.input} 
         placeholder="Last Name" 
-        placeholderTextColor="#555" 
+        placeholderTextColor={colors.textMuted}
         value={lastName} 
         onChangeText={(txt) => handleTextChange(setLastName, txt)} 
         autoCapitalize="words" 
@@ -136,7 +140,7 @@ export default function RegisterScreen() {
       <TextInput 
         style={styles.input} 
         placeholder="Email" 
-        placeholderTextColor="#555" 
+        placeholderTextColor={colors.textMuted}
         value={email} 
         onChangeText={(txt) => handleTextChange(setEmail, txt)} 
         autoCapitalize="none" 
@@ -145,7 +149,7 @@ export default function RegisterScreen() {
       <TextInput 
         style={styles.input} 
         placeholder="Password" 
-        placeholderTextColor="#555" 
+        placeholderTextColor={colors.textMuted}
         value={password} 
         onChangeText={(txt) => handleTextChange(setPassword, txt)} 
         secureTextEntry 
@@ -169,32 +173,32 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#0A0A0A' },
-  title: { fontSize: 28, fontWeight: '900', color: '#fff', textAlign: 'center' },
-  subtitle: { fontSize: 13, color: '#00ff87', textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  title: { fontSize: 28, fontWeight: '900', color: colors.textPrimary, textAlign: 'center' },
+  subtitle: { fontSize: 13, color: colors.accent, textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
   
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3A1412',
+    backgroundColor: colors.dangerSoft,
     borderWidth: 1,
-    borderColor: '#FF453A',
+    borderColor: colors.danger,
     padding: 12,
     borderRadius: 4,
     marginBottom: 16,
     gap: 8,
   },
   errorBannerText: {
-    color: '#FF453A',
+    color: colors.danger,
     fontSize: 12,
     fontWeight: '700',
     flex: 1,
   },
 
-  input: { backgroundColor: '#111', color: '#fff', padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: '#222' },
-  btnPrimary: { backgroundColor: '#00ff87', padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
-  btnText: { color: '#000', fontWeight: '900', fontSize: 14 },
+  input: { backgroundColor: colors.surface, color: colors.textPrimary, padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  btnPrimary: { backgroundColor: colors.accent, padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
+  btnText: { color: colors.black, fontWeight: '900', fontSize: 14 },
   switchLink: { marginTop: 20, alignItems: 'center' },
-  switchText: { color: '#666', fontSize: 13, fontWeight: '600' }
+  switchText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' }
 });

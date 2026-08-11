@@ -1,5 +1,6 @@
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { withLayoutContext } from 'expo-router';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
@@ -7,23 +8,24 @@ const { Navigator } = createMaterialTopTabNavigator();
 export const MaterialTopTabs = withLayoutContext(Navigator);
 
 export default function LeagueLayout() {
+  const { colors } = useAppTheme();
   return (
     <MaterialTopTabs
       screenOptions={{
         tabBarStyle: { 
-          backgroundColor: '#0F0F0F', 
+          backgroundColor: colors.backgroundDeep,
           borderBottomWidth: 1, 
-          borderBottomColor: '#1A1A1A' 
+          borderBottomColor: colors.border,
         },
         tabBarLabelStyle: { 
           fontSize: 12, 
           fontWeight: '900', 
           letterSpacing: 0.8 
         },
-        tabBarActiveTintColor: '#00ff87',
-        tabBarInactiveTintColor: '#666666',
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarIndicatorStyle: { 
-          backgroundColor: '#00ff87', 
+          backgroundColor: colors.accent,
           height: 3, 
           borderRadius: 2 
         },
@@ -39,14 +41,6 @@ export default function LeagueLayout() {
         name="matches"
         options={{
           title: 'MATCHES',
-        }}
-      />
-      
-      {/* Hide waivers from the top tab bar headers */}
-      <MaterialTopTabs.Screen
-        name="waivers"
-        options={{
-          href: null,
         }}
       />
     </MaterialTopTabs>

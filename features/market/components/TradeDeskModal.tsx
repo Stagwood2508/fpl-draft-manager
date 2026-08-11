@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerAsset {
   id: number;
@@ -55,6 +57,8 @@ export default function TradeDeskModal({
   currentUserId,
   onSuccess
 }: TradeDeskModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [modalLoading, setModalLoading] = useState(false);
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
   
@@ -448,7 +452,7 @@ if (rivalDataRes.error) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(1, 7, 12, 0.9)',
@@ -458,15 +462,15 @@ const styles = StyleSheet.create({
   },
 
   tradeModalContent: {
-    backgroundColor: '#122230',
+    backgroundColor: colors.surfaceRaised,
     width: '92%',
     maxWidth: 920,
     height: '82%',
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#365063',
-    shadowColor: '#000',
+    borderColor: colors.borderStrong,
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
     shadowRadius: 24,
@@ -481,7 +485,7 @@ const styles = StyleSheet.create({
   },
 
   modalHeader: {
-    color: '#F7FAFC',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '900',
     textAlign: 'center',
@@ -489,7 +493,7 @@ const styles = StyleSheet.create({
   },
 
   tradeSubHeader: {
-    color: '#A7B4C2',
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
@@ -508,11 +512,11 @@ const styles = StyleSheet.create({
   tradeCol: {
     flex: 1,
     minWidth: 0,
-    backgroundColor: '#091521',
+    backgroundColor: colors.backgroundElevated,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#223443',
+    borderColor: colors.border,
   },
 
   tradeScrollView: {
@@ -520,7 +524,7 @@ const styles = StyleSheet.create({
   },
 
   colTitle: {
-    color: '#A7B4C2',
+    color: colors.textSecondary,
     fontSize: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -528,29 +532,29 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#223443',
+    borderBottomColor: colors.border,
     paddingBottom: 8,
   },
 
   tradeSelectorCardCompact: {
-    backgroundColor: '#0D1924',
+    backgroundColor: colors.surface,
     borderRadius: 8,
     paddingVertical: 9,
     paddingHorizontal: 10,
     marginBottom: 7,
     borderWidth: 1,
-    borderColor: '#223443',
+    borderColor: colors.border,
   },
 
   tradeSelectorCardSelected: {
-    borderColor: '#00F27A',
-    backgroundColor: 'rgba(0, 242, 122, 0.12)',
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
 
   tradeSelectorCardDisabled: {
     opacity: 0.42,
-    borderColor: '#172733',
-    backgroundColor: '#06101A',
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.background,
   },
 
   tradeCardRowFlow: {
@@ -560,7 +564,7 @@ const styles = StyleSheet.create({
   },
 
   tradeCardTextCompact: {
-    color: '#F7FAFC',
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: '800',
     flex: 1,
@@ -569,15 +573,15 @@ const styles = StyleSheet.create({
   },
 
   tradeCardTextSelected: {
-    color: '#00F27A',
+    color: colors.accent,
   },
 
   tradeCardTextDisabled: {
-    color: '#687887',
+    color: colors.textMuted,
   },
 
   tradeCardMetaTextCompact: {
-    color: '#687887',
+    color: colors.textMuted,
     fontSize: 9,
     fontWeight: '800',
     marginRight: 8,
@@ -595,13 +599,13 @@ const styles = StyleSheet.create({
   },
 
   miniPosTextCompact: {
-    color: '#030A11',
+    color: colors.black,
     fontSize: 8,
     fontWeight: '900',
   },
 
   tradeLockNotice: {
-    color: '#A7B4C2',
+    color: colors.textSecondary,
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
@@ -630,23 +634,23 @@ const styles = StyleSheet.create({
   },
 
   modalButtonCancel: {
-    backgroundColor: '#101C27',
-    borderColor: '#365063',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.borderStrong,
   },
 
   modalButtonConfirm: {
-    backgroundColor: '#00F27A',
-    borderColor: '#00A956',
+    backgroundColor: colors.accent,
+    borderColor: colors.accentDark,
   },
 
   modalButtonCancelText: {
-    color: '#F7FAFC',
+    color: colors.textPrimary,
     fontWeight: '900',
     fontSize: 13,
   },
 
   modalButtonConfirmText: {
-    color: '#030A11',
+    color: colors.black,
     fontWeight: '900',
     fontSize: 13,
   },

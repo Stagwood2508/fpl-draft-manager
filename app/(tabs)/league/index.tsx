@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -11,6 +11,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
+import { AppColors } from '@/constants/theme';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface StandingRow {
   rank: number;
@@ -28,6 +30,8 @@ interface StandingRow {
 }
 
 export default function StandingsScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isLive, setIsLive] = useState(false);
@@ -171,7 +175,7 @@ export default function StandingsScreen() {
               <Animated.View
                 style={[
                   styles.liveDot,
-                  { opacity: isLive ? pulseAnim : 0.3, backgroundColor: isLive ? '#FF3B30' : '#666' },
+                  { opacity: isLive ? pulseAnim : 0.3, backgroundColor: isLive ? colors.danger : colors.textMuted },
                 ]}
               />
               <Text style={[styles.toggleText, isLive && styles.toggleTextActive]}>LIVE</Text>
@@ -200,7 +204,7 @@ export default function StandingsScreen() {
 
       {loading && !refreshing && standings.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#00ff87" />
+          <ActivityIndicator size="small" color={colors.accent} />
         </View>
       ) : standings.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -255,49 +259,49 @@ export default function StandingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
+const createStyles = (colors: AppColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  emptyText: { color: '#666', fontSize: 13, textAlign: 'center' },
+  emptyText: { color: colors.textMuted, fontSize: 13, textAlign: 'center' },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: colors.backgroundDeep,
     borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
+    borderBottomColor: colors.border,
   },
-  toggleContainer: { flexDirection: 'row', backgroundColor: '#1A1A1A', borderRadius: 8, padding: 2 },
+  toggleContainer: { flexDirection: 'row', backgroundColor: colors.surfaceMuted, borderRadius: 8, padding: 2 },
   toggleButton: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6 },
-  toggleButtonActive: { backgroundColor: '#2A2A2A' },
-  toggleButtonLiveActive: { backgroundColor: '#3A1414' },
+  toggleButtonActive: { backgroundColor: colors.surfacePressed },
+  toggleButtonLiveActive: { backgroundColor: colors.dangerSoft },
   liveButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
-  toggleText: { color: '#888', fontSize: 11, fontWeight: '700' },
-  toggleTextActive: { color: '#FFF' },
+  toggleText: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
+  toggleTextActive: { color: colors.textPrimary },
   liveBadgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#220808',
+    backgroundColor: colors.dangerSoft,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#5551111',
+    borderColor: colors.dangerBorder,
     gap: 6,
   },
-  pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
-  liveBadgeText: { color: '#FF3B30', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
+  liveBadgeText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   tableHeaderRow: {
     flexDirection: 'row',
     paddingVertical: 10,
     paddingHorizontal: 6,
-    backgroundColor: '#111',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderColor: '#222',
+    borderColor: colors.border,
     alignItems: 'center',
   },
   tableBodyRow: {
@@ -306,22 +310,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#141414',
+    borderBottomColor: colors.borderSubtle,
   },
-  rowAlternate: { backgroundColor: '#0F0F0F' },
-  rowTopSpot: { backgroundColor: '#121915', borderLeftWidth: 2, borderLeftColor: '#00ff87' },
-  thText: { color: '#666', fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
-  tdText: { color: '#A0A0A0', fontSize: 11, textAlign: 'center' },
+  rowAlternate: { backgroundColor: colors.surfaceMuted },
+  rowTopSpot: { backgroundColor: colors.accentSoft, borderLeftWidth: 2, borderLeftColor: colors.accent },
+  thText: { color: colors.textMuted, fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
+  tdText: { color: colors.textSecondary, fontSize: 11, textAlign: 'center' },
   textRight: { textAlign: 'right' },
   colRank: { width: '10%', alignItems: 'flex-start', justifyContent: 'center' },
   colTeam: { width: '32%', justifyContent: 'center' },
   colStat: { width: '7%', alignItems: 'center', justifyContent: 'center' },
   colPfPts: { width: '16%', alignItems: 'center', justifyContent: 'center' },
   colMainPts: { width: '14%', paddingRight: 4, justifyContent: 'center' },
-  rankGold: { color: '#00ff87', fontWeight: '900' },
-  teamHighlight: { color: '#F5F5F5', fontWeight: '700', textAlign: 'left' },
-  pointsHighlight: { color: '#00ff87', fontWeight: '900', fontSize: 12 },
-  rankUp: { color: '#00ff87', fontSize: 8, fontWeight: '900' },
-  rankDown: { color: '#FF3B30', fontSize: 8, fontWeight: '900' },
-  rankSame: { color: '#555', fontSize: 8, fontWeight: '700' },
+  rankGold: { color: colors.accent, fontWeight: '900' },
+  teamHighlight: { color: colors.textPrimary, fontWeight: '700', textAlign: 'left' },
+  pointsHighlight: { color: colors.accent, fontWeight: '900', fontSize: 12 },
+  rankUp: { color: colors.accent, fontSize: 8, fontWeight: '900' },
+  rankDown: { color: colors.danger, fontSize: 8, fontWeight: '900' },
+  rankSame: { color: colors.textMuted, fontSize: 8, fontWeight: '700' },
 });

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import type { AppColors } from '@/constants/theme';
 
 interface LuckRecord {
   user_id: string;
@@ -19,6 +21,8 @@ interface ViewProps {
 }
 
 export default function LuckIndexView({ startGw = 1, endGw = 38 }: ViewProps) {
+  const { colors } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
   const [luckData, setLuckData] = useState<LuckRecord[]>([]);
 
@@ -92,12 +96,12 @@ export default function LuckIndexView({ startGw = 1, endGw = 38 }: ViewProps) {
           <Ionicons
             name={isLucky ? 'arrow-up' : isNeutral ? 'remove' : 'arrow-down'}
             size={12}
-            color={isLucky ? '#00FF87' : isNeutral ? '#888' : '#FF1751'}
+            color={isLucky ? colors.accent : isNeutral ? colors.textSecondary : colors.danger}
           />
           <Text
             style={[
               styles.badgeText,
-              { color: isLucky ? '#00FF87' : isNeutral ? '#888' : '#FF1751' },
+              { color: isLucky ? colors.accent : isNeutral ? colors.textSecondary : colors.danger },
             ]}
           >
             {rawLuckScore > 0 ? `+${rawLuckScore}` : rawLuckScore}
@@ -115,7 +119,7 @@ export default function LuckIndexView({ startGw = 1, endGw = 38 }: ViewProps) {
       contentContainerStyle={styles.listContent}
       ListHeaderComponent={
         <View style={styles.headerBox}>
-          <Ionicons name="sparkles" size={18} color="#00FF87" />
+          <Ionicons name="sparkles" size={18} color={colors.accent} />
           <Text style={styles.headerTitle}>FIXTURE LUCK RATING</Text>
           <Text style={styles.headerSub}>
             Positive score = Winning matches despite lower gameweek totals.
@@ -130,21 +134,21 @@ export default function LuckIndexView({ startGw = 1, endGw = 38 }: ViewProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
   centered: { padding: 40, justifyContent: 'center', alignItems: 'center' },
   listContent: { paddingBottom: 20 },
-  headerBox: { backgroundColor: '#141416', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#222', marginBottom: 12 },
-  headerTitle: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
-  headerSub: { color: '#888', fontSize: 11, lineHeight: 15, marginTop: 2 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161616', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#262626', marginBottom: 6 },
-  rankText: { color: '#555', fontSize: 12, fontWeight: '900', width: 28 },
+  headerBox: { backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  headerTitle: { color: colors.textPrimary, fontSize: 12, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
+  headerSub: { color: colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 6 },
+  rankText: { color: colors.textMuted, fontSize: 12, fontWeight: '900', width: 28 },
   managerInfo: { flex: 1, paddingRight: 8 },
-  managerName: { color: '#FFF', fontSize: 14, fontWeight: '800' },
-  recordSub: { color: '#777', fontSize: 11, marginTop: 2, fontWeight: '600' },
+  managerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '800' },
+  recordSub: { color: colors.textSecondary, fontSize: 11, marginTop: 2, fontWeight: '600' },
   badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, gap: 2 },
-  luckyBadge: { backgroundColor: '#00FF8710', borderColor: '#00FF8744' },
-  neutralBadge: { backgroundColor: '#222', borderColor: '#333' },
-  unluckyBadge: { backgroundColor: '#FF175110', borderColor: '#FF175144' },
+  luckyBadge: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  neutralBadge: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  unluckyBadge: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder },
   badgeText: { fontSize: 12, fontWeight: '900' },
-  emptyText: { color: '#555', fontSize: 12, textAlign: 'center', marginTop: 30, fontStyle: 'italic' },
+  emptyText: { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 30, fontStyle: 'italic' },
 });
