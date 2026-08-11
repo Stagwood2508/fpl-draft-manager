@@ -45,6 +45,21 @@ interface DraftedPlayer {
   team_name: string;
   total_points: number;
   draft_rank: number;
+  has_last_season_stats: boolean;
+  goals_scored: number;
+  assists: number;
+  clean_sheets: number;
+  minutes: number;
+  starts: number;
+  bonus: number;
+  ict_index: number;
+  expected_goals: number;
+  expected_assists: number;
+  defensive_contribution: number;
+  clearances_blocks_interceptions: number;
+  recoveries: number;
+  tackles: number;
+  saves: number;
 }
 
 interface ManagerProfile {
@@ -92,8 +107,77 @@ interface PickConfirmation {
 }
 
 type MainTab = 'POOL' | 'WATCHLIST' | 'SQUAD';
-type SortMetric = 'RANK' | 'POINTS';
+type SortMetric =
+  | 'RANK'
+  | 'POINTS'
+  | 'GOALS'
+  | 'ASSISTS'
+  | 'CLEAN_SHEETS'
+  | 'STARTS'
+  | 'MINUTES'
+  | 'BONUS'
+  | 'ICT'
+  | 'EXPECTED_GOALS'
+  | 'EXPECTED_ASSISTS'
+  | 'DEFENSIVE_CONTRIBUTIONS'
+  | 'CBI'
+  | 'RECOVERIES'
+  | 'TACKLES'
+  | 'SAVES';
 type RealtimeConnectionState = 'CONNECTING' | 'CONNECTED' | 'RECONNECTING' | 'OFFLINE';
+
+const getPreviousSeasonLabel = () => {
+  const now = new Date();
+  const endingYear = now.getUTCMonth() >= 6 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  return `${endingYear - 1}/${String(endingYear).slice(-2)}`;
+};
+
+const SORT_OPTIONS: Array<{ key: SortMetric; label: string; shortLabel: string }> = [
+  { key: 'RANK', label: 'Draft Rank', shortLabel: 'RANK' },
+  { key: 'POINTS', label: 'Total Points', shortLabel: 'PTS' },
+  { key: 'GOALS', label: 'Goals', shortLabel: 'GOALS' },
+  { key: 'ASSISTS', label: 'Assists', shortLabel: 'ASSISTS' },
+  { key: 'CLEAN_SHEETS', label: 'Clean Sheets', shortLabel: 'CLEAN SHEETS' },
+  { key: 'STARTS', label: 'Starts', shortLabel: 'STARTS' },
+  { key: 'MINUTES', label: 'Minutes', shortLabel: 'MINUTES' },
+  { key: 'BONUS', label: 'Bonus Points', shortLabel: 'BONUS' },
+  { key: 'ICT', label: 'ICT Index', shortLabel: 'ICT' },
+  { key: 'EXPECTED_GOALS', label: 'Expected Goals', shortLabel: 'xG' },
+  { key: 'EXPECTED_ASSISTS', label: 'Expected Assists', shortLabel: 'xA' },
+  { key: 'DEFENSIVE_CONTRIBUTIONS', label: 'Defensive Contributions', shortLabel: 'DEFCON' },
+  { key: 'CBI', label: 'Clearances, Blocks & Interceptions', shortLabel: 'CBI' },
+  { key: 'RECOVERIES', label: 'Recoveries', shortLabel: 'REC' },
+  { key: 'TACKLES', label: 'Tackles', shortLabel: 'TACKLES' },
+  { key: 'SAVES', label: 'Saves', shortLabel: 'SAVES' },
+];
+
+const getPlayerSortValue = (player: DraftedPlayer, metric: SortMetric) => {
+  switch (metric) {
+    case 'RANK': return player.draft_rank;
+    case 'POINTS': return player.total_points;
+    case 'GOALS': return player.goals_scored;
+    case 'ASSISTS': return player.assists;
+    case 'CLEAN_SHEETS': return player.clean_sheets;
+    case 'STARTS': return player.starts;
+    case 'MINUTES': return player.minutes;
+    case 'BONUS': return player.bonus;
+    case 'ICT': return player.ict_index;
+    case 'EXPECTED_GOALS': return player.expected_goals;
+    case 'EXPECTED_ASSISTS': return player.expected_assists;
+    case 'DEFENSIVE_CONTRIBUTIONS': return player.defensive_contribution;
+    case 'CBI': return player.clearances_blocks_interceptions;
+    case 'RECOVERIES': return player.recoveries;
+    case 'TACKLES': return player.tackles;
+    case 'SAVES': return player.saves;
+  }
+};
+
+const getPlayerSortDisplay = (player: DraftedPlayer, metric: SortMetric) => {
+  if (metric === 'RANK') return player.has_last_season_stats ? `${player.total_points} pts` : '—';
+  if (!player.has_last_season_stats) return '—';
+  const option = SORT_OPTIONS.find(item => item.key === metric);
+  return `${getPlayerSortValue(player, metric)} ${option?.shortLabel.toLowerCase() || ''}`.trim();
+};
 
 const getAutopickReasonLabel = (reason: string | null) => {
   if (reason === 'MANAGER_AWAY') return 'AWAY';
@@ -349,7 +433,8 @@ const PlayerPoolRow = React.memo(({
   onSelect,
   onLongPressRow,
   onMoveUp,
-  onMoveDown
+  onMoveDown,
+  sortMetric = 'POINTS',
 }: {
   item: DraftedPlayer;
   isSelected: boolean;
@@ -363,6 +448,7 @@ const PlayerPoolRow = React.memo(({
   onLongPressRow?: (p: DraftedPlayer) => void;
   onMoveUp?: (p: DraftedPlayer) => void;
   onMoveDown?: (p: DraftedPlayer) => void;
+  sortMetric?: SortMetric;
 }) => {
   const { colors } = useAppTheme();
   const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
@@ -399,7 +485,7 @@ const PlayerPoolRow = React.memo(({
       <View style={styles.poolPlayerIdentity}>
         <Text style={[styles.poolPlayerNameText, themeStyles.textPrimary]} numberOfLines={1}>{item.web_name}</Text>
         <Text style={styles.poolPlayerTeamText} numberOfLines={1}>
-          {item.team_name} · #{item.draft_rank === 999 ? 'N/A' : item.draft_rank} · {item.total_points} pts
+          {item.team_name} · #{item.draft_rank === 999 ? 'N/A' : item.draft_rank} · {getPlayerSortDisplay(item, sortMetric)}
         </Text>
       </View>
       <PositionBadge position={item.element_type} />
@@ -793,6 +879,7 @@ const isDesktop = width >= 1050;
 
   const [activeTab, setActiveTab] = useState<MainTab>('POOL');
   const [sortOrder, setSortOrder] = useState<SortMetric>('RANK');
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
   const [availablePlayers, setAvailablePlayers] = useState<DraftedPlayer[]>([]);
   const [watchlistIds, setWatchlistIds] = useState<number[]>([]);
@@ -1279,11 +1366,14 @@ const { data: teamsProfiles } = await supabase
   ) => {
     if (!lId || !uId || !currentSession) return;
     try {
-      const [membersResponse, picksResponse, watchlistResponse, playersResponse, autopickStateResponse, settingsResponse] = await Promise.all([
+      const [membersResponse, picksResponse, watchlistResponse, playersResponse, seasonStatsResponse, autopickStateResponse, settingsResponse] = await Promise.all([
         supabase.from('league_members').select('user_id, team_name, draft_order').eq('league_id', lId).order('draft_order', { ascending: true }),
         supabase.from('draft_picks').select('player_id, user_id, round_number, overall_pick_number, pick_source, pick_reason').eq('league_id', lId).order('overall_pick_number', { ascending: true }),
         supabase.from('watchlists').select('player_id').eq('league_id', lId).eq('user_id', uId).order('priority_order', { ascending: true }),
-        supabase.from('players').select('id, web_name, element_type, team_name, total_points, draft_rank').eq('is_active', true),
+        supabase.from('players').select('id, code, web_name, element_type, team_name, total_points, draft_rank').eq('is_active', true),
+        supabase.from('player_season_stats')
+          .select('player_code, total_points, goals_scored, assists, clean_sheets, minutes, starts, bonus, ict_index, expected_goals, expected_assists, defensive_contribution, clearances_blocks_interceptions, recoveries, tackles, saves')
+          .eq('season_name', getPreviousSeasonLabel()),
         supabase.from('draft_manager_autopick_state').select('league_id, user_id, consecutive_autopicks, is_away').eq('league_id', lId),
         supabase.from('league_settings').select('roster_type').eq('league_id', lId).maybeSingle(),
       ]);
@@ -1293,6 +1383,7 @@ const { data: teamsProfiles } = await supabase
         picksResponse.error ||
         watchlistResponse.error ||
         playersResponse.error ||
+        seasonStatsResponse.error ||
         autopickStateResponse.error ||
         settingsResponse.error;
 
@@ -1302,6 +1393,9 @@ const { data: teamsProfiles } = await supabase
       const committedPicks = picksResponse.data || [];
       const watchlistRows = watchlistResponse.data || [];
       const masterPool = playersResponse.data || [];
+      const seasonStatsByCode = new Map(
+        (seasonStatsResponse.data || []).map(row => [Number(row.player_code), row])
+      );
       const autopickStates = (autopickStateResponse.data || []) as ManagerAutopickState[];
       const activeRosterType = (settingsResponse.data?.roster_type as 'STRICT' | 'FLEXIBLE') || 'STRICT';
       const rosterLimits = activeRosterType === 'FLEXIBLE'
@@ -1315,6 +1409,7 @@ const { data: teamsProfiles } = await supabase
       const parsedPool: DraftedPlayer[] = masterPool
         .sort((a, b) => (b.total_points || 0) - (a.total_points || 0))
         .map(p => {
+          const seasonStats = seasonStatsByCode.get(Number(p.code));
           let typeStr = String(p.element_type || '').trim().toUpperCase();
           if (typeStr.includes('GKP') || typeStr === '1' || typeStr.includes('GOAL')) typeStr = 'GKP';
           else if (typeStr.includes('DEF') || typeStr === '2' || typeStr.includes('BACK')) typeStr = 'DEF';
@@ -1329,8 +1424,23 @@ const { data: teamsProfiles } = await supabase
             web_name: p.web_name,
             element_type: typeStr,
             team_name: p.team_name,
-            total_points: p.total_points || 0,
-            draft_rank: trueCalculatedRank
+            total_points: Number(seasonStats?.total_points || 0),
+            draft_rank: trueCalculatedRank,
+            has_last_season_stats: Boolean(seasonStats),
+            goals_scored: Number(seasonStats?.goals_scored || 0),
+            assists: Number(seasonStats?.assists || 0),
+            clean_sheets: Number(seasonStats?.clean_sheets || 0),
+            minutes: Number(seasonStats?.minutes || 0),
+            starts: Number(seasonStats?.starts || 0),
+            bonus: Number(seasonStats?.bonus || 0),
+            ict_index: Number(seasonStats?.ict_index || 0),
+            expected_goals: Number(seasonStats?.expected_goals || 0),
+            expected_assists: Number(seasonStats?.expected_assists || 0),
+            defensive_contribution: Number(seasonStats?.defensive_contribution || 0),
+            clearances_blocks_interceptions: Number(seasonStats?.clearances_blocks_interceptions || 0),
+            recoveries: Number(seasonStats?.recoveries || 0),
+            tackles: Number(seasonStats?.tackles || 0),
+            saves: Number(seasonStats?.saves || 0),
           };
         });
 
@@ -1611,7 +1721,14 @@ useEffect(() => {
 
   const memoizedFilteredPlayers = useMemo(() => {
     let sorted = [...availablePlayers];
-    sorted.sort((a, b) => sortOrder === 'RANK' ? (a.draft_rank - b.draft_rank) : (b.total_points - a.total_points));
+    sorted.sort((a, b) => {
+      if (sortOrder === 'RANK') return a.draft_rank - b.draft_rank;
+      if (a.has_last_season_stats !== b.has_last_season_stats) {
+        return a.has_last_season_stats ? -1 : 1;
+      }
+      const metricDifference = getPlayerSortValue(b, sortOrder) - getPlayerSortValue(a, sortOrder);
+      return metricDifference || (a.draft_rank - b.draft_rank);
+    });
     sorted = sorted.filter(p => !filledPositions[p.element_type]);
     if (activeFilter !== 'ALL') sorted = sorted.filter(p => p.element_type === activeFilter);
     if (activeClub !== 'ALL') sorted = sorted.filter(p => p.team_name === activeClub);
@@ -3073,9 +3190,12 @@ useEffect(() => {
                         </TouchableOpacity>
                       ))}
                     </View>
-                    <TouchableOpacity style={[styles.sortToggleBtn, themeStyles.surface]} onPress={() => setSortOrder(sortOrder === 'RANK' ? 'POINTS' : 'RANK')}>
+                    <TouchableOpacity style={[styles.sortToggleBtn, themeStyles.surface]} onPress={() => setIsSortMenuOpen(true)}>
                       <Ionicons name="swap-vertical" size={12} color="#00ff87" />
-                      <Text style={styles.sortToggleText}>SORT: {sortOrder}</Text>
+                      <Text style={styles.sortToggleText} numberOfLines={1}>
+                        {SORT_OPTIONS.find(option => option.key === sortOrder)?.shortLabel || sortOrder}
+                      </Text>
+                      <Ionicons name="chevron-down" size={11} color="#607180" />
                     </TouchableOpacity>
                   </View>
 
@@ -3106,6 +3226,7 @@ useEffect(() => {
                 <PlayerPoolRow
                   item={item} isSelected={selectedPlayer?.id === item.id} isOnWatchlist={watchlistIds.includes(item.id)}
                   isMyTurn={isMyTurn} showPickCheckbox={isLive} onInspect={setInspectingPlayer} onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress}
+                  sortMetric={sortOrder}
                 />
               )}
             />
@@ -3416,6 +3537,47 @@ useEffect(() => {
           onClose={() => setPickConfirmation(null)}
         />
       )}
+
+      <Modal
+        visible={isSortMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsSortMenuOpen(false)}
+      >
+        <Pressable style={styles.sortMenuOverlay} onPress={() => setIsSortMenuOpen(false)}>
+          <Pressable style={[styles.sortMenuCard, themeStyles.surface]} onPress={() => undefined}>
+            <View style={styles.sortMenuHeader}>
+              <View>
+                <Text style={[styles.sortMenuTitle, themeStyles.textPrimary]}>SORT PLAYER POOL</Text>
+                <Text style={styles.sortMenuSubtitle}>{getPreviousSeasonLabel()} statistics</Text>
+              </View>
+              <TouchableOpacity style={styles.sortMenuClose} onPress={() => setIsSortMenuOpen(false)}>
+                <Ionicons name="close" size={18} color="#82929F" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.sortMenuList} showsVerticalScrollIndicator={false}>
+              {SORT_OPTIONS.map(option => {
+                const isActive = option.key === sortOrder;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.sortMenuOption, isActive && styles.sortMenuOptionActive]}
+                    onPress={() => {
+                      setSortOrder(option.key);
+                      setIsSortMenuOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.sortMenuOptionText, themeStyles.textPrimary, isActive && styles.sortMenuOptionTextActive]}>
+                      {option.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={16} color="#00F27A" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* REORDER INDEX QUEUE MODAL */}
       <Modal visible={dragMovingPlayer !== null} transparent animationType="fade">
@@ -4039,8 +4201,19 @@ navTabTextActive: {
   miniPosText: { color: '#555', fontSize: 10, fontWeight: '800' },
   miniPosTextActive: { color: '#00ff87' },
   disabledPositionTab: { backgroundColor: '#0A0A0A', opacity: 0.15 },
-  sortToggleBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
-  sortToggleText: { color: '#888', fontSize: 10, fontWeight: '800', marginLeft: 6 },
+  sortToggleBtn: { maxWidth: 130, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#111', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 4, borderWidth: 1, borderColor: '#222' },
+  sortToggleText: { flexShrink: 1, color: '#A8B4BD', fontSize: 9, fontWeight: '900' },
+  sortMenuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 18 },
+  sortMenuCard: { width: '100%', maxWidth: 380, maxHeight: '78%', backgroundColor: '#0B151E', borderWidth: 1, borderColor: '#294034', borderRadius: 14, padding: 12 },
+  sortMenuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingBottom: 9, borderBottomWidth: 1, borderBottomColor: '#1B2A36' },
+  sortMenuTitle: { color: '#F2F6F8', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  sortMenuSubtitle: { color: '#607180', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  sortMenuClose: { padding: 6 },
+  sortMenuList: { marginTop: 6 },
+  sortMenuOption: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, borderRadius: 7 },
+  sortMenuOptionActive: { backgroundColor: '#13231C', borderWidth: 1, borderColor: 'rgba(0,242,122,0.35)' },
+  sortMenuOptionText: { color: '#C3CDD4', fontSize: 11, fontWeight: '800' },
+  sortMenuOptionTextActive: { color: '#00F27A' },
   clubFilterRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12 },
   clubFilterLabel: { color: '#607180', fontSize: 9, fontWeight: '900', letterSpacing: 0.6, marginRight: 8 },
   clubFilterList: { paddingRight: 14, gap: 6 },

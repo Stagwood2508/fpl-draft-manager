@@ -49,9 +49,11 @@ interface PlayerDetails {
   ict_index?: string | number;
   expected_goals?: string | number;
   expected_assists?: string | number;
-  defensive_contribution_points?: string | number;
-  defcon_points?: string | number;
-  total_defcon_points?: string | number;
+  clearances_blocks_interceptions?: number;
+  recoveries?: number;
+  tackles?: number;
+  defensive_contribution?: number;
+  season_name?: string;
   owner_name?: string | null;
 }
 
@@ -137,7 +139,7 @@ export default function PlayerCardModal({
   const [player, setPlayer] = useState<PlayerDetails | null>(null);
   const [history, setHistory] = useState<GameweekStat[]>([]);
   const [schedule, setSchedule] = useState<UpcomingFixture[]>([]);
-  const [lastSeasonDefconPoints, setLastSeasonDefconPoints] = useState<number | null>(null);
+  const [lastSeasonAvailable, setLastSeasonAvailable] = useState<boolean>(true);
   const [tradeNoteText, setTradeNoteText] = useState('');
 
   useEffect(() => {
@@ -149,7 +151,7 @@ export default function PlayerCardModal({
       setPlayer(null);
       setHistory([]);
       setSchedule([]);
-      setLastSeasonDefconPoints(null);
+      setLastSeasonAvailable(true);
       setImageError(false);
     }
   }, [visible, playerId, leagueId, currentGameweek, statsMode]);
@@ -164,7 +166,7 @@ export default function PlayerCardModal({
     if (!playerId) return;
     try {
       setLoading(true);
-      setLastSeasonDefconPoints(null);
+      setLastSeasonAvailable(true);
 
       // Resolve Active League ID from prop > AsyncStorage fallback
       let activeLid = leagueId;
@@ -233,28 +235,51 @@ export default function PlayerCardModal({
         }
       }
 
-      setPlayer({
+      const basePlayer: PlayerDetails = {
         ...playerData,
         element_type: effectivePosition,
         team_short_name: playerData.team_short_name || (playerData.team_name ? playerData.team_name.slice(0, 3).toUpperCase() : 'PL'),
         owner_name: ownerDisplayName,
-      });
+      };
 
-      if (statsMode === 'LAST_SEASON' && effectivePosition !== 'GKP') {
-        const { data: defconRows } = await supabase
-          .from('player_gameweek_stats')
-          .select('defensive_contribution')
-          .eq('player_id', playerId);
+      if (statsMode === 'LAST_SEASON') {
+        const requestedSeason = seasonLabel || getPreviousSeasonLabel();
+        const { data: seasonData, error: seasonError } = await supabase
+          .from('player_season_stats')
+          .select('*')
+          .eq('player_code', playerData.code)
+          .eq('season_name', requestedSeason)
+          .maybeSingle();
 
-        if (defconRows && defconRows.length > 0) {
-          const threshold = effectivePosition === 'DEF' ? 10 : 12;
-          const points = defconRows.reduce(
-            (total: number, row: any) =>
-              total + (Number(row.defensive_contribution || 0) >= threshold ? 2 : 0),
-            0
-          );
-          setLastSeasonDefconPoints(points);
+        if (seasonError) throw seasonError;
+
+        if (seasonData) {
+          const starts = Number(seasonData.starts || 0);
+          setLastSeasonAvailable(true);
+          setPlayer({
+            ...basePlayer,
+            ...seasonData,
+            id: basePlayer.id,
+            code: basePlayer.code,
+            photo_code: basePlayer.photo_code,
+            web_name: basePlayer.web_name,
+            first_name: basePlayer.first_name,
+            second_name: basePlayer.second_name,
+            element_type: basePlayer.element_type,
+            team_id: basePlayer.team_id,
+            team_name: basePlayer.team_name,
+            team_short_name: basePlayer.team_short_name,
+            owner_name: basePlayer.owner_name,
+            points_per_game: starts > 0
+              ? (Number(seasonData.total_points || 0) / starts).toFixed(1)
+              : undefined,
+          });
+        } else {
+          setLastSeasonAvailable(false);
+          setPlayer(basePlayer);
         }
+      } else {
+        setPlayer(basePlayer);
       }
 
       if (statsMode === 'CURRENT') {
@@ -438,7 +463,19 @@ export default function PlayerCardModal({
             <View style={styles.bodyContainer}>
               
               {/* TAB 1: OVERVIEW & STATS */}
-              {activeTab === 'OVERVIEW' && player && (
+              {activeTab === 'OVERVIEW' && player && statsMode === 'LAST_SEASON' && !lastSeasonAvailable && (
+                <View style={styles.historyUnavailable}>
+                  <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
+                  <Text style={styles.historyUnavailableTitle}>
+                    NO {seasonLabel || getPreviousSeasonLabel()} PREMIER LEAGUE HISTORY
+                  </Text>
+                  <Text style={styles.historyUnavailableCopy}>
+                    This player has no official FPL record for that season. This is expected for new signings and players promoted into the league.
+                  </Text>
+                </View>
+              )}
+
+              {activeTab === 'OVERVIEW' && player && (statsMode !== 'LAST_SEASON' || lastSeasonAvailable) && (
                 <ScrollView showsVerticalScrollIndicator={false}>
                   {/* KPI Summary Grid */}
                   <View style={styles.kpiGrid}>
@@ -448,7 +485,7 @@ export default function PlayerCardModal({
                     </View>
                     <View style={styles.kpiCard}>
                       <Text style={styles.kpiValue}>{displayStat(player.points_per_game)}</Text>
-                      <Text style={styles.kpiLabel}>AVG / MATCH</Text>
+                      <Text style={styles.kpiLabel}>{statsMode === 'LAST_SEASON' ? 'PTS / START' : 'AVG / MATCH'}</Text>
                     </View>
                     <View style={styles.kpiCard}>
                       <Text style={styles.kpiValue}>
@@ -542,16 +579,25 @@ export default function PlayerCardModal({
                         )}
                         {player.element_type !== 'GKP' && (
                           <View style={styles.statRow}>
-                            <Text style={styles.statLabel}>FPL DEFCON Points</Text>
-                            <Text style={styles.statVal}>
-                              {displayStat(
-                                lastSeasonDefconPoints ??
-                                  player.defensive_contribution_points ??
-                                  player.defcon_points ??
-                                  player.total_defcon_points
-                              )}
-                            </Text>
+                            <Text style={styles.statLabel}>Defensive Contributions</Text>
+                            <Text style={styles.statVal}>{displayStat(player.defensive_contribution)}</Text>
                           </View>
+                        )}
+                        {player.element_type !== 'GKP' && (
+                          <>
+                            <View style={styles.statRow}>
+                              <Text style={styles.statLabel}>Clearances, Blocks &amp; Interceptions</Text>
+                              <Text style={styles.statVal}>{displayStat(player.clearances_blocks_interceptions)}</Text>
+                            </View>
+                            <View style={styles.statRow}>
+                              <Text style={styles.statLabel}>Recoveries</Text>
+                              <Text style={styles.statVal}>{displayStat(player.recoveries)}</Text>
+                            </View>
+                            <View style={styles.statRow}>
+                              <Text style={styles.statLabel}>Tackles</Text>
+                              <Text style={styles.statVal}>{displayStat(player.tackles)}</Text>
+                            </View>
+                          </>
                         )}
                         <View style={styles.statRow}>
                           <Text style={styles.statLabel}>Bonus Points</Text>
@@ -560,7 +606,7 @@ export default function PlayerCardModal({
                       </View>
 
                       <Text style={styles.dataAvailabilityNote}>
-                        — means the statistic was not supplied in the stored player record.
+                        Official FPL previous-season totals. Defensive contributions are raw actions; historical custom tier points cannot be reconstructed from aggregate data.
                       </Text>
                     </>
                   )}
@@ -930,6 +976,27 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
 
   loaderBox: { height: 260, justifyContent: 'center', alignItems: 'center' },
   bodyContainer: { minHeight: 280, maxHeight: 380 },
+  historyUnavailable: {
+    minHeight: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  historyUnavailableTitle: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  historyUnavailableCopy: {
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: 8,
+  },
 
   kpiGrid: { flexDirection: 'row', gap: 6, marginBottom: 16 },
   kpiCard: {

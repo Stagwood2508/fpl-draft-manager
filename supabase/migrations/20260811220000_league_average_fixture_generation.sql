@@ -6,7 +6,47 @@ alter table public.league_fixtures
   add column if not exists is_league_average boolean not null default false;
 
 alter table public.league_fixtures
+  add column if not exists home_fpl_points integer not null default 0,
+  add column if not exists home_defcon_points integer not null default 0,
+  add column if not exists away_fpl_points integer not null default 0,
+  add column if not exists away_defcon_points integer not null default 0;
+
+alter table public.league_fixtures
   alter column away_user_id drop not null;
+
+-- Older odd-manager schedules represented the rotating bye with a null away
+-- manager. Convert those rows in place before enforcing the explicit fixture
+-- type, preserving any existing scores and fixture identifiers.
+update public.league_fixtures
+set
+  is_league_average = true,
+  away_team_name = 'League Average'
+where away_user_id is null
+  and home_user_id is not null;
+
+do $$
+begin
+  if exists (
+    select 1
+    from public.league_fixtures fixture
+    where fixture.home_user_id = fixture.away_user_id
+      and (
+        coalesce(fixture.is_finished, false)
+        or coalesce(fixture.home_score, 0) <> 0
+        or coalesce(fixture.away_score, 0) <> 0
+      )
+  ) then
+    raise exception 'SCORED_SELF_FIXTURE_REQUIRES_MANUAL_RECOVERY';
+  end if;
+end;
+$$;
+
+update public.league_fixtures
+set
+  away_user_id = null,
+  away_team_name = 'League Average',
+  is_league_average = true
+where home_user_id = away_user_id;
 
 alter table public.league_fixtures
   drop constraint if exists league_fixtures_valid_opponent_check;
@@ -247,9 +287,9 @@ begin
        from generate_series(1, 38) as expected_gameweek(gameweek)
        cross join unnest(v_manager_ids) manager(user_id)
        left join appearances appearance
-         on appearance.gameweek = gameweek
+         on appearance.gameweek = expected_gameweek.gameweek
         and appearance.user_id = manager.user_id
-       group by gameweek, manager.user_id
+       group by expected_gameweek.gameweek, manager.user_id
        having count(appearance.user_id) <> 1
      )
      and not exists (
@@ -326,9 +366,9 @@ begin
     from generate_series(1, 38) as expected_gameweek(gameweek)
     cross join unnest(v_manager_ids) manager(user_id)
     left join appearances appearance
-      on appearance.gameweek = gameweek
+      on appearance.gameweek = expected_gameweek.gameweek
      and appearance.user_id = manager.user_id
-    group by gameweek, manager.user_id
+    group by expected_gameweek.gameweek, manager.user_id
     having count(appearance.user_id) <> 1
   ) then
     raise exception 'MANAGER_GAMEWEEK_COVERAGE_VALIDATION_FAILED';

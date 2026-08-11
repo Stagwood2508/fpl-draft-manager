@@ -6,6 +6,169 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const requestHeaders = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+};
+
+const previousSeasonLabel = () => {
+  const now = new Date();
+  const endingYear = now.getUTCMonth() >= 6
+    ? now.getUTCFullYear()
+    : now.getUTCFullYear() - 1;
+  return `${endingYear - 1}/${String(endingYear).slice(-2)}`;
+};
+
+const fetchJsonWithRetry = async (url: string, attempts = 4): Promise<any> => {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: requestHeaders });
+      if (response.ok) return await response.json();
+      if (response.status !== 429 && response.status < 500) {
+        throw new Error(`FPL API responded with status ${response.status}`);
+      }
+      lastError = new Error(`FPL API responded with status ${response.status}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 350));
+    }
+  }
+
+  throw lastError || new Error("FPL API request failed");
+};
+
+const syncSeasonHistory = async (
+  supabase: ReturnType<typeof createClient>,
+  seasonName: string,
+) => {
+  const [draftBootstrap, standardBootstrap] = await Promise.all([
+    fetchJsonWithRetry("https://draft.premierleague.com/api/bootstrap-static"),
+    fetchJsonWithRetry("https://fantasy.premierleague.com/api/bootstrap-static/"),
+  ]);
+
+  const draftPlayers = Array.isArray(draftBootstrap?.elements)
+    ? draftBootstrap.elements
+    : [];
+  const standardPlayers = Array.isArray(standardBootstrap?.elements)
+    ? standardBootstrap.elements
+    : [];
+  const standardByCode = new Map<number, any>(
+    standardPlayers.map((player: any) => [Number(player.code), player]),
+  );
+
+  let imported = 0;
+  let noHistory = 0;
+  let failed = 0;
+  const failures: Array<{ player_code: number; reason: string }> = [];
+  const batchSize = 10;
+
+  for (let offset = 0; offset < draftPlayers.length; offset += batchSize) {
+    const batch = draftPlayers.slice(offset, offset + batchSize);
+    const results = await Promise.all(batch.map(async (draftPlayer: any) => {
+      const playerCode = Number(draftPlayer.code);
+      const standardPlayer = standardByCode.get(playerCode);
+      if (!standardPlayer) {
+        return { status: "failed", playerCode, reason: "No standard FPL code match" };
+      }
+
+      try {
+        const summary = await fetchJsonWithRetry(
+          `https://fantasy.premierleague.com/api/element-summary/${standardPlayer.id}/`,
+        );
+        const history = (Array.isArray(summary?.history_past) ? summary.history_past : [])
+          .find((row: any) => row.season_name === seasonName);
+
+        if (!history) return { status: "no_history", playerCode };
+
+        return {
+          status: "ready",
+          row: {
+            player_code: playerCode,
+            current_player_id: Number(draftPlayer.id),
+            standard_fpl_element_id: Number(standardPlayer.id),
+            season_name: seasonName,
+            start_cost: Number(history.start_cost || 0),
+            end_cost: Number(history.end_cost || 0),
+            total_points: Number(history.total_points || 0),
+            minutes: Number(history.minutes || 0),
+            starts: Number(history.starts || 0),
+            goals_scored: Number(history.goals_scored || 0),
+            assists: Number(history.assists || 0),
+            clean_sheets: Number(history.clean_sheets || 0),
+            goals_conceded: Number(history.goals_conceded || 0),
+            own_goals: Number(history.own_goals || 0),
+            penalties_saved: Number(history.penalties_saved || 0),
+            penalties_missed: Number(history.penalties_missed || 0),
+            yellow_cards: Number(history.yellow_cards || 0),
+            red_cards: Number(history.red_cards || 0),
+            saves: Number(history.saves || 0),
+            bonus: Number(history.bonus || 0),
+            bps: Number(history.bps || 0),
+            influence: Number(history.influence || 0),
+            creativity: Number(history.creativity || 0),
+            threat: Number(history.threat || 0),
+            ict_index: Number(history.ict_index || 0),
+            clearances_blocks_interceptions: Number(history.clearances_blocks_interceptions || 0),
+            recoveries: Number(history.recoveries || 0),
+            tackles: Number(history.tackles || 0),
+            defensive_contribution: Number(history.defensive_contribution || 0),
+            expected_goals: Number(history.expected_goals || 0),
+            expected_assists: Number(history.expected_assists || 0),
+            expected_goal_involvements: Number(history.expected_goal_involvements || 0),
+            expected_goals_conceded: Number(history.expected_goals_conceded || 0),
+            source_synced_at: new Date().toISOString(),
+          },
+        };
+      } catch (error) {
+        return {
+          status: "failed",
+          playerCode,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }));
+
+    const rows = results
+      .filter((result: any) => result.status === "ready")
+      .map((result: any) => result.row);
+    noHistory += results.filter((result: any) => result.status === "no_history").length;
+
+    results.filter((result: any) => result.status === "failed").forEach((result: any) => {
+      failed += 1;
+      if (failures.length < 20) {
+        failures.push({ player_code: result.playerCode, reason: result.reason });
+      }
+    });
+
+    if (rows.length > 0) {
+      const { error } = await supabase
+        .from("player_season_stats")
+        .upsert(rows, { onConflict: "player_code,season_name" });
+      if (error) throw error;
+      imported += rows.length;
+    }
+
+    if (offset + batchSize < draftPlayers.length) {
+      await new Promise((resolve) => setTimeout(resolve, 75));
+    }
+  }
+
+  return {
+    success: failed === 0,
+    mode: "history",
+    season: seasonName,
+    players_checked: draftPlayers.length,
+    records_imported: imported,
+    no_history: noHistory,
+    failed,
+    failures,
+  };
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -23,8 +186,31 @@ serve(async (req) => {
       );
     }
 
-    // 1. Parse target gameweek from URL query params or JSON body (default to GW1)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, string>;
+    const supabaseSecretKey =
+      secretKeys.custom_fpl_app_secretkey2808 || Object.values(secretKeys)[0];
+
+    if (!supabaseSecretKey) {
+      throw new Error("SUPABASE_SECRET_KEYS is not configured.");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseSecretKey);
+
+    // History imports use the same secret-protected endpoint as live-stat sync.
     const url = new URL(req.url);
+    if (url.searchParams.get("mode") === "history") {
+      const result = await syncSeasonHistory(
+        supabase,
+        url.searchParams.get("season") || previousSeasonLabel(),
+      );
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: result.failed === 0 ? 200 : 207,
+      });
+    }
+
+    // 1. Parse target gameweek from URL query params or JSON body (default to GW1)
     let gameweek = url.searchParams.get("gameweek");
 
     if (!gameweek && req.method === "POST") {
@@ -42,9 +228,6 @@ serve(async (req) => {
     const draftApiUrl = `https://draft.premierleague.com/api/event/${gwNumber}/live`;
     console.log(`Fetching live stats from: ${draftApiUrl}`);
 
-    const requestHeaders = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    };
     const [fplResponse, bootstrapResponse] = await Promise.all([
       fetch(draftApiUrl, { headers: requestHeaders }),
       fetch("https://draft.premierleague.com/api/bootstrap-static", { headers: requestHeaders }),
@@ -131,18 +314,6 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       });
     }
-
-    // 4. Initialize Supabase Admin Client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}") as Record<string, string>;
-    const supabaseSecretKey =
-      secretKeys.custom_fpl_app_secretkey2808 || Object.values(secretKeys)[0];
-
-    if (!supabaseSecretKey) {
-      throw new Error("SUPABASE_SECRET_KEYS is not configured.");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseSecretKey);
 
     const eventEnvelope = bootstrapData.events || {};
     const eventRows = Array.isArray(eventEnvelope)

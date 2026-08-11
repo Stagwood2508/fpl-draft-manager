@@ -12,7 +12,7 @@ returns table (
   player_id integer,
   player_name text,
   club_name text,
-  position text,
+  "position" text,
   minutes integer,
   fpl_points integer,
   defcon_points integer,
@@ -127,7 +127,7 @@ as $$
       player.id as player_id,
       coalesce(player.web_name, 'Unknown player')::text as player_name,
       coalesce(player.team_name, '')::text as club_name,
-      upper(coalesce(player.element_type::text, 'FWD')) as position,
+      upper(coalesce(player.element_type::text, 'FWD')) as "position",
       coalesce(stats.minutes, 0)::integer as minutes,
       coalesce(stats.total_points, 0)::integer as fpl_points,
       public.calculate_player_defcon_points(
@@ -202,7 +202,7 @@ as $$
     score.player_id,
     score.player_name,
     score.club_name,
-    score.position,
+    score."position",
     score.minutes,
     score.fpl_points,
     score.defcon_points,
@@ -256,7 +256,7 @@ as $$
   order by
     score.fixture_id,
     case score.fixture_side when 'HOME' then 1 else 2 end,
-    case score.position when 'GKP' then 1 when 'GK' then 1 when '1' then 1 when 'DEF' then 2 when '2' then 2 when 'MID' then 3 when '3' then 3 else 4 end,
+    case score."position" when 'GKP' then 1 when 'GK' then 1 when '1' then 1 when 'DEF' then 2 when '2' then 2 when 'MID' then 3 when '3' then 3 else 4 end,
     score.player_name;
 $$;
 

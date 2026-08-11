@@ -29,8 +29,13 @@
 
 ### 2. Better player interaction
 
-- [x] Support rank and points sorting.
+- [x] Support Draft Rank and previous-season statistical sorting.
+  - The compact selector includes points, goals, assists, clean sheets, starts, minutes, bonus, ICT, xG, xA, defensive contributions, CBI, recoveries, tackles and saves.
+  - The selected measure is shown on every player row, with players lacking previous-season history placed below players with genuine data.
 - [x] Expand the player detail view with richer draft-relevant information, including a previous-season scouting card.
+  - Official 2025/26 FPL history is stored separately from current-season totals and matched to Draft players by stable player code.
+  - The card adapts its metrics by position and includes ICT, expected returns, defensive contributions, CBI, recoveries and tackles where relevant.
+  - New and promoted players receive an explicit no-history state instead of misleading zero or current-season figures.
 - [x] Add web hover states.
 - [x] Make draft and watchlist actions more distinct.
 - [x] Add a quick Select action that still requires confirmation.
@@ -254,7 +259,7 @@ The implementation is complete in the working tree. Deployment and a realistic d
 - [x] Balance repeated home and away assignments across the season where the schedule permits.
 - [x] Make fixture generation repeat-safe and prevent regeneration after official season activity begins unless an authorised recovery action is used.
 - [x] Add database validation and rollback-safe tests covering league sizes from 2 to 12, all Gameweeks, opponent rotation, home/away balance, invalid fixtures and manager double-booking.
-- [ ] Apply the fixture migration and deploy the updated live-stat synchronization function.
+- [x] Apply the fixture migration and deploy the updated live-stat synchronization function.
 - [ ] Complete even- and odd-manager fixture dress rehearsals against the deployed environment.
 
 ### Live Gameweek and Match Centre
@@ -273,7 +278,7 @@ The implementation is complete in the working tree. It shares the fixture-genera
 - [x] Show data freshness, stale-data warnings, retry states and provisional autosub messaging.
 - [x] Show each manager's current-Gameweek score in the live standings table, with rank movement from the official table.
 - [x] Preserve league-average fixture handling without creating a synthetic player lineup.
-- [ ] Apply the database migrations and deploy the updated live-stat synchronization function.
+- [x] Apply the database migrations and deploy the updated live-stat synchronization function.
 - [ ] Run a live dress rehearsal covering stat updates, provisional bonus, DEFCON, stale recovery, completed results, autosubs and standings finalisation.
 
 ## V2 / future development
