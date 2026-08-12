@@ -1,6 +1,10 @@
 begin;
 
 do $$
+declare
+  v_result jsonb;
+  v_actor uuid := pg_catalog.gen_random_uuid();
+  v_other_manager uuid := pg_catalog.gen_random_uuid();
 begin
   if not (
     select c.relrowsecurity and c.relforcerowsecurity
@@ -76,6 +80,23 @@ begin
       )
   ) then
     raise exception 'a public trigger function is still directly executable';
+  end if;
+
+  perform pg_catalog.set_config('request.jwt.claim.sub', v_actor::text, true);
+  perform pg_catalog.set_config(
+    'request.jwt.claims',
+    jsonb_build_object('sub', v_actor, 'role', 'authenticated')::text,
+    true
+  );
+
+  v_result := public.execute_draft_pick(
+    pg_catalog.gen_random_uuid(),
+    v_other_manager,
+    -1
+  );
+
+  if v_result ->> 'error' <> 'CALLER_IDENTITY_MISMATCH' then
+    raise exception 'legacy draft submission accepted a caller identity mismatch: %', v_result;
   end if;
 end;
 $$;

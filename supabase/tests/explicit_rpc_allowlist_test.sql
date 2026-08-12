@@ -10,7 +10,7 @@ declare
     'commissioner_control_draft', 'commissioner_correct_gameweek_lineup',
     'commissioner_correct_latest_pick', 'commissioner_reorder_draft',
     'commissioner_restart_draft', 'counter_trade_package',
-    'create_trade_package', 'execute_draft_pick',
+    'create_trade_package', 'execute_draft_pick', 'submit_draft_pick',
     'get_league_gameweek_player_scores', 'get_league_live_fixture_scores',
     'get_league_luck_standings', 'get_league_standings_v2',
     'get_manager_h2h_matrix', 'get_manager_squad_breakdown',
@@ -75,6 +75,28 @@ begin
        'authenticated', 'public.auto_initialize_drafts()', 'EXECUTE'
      ) then
     raise exception 'the server-owned draft starter is browser-executable';
+  end if;
+
+  if pg_catalog.has_function_privilege(
+       'authenticated',
+       'public.execute_draft_pick_internal(uuid,uuid,integer)',
+       'EXECUTE'
+     ) then
+    raise exception 'authenticated can execute the internal draft engine';
+  end if;
+
+  if pg_catalog.to_regprocedure(
+       'public.submit_draft_pick(uuid,integer)'
+     ) is null then
+    raise exception 'secure manager draft submission RPC is missing';
+  end if;
+
+  if not pg_catalog.has_function_privilege(
+       'authenticated',
+       'public.submit_draft_pick(uuid,integer)',
+       'EXECUTE'
+     ) then
+    raise exception 'authenticated cannot submit their own draft pick';
   end if;
 
   if not exists (

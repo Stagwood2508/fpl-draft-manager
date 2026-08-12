@@ -2061,9 +2061,8 @@ useEffect(() => {
         return;
       }
 
-      const { data: pickResult, error: pickError } = await supabase.rpc('execute_draft_pick', {
+      const { data: pickResult, error: pickError } = await supabase.rpc('submit_draft_pick', {
         p_league_id: leagueId,
-        p_user_id: myUserId,
         p_player_id: player.id,
       });
 
