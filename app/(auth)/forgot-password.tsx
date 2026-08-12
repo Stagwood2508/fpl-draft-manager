@@ -20,7 +20,9 @@ export default function ForgotPasswordScreen() {
     if (!cleanEmail) return;
     try {
       setLoading(true);
-      const redirectTo = Linking.createURL('/(auth)/reset-password');
+      // Route groups are an internal Expo Router detail and must not be part of
+      // the external URL sent in the recovery email.
+      const redirectTo = Linking.createURL('reset-password');
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
       if (error) throw error;
       setSent(true);

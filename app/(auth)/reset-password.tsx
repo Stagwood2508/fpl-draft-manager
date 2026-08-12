@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -16,6 +16,8 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const recoveryUrl = Linking.useLinkingURL();
+  const processedUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -24,11 +26,25 @@ export default function ResetPasswordScreen() {
       try {
         if (!url) throw new Error('This password-reset link is incomplete or has expired.');
 
-        const parsedUrl = new URL(url);
-        const code = parsedUrl.searchParams.get('code');
-        const fragment = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
-        const accessToken = fragment.get('access_token');
-        const refreshToken = fragment.get('refresh_token');
+        const queryStart = url.indexOf('?');
+        const fragmentStart = url.indexOf('#');
+        const queryEnd = fragmentStart >= 0 ? fragmentStart : url.length;
+        const query = new URLSearchParams(
+          queryStart >= 0 ? url.slice(queryStart + 1, queryEnd) : ''
+        );
+        const fragment = new URLSearchParams(
+          fragmentStart >= 0 ? url.slice(fragmentStart + 1) : ''
+        );
+        const getParam = (name: string) => query.get(name) ?? fragment.get(name);
+
+        const providerError = getParam('error_description') ?? getParam('error');
+        if (providerError) {
+          throw new Error(providerError.replace(/\+/g, ' '));
+        }
+
+        const code = getParam('code');
+        const accessToken = getParam('access_token');
+        const refreshToken = getParam('refresh_token');
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -52,16 +68,17 @@ export default function ResetPasswordScreen() {
       }
     };
 
-    void Linking.getInitialURL().then(establishRecoverySession);
-    const subscription = Linking.addEventListener('url', ({ url }) => {
-      void establishRecoverySession(url);
-    });
+    if (recoveryUrl && processedUrlRef.current !== recoveryUrl) {
+      processedUrlRef.current = recoveryUrl;
+      void establishRecoverySession(recoveryUrl);
+    } else if (!recoveryUrl) {
+      setRecoveryError('This password-reset link is incomplete or has expired.');
+    }
 
     return () => {
       mounted = false;
-      subscription.remove();
     };
-  }, []);
+  }, [recoveryUrl]);
 
   const updatePassword = async () => {
     if (password.length < 8 || password !== confirmPassword) {

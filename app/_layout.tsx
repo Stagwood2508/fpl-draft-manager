@@ -180,6 +180,8 @@ function RootLayoutContent() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/forgot-password" options={{ title: 'RESET PASSWORD' }} />
+          <Stack.Screen name="(auth)/reset-password" options={{ title: 'RESET PASSWORD' }} />
           <Stack.Screen name="(admin)/league-announcements" options={{ headerShown: false }} />
           <Stack.Screen name="(admin)/gameweek-simulator" options={{ title: 'GAMEWEEK REHEARSAL' }} />
           <Stack.Screen name="draft-room/index" options={{ headerShown: false }} />
