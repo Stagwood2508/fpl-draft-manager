@@ -19,7 +19,7 @@ import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { supabase } from '@/utils/supabase';
 
-type RunPhase = 'PRE_DEADLINE' | 'LOCKED' | 'LIVE' | 'FINISHED' | 'AUTOSUBS' | 'WAIVERS_OPEN';
+type RunPhase = 'PRE_DEADLINE' | 'WAIVERS_PROCESSED' | 'LOCKED' | 'LIVE' | 'FINISHED' | 'AUTOSUBS' | 'WAIVERS_OPEN';
 
 interface SimulationRun {
   id: string;
@@ -64,8 +64,23 @@ interface IntegrityCheck {
   detail: string;
 }
 
+interface WaiverResult {
+  claim_id: string;
+  manager_id: string;
+  manager_name: string;
+  priority_order: number;
+  status: string;
+  failure_reason: string | null;
+  player_in_id: number;
+  player_in_name: string;
+  player_out_id: number;
+  player_out_name: string;
+  processed_at: string | null;
+}
+
 const PHASE_ACTIONS: Partial<Record<RunPhase, { action: string; label: string; icon: keyof typeof Ionicons.glyphMap }>> = {
-  PRE_DEADLINE: { action: 'LOCK_LINEUPS', label: 'Lock lineups', icon: 'lock-closed' },
+  PRE_DEADLINE: { action: 'PROCESS_WAIVERS', label: 'Process waivers', icon: 'swap-vertical' },
+  WAIVERS_PROCESSED: { action: 'LOCK_LINEUPS', label: 'Lock lineups', icon: 'lock-closed' },
   LOCKED: { action: 'START_LIVE', label: 'Start live scoring', icon: 'play' },
   LIVE: { action: 'FINISH_GAMEWEEK', label: 'Finish Gameweek', icon: 'flag' },
   FINISHED: { action: 'PROCESS_AUTOSUBS', label: 'Process autosubs', icon: 'swap-horizontal' },
@@ -135,6 +150,7 @@ export default function GameweekSimulatorScreen() {
   const [search, setSearch] = useState('');
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [checks, setChecks] = useState<IntegrityCheck[]>([]);
+  const [waiverResults, setWaiverResults] = useState<WaiverResult[]>([]);
 
   const run = status?.active_run ?? null;
 
@@ -153,6 +169,12 @@ export default function GameweekSimulatorScreen() {
     setChecks(((data as any)?.checks ?? []) as IntegrityCheck[]);
   }, []);
 
+  const loadWaiverResults = useCallback(async (runId: string) => {
+    const { data, error } = await supabase.rpc('get_gameweek_simulation_waiver_results', { p_run_id: runId });
+    if (error) throw error;
+    setWaiverResults((data ?? []) as WaiverResult[]);
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!activeLeagueId) {
       setLoading(false);
@@ -168,10 +190,15 @@ export default function GameweekSimulatorScreen() {
         ?? next.available_gameweeks?.[0];
       setSelectedGameweek((current) => current ?? preferred?.gameweek ?? null);
       if (next.active_run) {
-        await Promise.all([loadPlayers(next.active_run.id), loadChecks(next.active_run.id)]);
+        await Promise.all([
+          loadPlayers(next.active_run.id),
+          loadChecks(next.active_run.id),
+          loadWaiverResults(next.active_run.id),
+        ]);
       } else {
         setPlayers([]);
         setChecks([]);
+        setWaiverResults([]);
         setSelectedPlayer(null);
       }
     } catch (error: any) {
@@ -179,7 +206,7 @@ export default function GameweekSimulatorScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeLeagueId, loadChecks, loadPlayers]);
+  }, [activeLeagueId, loadChecks, loadPlayers, loadWaiverResults]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -323,7 +350,7 @@ export default function GameweekSimulatorScreen() {
                 <TouchableOpacity style={styles.refreshButton} onPress={() => void refresh()} disabled={working}><Ionicons name="refresh" size={17} color={colors.textPrimary} /></TouchableOpacity>
               </View>
               <View style={styles.phaseTrack}>
-                {(['PRE_DEADLINE','LOCKED','LIVE','FINISHED','AUTOSUBS','WAIVERS_OPEN'] as RunPhase[]).map((phase) => (
+                {(['PRE_DEADLINE','WAIVERS_PROCESSED','LOCKED','LIVE','FINISHED','AUTOSUBS','WAIVERS_OPEN'] as RunPhase[]).map((phase) => (
                   <View key={phase} style={[styles.phaseDot, phase === run.phase && styles.phaseDotActive]} />
                 ))}
               </View>
@@ -372,6 +399,40 @@ export default function GameweekSimulatorScreen() {
               ))}
             </View>
 
+            <View style={styles.card}>
+              <View style={styles.phaseHeader}>
+                <View>
+                  <Text style={styles.sectionTitle}>Waiver outcomes</Text>
+                  <Text style={styles.hint}>{waiverResults.length} claims recorded for GW {run.gameweek}</Text>
+                </View>
+                <TouchableOpacity onPress={() => router.push('/(tabs)/market/waiver-history')}>
+                  <Text style={styles.linkText}>Full history</Text>
+                </TouchableOpacity>
+              </View>
+              {waiverResults.length === 0 ? (
+                <Text style={styles.body}>No waiver claims were recorded for this rehearsal Gameweek.</Text>
+              ) : waiverResults.map((result) => {
+                const successful = result.status === 'SUCCESSFUL';
+                return (
+                  <View key={result.claim_id} style={styles.waiverResultRow}>
+                    <Ionicons
+                      name={successful ? 'checkmark-circle' : 'close-circle'}
+                      size={19}
+                      color={successful ? colors.accent : colors.danger}
+                    />
+                    <View style={styles.flex}>
+                      <View style={styles.waiverResultHeader}>
+                        <Text style={styles.checkLabel}>{result.manager_name} · Priority #{result.priority_order}</Text>
+                        <Text style={[styles.waiverStatus, { color: successful ? colors.accent : colors.danger }]}>{result.status}</Text>
+                      </View>
+                      <Text style={styles.checkDetail}>{result.player_in_name} in · {result.player_out_name} out</Text>
+                      {result.failure_reason ? <Text style={styles.failureReason}>{result.failure_reason.replaceAll('_', ' ')}</Text> : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
             <TouchableOpacity style={styles.dangerButton} onPress={reset} disabled={working}>
               <Ionicons name="return-down-back" size={17} color={colors.danger} /><Text style={styles.dangerButtonText}>Restore pre-rehearsal snapshot</Text>
             </TouchableOpacity>
@@ -413,6 +474,10 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   subheading: { ...appTypography.label, color: colors.textSecondary, marginTop: 4 }, fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, field: { width: '31%', minWidth: 92, flexGrow: 1 }, fieldLabel: { ...appTypography.metadata, color: colors.textMuted, marginBottom: 4 },
   numberInput: { minHeight: 38, borderRadius: appRadius.small, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundElevated, color: colors.textPrimary, paddingHorizontal: 9 },
   linkText: { ...appTypography.body, color: colors.accent }, checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 }, checkLabel: { ...appTypography.body, color: colors.textPrimary }, checkDetail: { ...appTypography.metadata, color: colors.textMuted, marginTop: 2 },
+  waiverResultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
+  waiverResultHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  waiverStatus: { ...appTypography.label, fontSize: 8 },
+  failureReason: { ...appTypography.metadata, color: colors.danger, marginTop: 3, textTransform: 'capitalize' },
   dangerButton: { minHeight: 44, borderRadius: appRadius.medium, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.dangerBorder, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }, dangerButtonText: { ...appTypography.body, color: colors.danger },
   emptyCard: { margin: 20, padding: 24, borderRadius: appRadius.large, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', gap: 12 }, emptyTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
 });
