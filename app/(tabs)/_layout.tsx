@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import SettingsDropdown from '@/components/SettingsDropdown';
 import NotificationBell from '@/components/NotificationBell';
+import SimulationModeBadge from '@/components/SimulationModeBadge';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -115,6 +116,7 @@ headerRightContainerStyle: {
 
         headerRight: () => (
           <View style={styles.headerActions}>
+            <SimulationModeBadge />
             <NotificationBell />
             <SettingsDropdown />
           </View>

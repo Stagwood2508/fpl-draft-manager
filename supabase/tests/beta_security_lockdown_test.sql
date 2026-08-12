@@ -53,6 +53,20 @@ begin
     raise exception 'authenticated cannot execute league joins';
   end if;
 
+  if pg_catalog.has_function_privilege(
+       'anon', 'public.start_gameweek_simulation(uuid,integer,integer)', 'EXECUTE'
+     ) or pg_catalog.has_function_privilege(
+       'anon', 'public.reset_gameweek_simulation(uuid,text)', 'EXECUTE'
+     ) then
+    raise exception 'anon can execute the Gameweek rehearsal harness';
+  end if;
+
+  if pg_catalog.has_function_privilege(
+       'authenticated', 'public.restore_gameweek_simulation_internal(uuid,text)', 'EXECUTE'
+     ) then
+    raise exception 'authenticated can bypass commissioner-controlled simulation reset';
+  end if;
+
   if not exists (
     select 1
     from pg_catalog.pg_class c

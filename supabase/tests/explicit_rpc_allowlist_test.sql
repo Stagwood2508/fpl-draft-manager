@@ -15,6 +15,10 @@ declare
     'get_league_luck_standings', 'get_league_standings_v2',
     'get_manager_h2h_matrix', 'get_manager_squad_breakdown',
     'get_manager_trends_data', 'get_my_waiver_status',
+    'get_gameweek_simulation_status', 'get_gameweek_simulation_players',
+    'get_gameweek_simulation_integrity', 'start_gameweek_simulation',
+    'advance_gameweek_simulation', 'set_gameweek_simulation_player_stats',
+    'reset_gameweek_simulation',
     'join_league_with_validation', 'mark_draft_manager_present',
     'reorder_waiver_claims', 'reorder_watchlist', 'save_manager_lineup',
     'set_draft_room_ready', 'set_transfer_listing', 'submit_waiver_claim',
@@ -83,6 +87,18 @@ begin
        'EXECUTE'
      ) then
     raise exception 'authenticated can execute the internal draft engine';
+  end if;
+
+  if pg_catalog.has_function_privilege(
+       'authenticated',
+       'public.restore_gameweek_simulation_internal(uuid,text)',
+       'EXECUTE'
+     ) or pg_catalog.has_function_privilege(
+       'authenticated',
+       'public.expire_gameweek_simulations()',
+       'EXECUTE'
+     ) then
+    raise exception 'authenticated can execute an internal simulation restore routine';
   end if;
 
   if pg_catalog.to_regprocedure(
