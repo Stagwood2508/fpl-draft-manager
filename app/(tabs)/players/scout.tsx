@@ -344,7 +344,7 @@ export default function PlayerPoolScreen() {
           WAIVER_WINDOW_NOT_FOUND: 'There is no open waiver window for this Gameweek.',
           TARGET_PLAYER_TAKEN: 'Another manager already owns this player.',
           DROP_PLAYER_NOT_OWNED: 'The player you selected to drop is no longer in your squad.',
-          DUPLICATE_PENDING_CLAIM: 'You already have a pending claim for this player.',
+          DUPLICATE_PENDING_CLAIM: 'You already have this exact player swap in your waiver queue.',
           POSITION_MISMATCH: 'That swap does not comply with this league’s roster rules.',
           CLAIM_CONFLICT: 'Your waiver queue changed at the same time. Refresh it and try again.',
         };
