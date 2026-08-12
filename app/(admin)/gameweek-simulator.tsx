@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -95,6 +96,31 @@ function resultError(data: any, fallback: string) {
   return data?.error ? String(data.error).replaceAll('_', ' ') : fallback;
 }
 
+function showMessage(title: string, message: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}
+
+function confirmAction(
+  title: string,
+  message: string,
+  confirmText: string,
+  action: () => void,
+  destructive = false,
+) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    if (window.confirm(`${title}\n\n${message}`)) action();
+    return;
+  }
+  Alert.alert(title, message, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: confirmText, style: destructive ? 'destructive' : 'default', onPress: action },
+  ]);
+}
+
 export default function GameweekSimulatorScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -149,7 +175,7 @@ export default function GameweekSimulatorScreen() {
         setSelectedPlayer(null);
       }
     } catch (error: any) {
-      Alert.alert('Simulator unavailable', error?.message ?? 'The simulator could not be loaded.');
+      showMessage('Simulator unavailable', error?.message ?? 'The simulator could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -164,7 +190,7 @@ export default function GameweekSimulatorScreen() {
       await task();
       await refresh();
     } catch (error: any) {
-      Alert.alert('Simulation action failed', error?.message ?? 'Please try again safely.');
+      showMessage('Simulation action failed', error?.message ?? 'Please try again safely.');
     } finally {
       setWorking(false);
     }
@@ -172,12 +198,11 @@ export default function GameweekSimulatorScreen() {
 
   const start = () => {
     if (!activeLeagueId || !selectedGameweek) return;
-    Alert.alert(
+    confirmAction(
       `Rehearse Gameweek ${selectedGameweek}?`,
       'The current league and Gameweek state will be snapshotted. Official live syncing pauses until you reset or the four-hour safety expiry is reached.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Start rehearsal', onPress: () => void perform(async () => {
+      'Start rehearsal',
+      () => void perform(async () => {
           const { data, error } = await supabase.rpc('start_gameweek_simulation', {
             p_league_id: activeLeagueId,
             p_gameweek: selectedGameweek,
@@ -185,8 +210,7 @@ export default function GameweekSimulatorScreen() {
           });
           if (error) throw error;
           if (!(data as any)?.success) throw new Error(resultError(data, 'The rehearsal could not start.'));
-        }) },
-      ],
+      }),
     );
   };
 
@@ -194,17 +218,14 @@ export default function GameweekSimulatorScreen() {
     if (!run) return;
     const next = PHASE_ACTIONS[run.phase];
     if (!next) return;
-    Alert.alert(next.label, 'Continue to the next controlled phase?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Continue', onPress: () => void perform(async () => {
+    confirmAction(next.label, 'Continue to the next controlled phase?', 'Continue', () => void perform(async () => {
         const { data, error } = await supabase.rpc('advance_gameweek_simulation', {
           p_run_id: run.id,
           p_action: next.action,
         });
         if (error) throw error;
         if (!(data as any)?.success) throw new Error(resultError(data, 'The phase could not be advanced.'));
-      }) },
-    ]);
+    }));
   };
 
   const applyStats = (preset: string, stats: Record<string, number> = {}) => {
@@ -223,20 +244,19 @@ export default function GameweekSimulatorScreen() {
 
   const reset = () => {
     if (!run) return;
-    Alert.alert(
+    confirmAction(
       'Reset rehearsal?',
       'This restores the pre-rehearsal Gameweek, player scores, fixtures, rosters, waivers and transactions. This cannot be undone.',
-      [
-        { text: 'Keep rehearsal', style: 'cancel' },
-        { text: 'Restore snapshot', style: 'destructive', onPress: () => void perform(async () => {
+      'Restore snapshot',
+      () => void perform(async () => {
           const { data, error } = await supabase.rpc('reset_gameweek_simulation', {
             p_run_id: run.id,
             p_reason: 'COMMISSIONER_RESET',
           });
           if (error) throw error;
           if (!(data as any)?.success) throw new Error(resultError(data, 'The snapshot could not be restored.'));
-        }) },
-      ],
+      }),
+      true,
     );
   };
 

@@ -202,6 +202,7 @@ useEffect(() => {
   const fetchTransactionContext = async () => {
     try {
       setLoading(true);
+      let activeWaiverGameweek: number | null = null;
       
 if (!userId) {
   throw new Error('Authentication failure.');
@@ -227,6 +228,7 @@ const currentLeagueId = leagueId;
 
       if (!waiverStatusError && waiverStatusData?.success) {
         setWaiverStatus(waiverStatusData as WaiverStatusSummary);
+        activeWaiverGameweek = waiverStatusData.gameweek ?? null;
       } else if (waiverStatusError?.code === 'PGRST202') {
         const [memberResponse, memberCountResponse, gameweekResponse, settingsResponse] = await Promise.all([
           supabase.from('league_members').select('draft_order').eq('league_id', currentLeagueId).eq('user_id', userId).maybeSingle(),
@@ -246,6 +248,7 @@ const currentLeagueId = leagueId;
           trade_cutoff_rule: settingsResponse.data?.trade_cutoff_rule || 'WAIVER_DEADLINE',
           dropped_player_rule: settingsResponse.data?.dropped_player_rule || 'NEXT_WAIVER',
         });
+        activeWaiverGameweek = gameweekResponse.data?.gameweek ?? null;
       }
 
       const { data: myRosterData } = await supabase
@@ -271,7 +274,7 @@ const currentLeagueId = leagueId;
       setPendingRequests((txnData || []) as unknown as TransactionRecord[]);
 
       if (activeTab === 'WAIVERS') {
-        const { data: claimsData, error: claimsErr } = await supabase
+        let claimsQuery = supabase
           .from('waiver_claims')
           .select(`
             id, priority_order,
@@ -280,7 +283,13 @@ const currentLeagueId = leagueId;
           `)
           .eq('user_id', userId)
           .eq('league_id', currentLeagueId)
-          .eq('status', 'pending')
+          .eq('status', 'pending');
+
+        if (activeWaiverGameweek) {
+          claimsQuery = claimsQuery.eq('gameweek', activeWaiverGameweek);
+        }
+
+        const { data: claimsData, error: claimsErr } = await claimsQuery
           .order('priority_order', { ascending: true });
 
         if (claimsErr) throw claimsErr;

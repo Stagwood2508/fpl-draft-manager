@@ -133,19 +133,14 @@ export default function PlayerPoolScreen() {
       // 2. Fetch Market Window Status & Active Gameweek
       let resolvedGameweek = 1;
       if (currentLeagueId) {
-        const { data: leagueGwData } = await supabase
-          .from('league_gameweeks')
-          .select('gameweek, status')
-          .eq('league_id', currentLeagueId)
-          .in('status', ['WAIVERS_OPEN', 'FREE_AGENCY', 'IN_PLAY'])
-          .order('gameweek', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const { data: waiverWindow } = await supabase.rpc('get_my_waiver_status', {
+          p_league_id: currentLeagueId,
+        });
 
-        if (leagueGwData) {
-          resolvedGameweek = leagueGwData.gameweek;
-          setCurrentGameweek(leagueGwData.gameweek);
-          setMarketStatus(leagueGwData.status as any);
+        if (waiverWindow?.success && waiverWindow.gameweek) {
+          resolvedGameweek = waiverWindow.gameweek;
+          setCurrentGameweek(waiverWindow.gameweek);
+          setMarketStatus(waiverWindow.market_status as any);
         }
       }
 
