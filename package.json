@@ -27,6 +27,7 @@
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.24",
+    "expo-splash-screen": "~31.0.13",
     "lucide-react-native": "^1.27.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

@@ -8,9 +8,9 @@
     "scheme": "fpldraftmanager",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0A0A"
+      "backgroundColor": "#0A1F14"
     },
     "web": {
       "favicon": "./assets/icon.png"
@@ -21,8 +21,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#0A0A0A"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A1F14"
       },
       "package": "com.andy.fpldraftmanager"
     },
@@ -38,7 +38,16 @@
         }
       ],
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A1F14",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 280,
+          "resizeMode": "contain"
+        }
+      ]
     ],
     "extra": {
       "router": {},
