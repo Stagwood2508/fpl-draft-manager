@@ -12,10 +12,10 @@ export default function Root({ children }: PropsWithChildren) {
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         />
 
-         <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.webmanifest?v=20260812" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=20260812" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=20260812" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=20260812" />
         <meta name="theme-color" content="#0A0A0A" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
