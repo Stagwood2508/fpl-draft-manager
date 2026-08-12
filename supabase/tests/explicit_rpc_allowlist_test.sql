@@ -5,6 +5,7 @@ declare
   v_expected_name text;
   v_expected_names constant text[] := array[
     'accept_trade_transaction', 'cancel_waiver_claim', 'can_view_profile',
+    'create_league_atomic', 'delete_my_account',
     'claim_free_agent_with_history', 'commissioner_assign_current_pick',
     'commissioner_control_draft', 'commissioner_correct_gameweek_lineup',
     'commissioner_correct_latest_pick', 'commissioner_reorder_draft',

@@ -4,11 +4,13 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
 
 export default function Index() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
+  const { refreshLeagueMembership } = useAppSession();
 
   useEffect(() => {
     async function checkAuthAndNavigate() {
@@ -18,13 +20,9 @@ export default function Index() {
         return;
       }
 
-      const { data: membership } = await supabase
-        .from('league_members')
-        .select('league_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+      const membershipExists = await refreshLeagueMembership();
 
-      if (membership?.league_id) {
+      if (membershipExists) {
         router.replace('/(tabs)/dashboard');
       } else {
         router.replace('/(auth)/onboarding');
@@ -32,7 +30,7 @@ export default function Index() {
     }
 
     checkAuthAndNavigate();
-  }, []);
+  }, [refreshLeagueMembership, router]);
 
   return (
     <View style={styles.container}>

@@ -47,90 +47,31 @@ export default function CreateLeagueScreen() {
         router.replace('/(auth)/login');
         return;
       }
-      const user = session.user;
-
-      const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-      // 1. Insert into leagues table
-      const { data: league, error: lErr } = await supabase
-        .from('leagues')
-        .insert({ 
-          name: cleanName, 
-          commissioner_id: user.id, 
-          status: 'PRE_DRAFT',
-          invite_code: inviteCode,
-          max_size: parseInt(size, 10) || 8
-        })
-        .select()
-        .single();
-
-      if (lErr) {
-        console.error('Error inserting league:', lErr);
-        throw lErr;
-      }
-      if (!league) throw new Error('League record could not be generated.');
-
-      // 2. Add commissioner to league_members
-      const { error: memberErr } = await supabase
-        .from('league_members')
-        .insert({ 
-          league_id: league.id, 
-          user_id: user.id,
-          team_name: cleanTeamName,
-          role: 'COMMISSIONER',
-          draft_order: 1
-        });
-
-      if (memberErr) {
-        if (memberErr.code === '23505') {
-          throw new Error('That team name is already taken in this league.');
+      const { data: createResult, error: createError } = await supabase.rpc(
+        'create_league_atomic',
+        {
+          p_name: cleanName,
+          p_team_name: cleanTeamName,
+          p_max_size: parseInt(size, 10) || 8,
+          p_roster_type: rosterType,
         }
-        console.error('Error inserting member:', memberErr);
-        throw memberErr;
+      );
+
+      if (createError) throw createError;
+
+      const result = Array.isArray(createResult) ? createResult[0] : createResult;
+      if (!result?.success || !result?.league_id || !result?.invite_code) {
+        throw new Error(result?.error || 'League record could not be generated.');
       }
-      
-      // 3. Seed Configurations (Saving roster_type choice)
-const { error: settingsErr } = await supabase
-  .from('league_settings')
-  .insert({
-    league_id: league.id,
-    draft_clock_duration: 60,
-    roster_type: rosterType,
-    trade_cutoff_rule: 'WAIVER_DEADLINE',
-    dropped_player_rule: 'NEXT_WAIVER',
-    initial_waiver_order_rule: 'REVERSE_DRAFT',
-  });
-
-if (settingsErr) {
-  console.error('Error creating league settings:', settingsErr);
-  throw settingsErr;
-}
-
-      // 4. Initialize draft session state
-const { error: draftSessionErr } = await supabase
-  .from('draft_sessions')
-  .insert({
-    league_id: league.id,
-    draft_status: 'WAITING_ROOM',
-    current_round: 1,
-    current_pick_index: 1,
-    current_picker_id: user.id,
-    pick_deadline: new Date().toISOString(),
-  });
-
-if (draftSessionErr) {
-  console.error('Error creating draft session:', draftSessionErr);
-  throw draftSessionErr;
-}
 
       // 5. 🌟 PERSIST NEW LEAGUE AS ACTIVE IN ASYNC STORAGE & LOCAL STORAGE
-      await AsyncStorage.setItem('active_league_id', league.id);
+      await AsyncStorage.setItem('active_league_id', result.league_id);
       if (Platform.OS === 'web') {
-        window.localStorage.setItem('active_league_id', league.id);
+        window.localStorage.setItem('active_league_id', result.league_id);
       }
 
-      setCreatedLeagueId(league.id);
-      setCreatedCode(inviteCode);
+      setCreatedLeagueId(result.league_id);
+      setCreatedCode(result.invite_code);
     } catch (err: any) {
       console.error('League Creation Crash:', JSON.stringify(err, null, 2));
       const exactErrorMsg = err?.message || err?.details || err?.hint || JSON.stringify(err);

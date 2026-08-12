@@ -36,7 +36,9 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
       "router": {},

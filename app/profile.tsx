@@ -84,6 +84,9 @@ export default function GenericProfileScreen() {
 
       // 2. Commit password updates if provided
       if (newPassword.trim()) {
+        if (newPassword.trim().length < 8) {
+          throw new Error('Your new password must be at least 8 characters long.');
+        }
         const { error: aErr } = await supabase.auth.updateUser({ password: newPassword });
         if (aErr) throw aErr;
         setNewPassword('');

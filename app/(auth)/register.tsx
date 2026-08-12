@@ -46,8 +46,8 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (password.length < 6) {
-      const msg = 'Password must be at least 6 characters long.';
+    if (password.length < 8) {
+      const msg = 'Password must be at least 8 characters long.';
       setErrorMessage(msg);
       notifyUser('Weak Password', msg);
       return;
@@ -92,7 +92,7 @@ export default function RegisterScreen() {
       if (err.message?.includes('User already registered')) {
         userMsg = 'An account with this email already exists. Try signing in instead.';
       } else if (err.message?.includes('Password should be at least')) {
-        userMsg = 'Password must be at least 6 characters long.';
+        userMsg = 'Password must be at least 8 characters long.';
       }
 
       setErrorMessage(userMsg);

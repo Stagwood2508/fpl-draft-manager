@@ -170,6 +170,10 @@ export default function LoginScreen() {
           Don't have an account? Create one
         </Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.resetLink} onPress={() => router.push('/(auth)/forgot-password')}>
+        <Text style={styles.resetText}>Forgot your password?</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -201,5 +205,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   btnPrimary: { backgroundColor: colors.accent, padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
   btnText: { color: colors.black, fontWeight: '900', fontSize: 14 },
   switchLink: { marginTop: 20, alignItems: 'center' },
-  switchText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' }
+  switchText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  resetLink: { marginTop: 14, alignItems: 'center' },
+  resetText: { color: colors.accent, fontSize: 13, fontWeight: '700' }
 });

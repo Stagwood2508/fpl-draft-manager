@@ -10,10 +10,12 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { AppColors, appRadius, appTypography } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
 
 export default function SettingsDropdown() {
   const router = useRouter();
   const { colors, resolvedMode, toggleMode } = useAppTheme();
+  const { activeLeagueId } = useAppSession();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -34,7 +36,7 @@ export default function SettingsDropdown() {
           throw userError;
         }
 
-        if (!user) {
+        if (!user || !activeLeagueId) {
           return;
         }
 
@@ -43,7 +45,7 @@ export default function SettingsDropdown() {
             .from('league_members')
             .select('role')
             .eq('user_id', user.id)
-            .limit(1)
+            .eq('league_id', activeLeagueId)
             .maybeSingle();
 
         if (membershipError) {
@@ -70,7 +72,7 @@ export default function SettingsDropdown() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [activeLeagueId]);
 
   const handleSignOut = async () => {
     if (signingOut) {
@@ -120,6 +122,14 @@ export default function SettingsDropdown() {
             }}
           >
             <Text style={styles.menuItemText}>👤 My Profile</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/feedback'); }}>
+            <Text style={styles.menuItemText}>Tester Feedback</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/account'); }}>
+            <Text style={styles.menuItemText}>Privacy & Account</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

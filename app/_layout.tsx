@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import {
   Platform,
   View,
@@ -23,12 +23,16 @@ import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { AppColors } from '@/constants/theme';
 import { AppearanceProvider } from '@/features/appearance/context/AppearanceContext';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
+import { installGlobalErrorReporting } from '@/utils/errorReporting';
 
 export default function RootLayout() {
   return (
     <AppearanceProvider>
       <AppSessionProvider>
-        <RootLayoutContent />
+        <AppErrorBoundary>
+          <RootLayoutContent />
+        </AppErrorBoundary>
       </AppSessionProvider>
     </AppearanceProvider>
   );
@@ -38,6 +42,7 @@ function RootLayoutContent() {
   const { colors, resolvedMode, appearanceReady } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const rawSegments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
 
   const {
@@ -62,6 +67,8 @@ function RootLayoutContent() {
     authInitialized &&
     fontsReady &&
     membershipReady;
+
+  useEffect(() => installGlobalErrorReporting(() => pathname), [pathname]);
 
   // Inject vector icon font declarations for Expo Web.
   useEffect(() => {
@@ -118,7 +125,9 @@ function RootLayoutContent() {
       currentSubSegment === 'onboarding' ||
       currentSubSegment === 'league-onboarding' ||
       currentSubSegment === 'create-league' ||
-      currentSubSegment === 'join-league';
+      currentSubSegment === 'join-league' ||
+      currentSubSegment === 'forgot-password' ||
+      currentSubSegment === 'reset-password';
 
     if (!sessionActive) {
       if (!inAuthGroup) {
