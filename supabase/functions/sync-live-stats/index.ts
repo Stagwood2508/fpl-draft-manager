@@ -291,6 +291,7 @@ serve(async (req) => {
         gameweek: gwNumber,
         total_points: stats.total_points ?? 0,
         minutes: stats.minutes ?? 0,
+        starts: stats.starts ?? 0,
         goals_scored: stats.goals_scored ?? 0,
         assists: stats.assists ?? 0,
         clean_sheets: stats.clean_sheets ?? 0,
@@ -311,6 +312,9 @@ serve(async (req) => {
         creativity: parseFloat(stats.creativity || "0.0"),
         threat: parseFloat(stats.threat || "0.0"),
         ict_index: parseFloat(stats.ict_index || "0.0"),
+        expected_goals: parseFloat(stats.expected_goals || "0.0"),
+        expected_assists: parseFloat(stats.expected_assists || "0.0"),
+        expected_goal_involvements: parseFloat(stats.expected_goal_involvements || "0.0"),
         updated_at: new Date().toISOString(),
       });
     }

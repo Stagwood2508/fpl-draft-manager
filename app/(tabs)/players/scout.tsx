@@ -10,7 +10,8 @@ import {
   Alert,
   Modal,
   ScrollView,
-  RefreshControl
+  RefreshControl,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
 interface PlayerAsset {
   id: number;
+  code?: number;
   web_name: string;
   first_name: string;
   second_name: string;
@@ -32,7 +34,123 @@ interface PlayerAsset {
   team_short_name?: string;
   element_type: string;
   total_points: number;
+  current_stats: PlayerStatLine;
+  last_season_stats: PlayerStatLine | null;
 }
+
+interface PlayerStatLine {
+  total_points: number;
+  minutes: number;
+  starts: number;
+  appearances: number;
+  goals_scored: number;
+  assists: number;
+  clean_sheets: number;
+  saves: number;
+  penalties_saved: number;
+  bonus: number;
+  defensive_contribution: number;
+  ict_index: number;
+  expected_goals: number;
+  expected_assists: number;
+  expected_goal_involvements: number;
+  recent_form: number;
+}
+
+type StatsPeriod = 'CURRENT' | 'LAST_SEASON';
+type OwnershipFilter = 'ALL' | 'AVAILABLE' | 'MINE' | 'OTHERS';
+type SortKey =
+  | 'TOTAL_POINTS' | 'FORM' | 'POINTS_PER_START' | 'MINUTES' | 'STARTS'
+  | 'GOALS' | 'ASSISTS' | 'GOAL_INVOLVEMENTS' | 'CLEAN_SHEETS'
+  | 'SAVES' | 'PENALTIES_SAVED' | 'BONUS' | 'DEFCON' | 'ICT'
+  | 'EXPECTED_GOALS' | 'EXPECTED_ASSISTS' | 'EXPECTED_INVOLVEMENTS';
+
+interface SortOption {
+  key: SortKey;
+  label: string;
+  shortLabel: string;
+  positions?: string[];
+  currentOnly?: boolean;
+  decimals?: number;
+}
+
+const SORT_OPTIONS: SortOption[] = [
+  { key: 'TOTAL_POINTS', label: 'Total points', shortLabel: 'PTS' },
+  { key: 'FORM', label: 'Recent form (last 5)', shortLabel: 'FORM', currentOnly: true, decimals: 1 },
+  { key: 'POINTS_PER_START', label: 'Points per start', shortLabel: 'PTS/ST', decimals: 1 },
+  { key: 'MINUTES', label: 'Minutes played', shortLabel: 'MINS' },
+  { key: 'STARTS', label: 'Starts', shortLabel: 'STARTS' },
+  { key: 'GOALS', label: 'Goals', shortLabel: 'GOALS', positions: ['DEF', 'MID', 'FWD'] },
+  { key: 'ASSISTS', label: 'Assists', shortLabel: 'AST', positions: ['DEF', 'MID', 'FWD'] },
+  { key: 'GOAL_INVOLVEMENTS', label: 'Goal involvements', shortLabel: 'G+A', positions: ['DEF', 'MID', 'FWD'] },
+  { key: 'CLEAN_SHEETS', label: 'Clean sheets', shortLabel: 'CS', positions: ['GKP', 'DEF'] },
+  { key: 'SAVES', label: 'Saves', shortLabel: 'SAVES', positions: ['GKP'] },
+  { key: 'PENALTIES_SAVED', label: 'Penalties saved', shortLabel: 'PENS', positions: ['GKP'] },
+  { key: 'BONUS', label: 'Bonus points', shortLabel: 'BONUS' },
+  { key: 'DEFCON', label: 'Defensive contributions', shortLabel: 'DEFCON', positions: ['DEF', 'MID', 'FWD'] },
+  { key: 'ICT', label: 'ICT Index', shortLabel: 'ICT', decimals: 1 },
+  { key: 'EXPECTED_GOALS', label: 'Expected goals', shortLabel: 'xG', decimals: 2 },
+  { key: 'EXPECTED_ASSISTS', label: 'Expected assists', shortLabel: 'xA', decimals: 2 },
+  { key: 'EXPECTED_INVOLVEMENTS', label: 'Expected goal involvements', shortLabel: 'xGI', decimals: 2 },
+];
+
+const EMPTY_STAT_LINE: PlayerStatLine = {
+  total_points: 0, minutes: 0, starts: 0, appearances: 0, goals_scored: 0,
+  assists: 0, clean_sheets: 0, saves: 0, penalties_saved: 0, bonus: 0,
+  defensive_contribution: 0, ict_index: 0, expected_goals: 0,
+  expected_assists: 0, expected_goal_involvements: 0, recent_form: 0,
+};
+
+const numeric = (value: unknown) => Number(value || 0);
+
+const toStatLine = (row: any, fallbackTotal = 0): PlayerStatLine => ({
+  total_points: row ? numeric(row.total_points) : fallbackTotal,
+  minutes: numeric(row?.minutes),
+  starts: numeric(row?.starts),
+  appearances: numeric(row?.appearances ?? row?.starts),
+  goals_scored: numeric(row?.goals_scored),
+  assists: numeric(row?.assists),
+  clean_sheets: numeric(row?.clean_sheets),
+  saves: numeric(row?.saves),
+  penalties_saved: numeric(row?.penalties_saved),
+  bonus: numeric(row?.bonus),
+  defensive_contribution: numeric(row?.defensive_contribution),
+  ict_index: numeric(row?.ict_index),
+  expected_goals: numeric(row?.expected_goals),
+  expected_assists: numeric(row?.expected_assists),
+  expected_goal_involvements: numeric(row?.expected_goal_involvements),
+  recent_form: numeric(row?.recent_form),
+});
+
+const getPreviousSeasonLabel = () => {
+  const now = new Date();
+  const currentSeasonStart = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  const previousStart = currentSeasonStart - 1;
+  return `${previousStart}/${String(previousStart + 1).slice(-2)}`;
+};
+
+const getMetricValue = (player: PlayerAsset, period: StatsPeriod, key: SortKey) => {
+  const stats = period === 'CURRENT' ? player.current_stats : (player.last_season_stats || EMPTY_STAT_LINE);
+  switch (key) {
+    case 'FORM': return stats.recent_form;
+    case 'POINTS_PER_START': return stats.total_points / Math.max(stats.starts || stats.appearances, 1);
+    case 'MINUTES': return stats.minutes;
+    case 'STARTS': return stats.starts;
+    case 'GOALS': return stats.goals_scored;
+    case 'ASSISTS': return stats.assists;
+    case 'GOAL_INVOLVEMENTS': return stats.goals_scored + stats.assists;
+    case 'CLEAN_SHEETS': return stats.clean_sheets;
+    case 'SAVES': return stats.saves;
+    case 'PENALTIES_SAVED': return stats.penalties_saved;
+    case 'BONUS': return stats.bonus;
+    case 'DEFCON': return stats.defensive_contribution;
+    case 'ICT': return stats.ict_index;
+    case 'EXPECTED_GOALS': return stats.expected_goals;
+    case 'EXPECTED_ASSISTS': return stats.expected_assists;
+    case 'EXPECTED_INVOLVEMENTS': return stats.expected_goal_involvements;
+    default: return stats.total_points;
+  }
+};
 
 interface OwnershipInfo {
   userId: string;
@@ -61,13 +179,19 @@ export default function PlayerPoolScreen() {
   const [marketStatus, setMarketStatus] = useState<'WAIVERS_OPEN' | 'FREE_AGENCY' | 'IN_PLAY'>('WAIVERS_OPEN');
 
   const [allPlayers, setAllPlayers] = useState<PlayerAsset[]>([]);
-  const [filteredPlayers, setFilteredPlayers] = useState<PlayerAsset[]>([]);
   const [watchlistIds, setWatchlistIds] = useState<Set<number>>(new Set()); 
   const [ownershipMap, setOwnershipMap] = useState<Record<number, OwnershipInfo>>({});
   const [waiverLockedPlayerIds, setWaiverLockedPlayerIds] = useState<Set<number>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL');
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>('CURRENT');
+  const [sortKey, setSortKey] = useState<SortKey>('TOTAL_POINTS');
+  const [selectedClub, setSelectedClub] = useState('ALL');
+  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('ALL');
+  const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [minimumMinutes, setMinimumMinutes] = useState(0);
 
   const [selectedModalPlayerId, setSelectedModalPlayerId] = useState<number | null>(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
@@ -96,12 +220,40 @@ export default function PlayerPoolScreen() {
     }
   }, [isFocused]);
 
+  const availableSortOptions = useMemo(() => SORT_OPTIONS.filter(option => {
+    if (statsPeriod === 'LAST_SEASON' && option.currentOnly) return false;
+    return selectedPosition === 'ALL' || !option.positions || option.positions.includes(selectedPosition);
+  }), [selectedPosition, statsPeriod]);
+
   useEffect(() => {
-    let output = allPlayers;
-    if (selectedPosition !== 'ALL') output = output.filter(p => p.element_type === selectedPosition);
-    if (searchQuery.trim()) output = output.filter(p => p.web_name.toLowerCase().includes(searchQuery.toLowerCase()));
-    setFilteredPlayers(output);
-  }, [searchQuery, selectedPosition, allPlayers]);
+    if (!availableSortOptions.some(option => option.key === sortKey)) setSortKey('TOTAL_POINTS');
+  }, [availableSortOptions, sortKey]);
+
+  const clubs = useMemo(() => Array.from(new Set(allPlayers.map(player => player.team_name).filter(Boolean))).sort(), [allPlayers]);
+  const selectedSort = SORT_OPTIONS.find(option => option.key === sortKey) || SORT_OPTIONS[0];
+  const activeFilterCount = (statsPeriod === 'LAST_SEASON' ? 1 : 0) + (selectedClub !== 'ALL' ? 1 : 0) +
+    (ownershipFilter !== 'ALL' ? 1 : 0) + (watchlistOnly ? 1 : 0) + (minimumMinutes > 0 ? 1 : 0);
+
+  const filteredPlayers = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return allPlayers
+      .filter(player => selectedPosition === 'ALL' || player.element_type === selectedPosition)
+      .filter(player => selectedClub === 'ALL' || player.team_name === selectedClub)
+      .filter(player => !normalizedQuery || `${player.web_name} ${player.first_name} ${player.second_name} ${player.team_name}`.toLowerCase().includes(normalizedQuery))
+      .filter(player => !watchlistOnly || watchlistIds.has(player.id))
+      .filter(player => {
+        const owner = ownershipMap[player.id];
+        if (ownershipFilter === 'AVAILABLE') return !owner;
+        if (ownershipFilter === 'MINE') return owner?.userId === currentUserId;
+        if (ownershipFilter === 'OTHERS') return Boolean(owner && owner.userId !== currentUserId);
+        return true;
+      })
+      .filter(player => {
+        const stats = statsPeriod === 'CURRENT' ? player.current_stats : player.last_season_stats;
+        return minimumMinutes === 0 || Boolean(stats && stats.minutes >= minimumMinutes);
+      })
+      .sort((a, b) => getMetricValue(b, statsPeriod, sortKey) - getMetricValue(a, statsPeriod, sortKey) || a.web_name.localeCompare(b.web_name));
+  }, [allPlayers, selectedPosition, selectedClub, searchQuery, watchlistOnly, watchlistIds, ownershipMap, ownershipFilter, currentUserId, minimumMinutes, statsPeriod, sortKey]);
 
   const loadScoutEngineContext = async () => {
     try {
@@ -144,14 +296,31 @@ export default function PlayerPoolScreen() {
         }
       }
 
-      // Query player database directly for verified team names and short codes
-      const { data: playersData, error: playersErr } = await supabase
-        .from('players')
-        .select('id, web_name, first_name, second_name, team_name, team_short_name, element_type, total_points')
-        .eq('is_active', true)
-        .order('total_points', { ascending: false });
+      // Query the compact pool, its current aggregates, and durable previous-season figures together.
+      const [playersResponse, currentStatsResponse, previousStatsResponse] = await Promise.all([
+        supabase
+          .from('players')
+          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type, total_points')
+          .eq('is_active', true)
+          .order('total_points', { ascending: false }),
+        supabase.rpc('get_player_pool_current_stats', { p_through_gameweek: resolvedGameweek }),
+        supabase
+          .from('player_season_stats')
+          .select('current_player_id, player_code, total_points, minutes, starts, goals_scored, assists, clean_sheets, saves, penalties_saved, bonus, defensive_contribution, ict_index, expected_goals, expected_assists, expected_goal_involvements')
+          .eq('season_name', getPreviousSeasonLabel()),
+      ]);
 
-      if (playersErr) throw playersErr;
+      if (playersResponse.error) throw playersResponse.error;
+      const playersData = playersResponse.data || [];
+      if (currentStatsResponse.error) {
+        console.warn('Current player-pool aggregates unavailable; using total-points fallback:', currentStatsResponse.error.message);
+      }
+      if (previousStatsResponse.error) {
+        console.warn('Previous-season player-pool figures unavailable:', previousStatsResponse.error.message);
+      }
+
+      const currentStatsById = new Map<number, any>((currentStatsResponse.data || []).map((row: any) => [Number(row.player_id), row]));
+      const previousStatsByCode = new Map<number, any>((previousStatsResponse.data || []).map((row: any) => [Number(row.player_code), row]));
 
       let overridesMap: Record<number, string> = {};
       if (currentLeagueId) {
@@ -167,7 +336,11 @@ export default function PlayerPoolScreen() {
 
       const finalizedPool: PlayerAsset[] = (playersData || []).map(player => ({
         ...player,
-        element_type: overridesMap[player.id] || player.element_type
+        element_type: overridesMap[player.id] || player.element_type,
+        current_stats: toStatLine(currentStatsById.get(Number(player.id)), numeric(player.total_points)),
+        last_season_stats: previousStatsByCode.has(Number(player.code))
+          ? toStatLine(previousStatsByCode.get(Number(player.code)))
+          : null,
       }));
 
       let owners: Record<number, OwnershipInfo> = {};
@@ -245,7 +418,6 @@ export default function PlayerPoolScreen() {
       }
 
       setAllPlayers(finalizedPool);
-      setFilteredPlayers(finalizedPool);
     } catch (err: any) {
       Alert.alert('Scout Engine Load Failure', err.message);
     } finally {
@@ -373,6 +545,8 @@ export default function PlayerPoolScreen() {
     const isOwnedByMe = owner?.userId === currentUserId;
     const isWaiverLocked = !owner && marketStatus === 'FREE_AGENCY' && waiverLockedPlayerIds.has(item.id);
     const mappedPositionColor = POSITION_COLORS[item.element_type] || '#222';
+    const metricValue = getMetricValue(item, statsPeriod, sortKey);
+    const metricDisplay = selectedSort.decimals !== undefined ? metricValue.toFixed(selectedSort.decimals) : Math.round(metricValue).toString();
 
     return (
       <View style={styles.playerRow}>
@@ -387,8 +561,8 @@ export default function PlayerPoolScreen() {
             </View>
           </View>
           <View style={styles.pointsColumn}>
-            <Text style={styles.pointsValueText}>{item.total_points}</Text>
-            <Text style={styles.pointsLabelText}>PTS</Text>
+            <Text style={styles.pointsValueText}>{metricDisplay}</Text>
+            <Text style={styles.pointsLabelText}>{selectedSort.shortLabel}</Text>
           </View>
         </TouchableOpacity>
         
@@ -417,16 +591,21 @@ export default function PlayerPoolScreen() {
       <View style={styles.searchBoxRow}>
         <Ionicons name="search" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
         <TextInput style={styles.searchInputField} placeholder="Search player name..." placeholderTextColor={colors.textMuted} value={searchQuery} onChangeText={setSearchQuery} />
+        <TouchableOpacity style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]} onPress={() => setFiltersVisible(true)}>
+          <Ionicons name="options-outline" size={15} color={activeFilterCount > 0 ? colors.black : colors.accent} />
+          <Text style={[styles.filterButtonText, activeFilterCount > 0 && styles.filterButtonTextActive]}>SORT & FILTER</Text>
+          {activeFilterCount > 0 && <View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilterCount}</Text></View>}
+        </TouchableOpacity>
       </View>
 
       {/* Position Filters */}
-      <View style={styles.pillsContainerRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll} contentContainerStyle={styles.pillsContainerRow}>
         {positions.map(pos => (
           <TouchableOpacity key={pos} style={[styles.pillBtn, selectedPosition === pos && styles.pillBtnActive]} onPress={() => setSelectedPosition(pos)}>
             <Text style={[styles.pillText, selectedPosition === pos && styles.pillTextActive]}>{pos}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* Main List with Pull-To-Refresh */}
       {loading && allPlayers.length === 0 ? (
@@ -451,6 +630,89 @@ export default function PlayerPoolScreen() {
           }
         />
       )}
+
+      {/* Compact desktop popover / mobile bottom sheet for scouting controls */}
+      <Modal visible={filtersVisible} animationType="slide" transparent onRequestClose={() => setFiltersVisible(false)}>
+        <View style={[styles.filterOverlay, Platform.OS === 'web' && styles.filterOverlayWeb]}>
+          <View style={styles.filterSheet}>
+            <View style={styles.filterHeader}>
+              <View>
+                <Text style={styles.filterEyebrow}>PLAYER POOL</Text>
+                <Text style={styles.filterTitle}>Sort & filter</Text>
+              </View>
+              <TouchableOpacity style={styles.filterClose} onPress={() => setFiltersVisible(false)}>
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+              <Text style={styles.filterSectionLabel}>Statistics period</Text>
+              <View style={styles.segmentRow}>
+                {(['CURRENT', 'LAST_SEASON'] as StatsPeriod[]).map(period => (
+                  <TouchableOpacity key={period} style={[styles.segmentButton, statsPeriod === period && styles.segmentButtonActive]} onPress={() => setStatsPeriod(period)}>
+                    <Text style={[styles.segmentButtonText, statsPeriod === period && styles.segmentButtonTextActive]}>
+                      {period === 'CURRENT' ? 'Current season' : `Last season · ${getPreviousSeasonLabel()}`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Sort by</Text>
+              <View style={styles.optionGrid}>
+                {availableSortOptions.map(option => (
+                  <TouchableOpacity key={option.key} style={[styles.optionButton, sortKey === option.key && styles.optionButtonActive]} onPress={() => setSortKey(option.key)}>
+                    <Text style={[styles.optionButtonText, sortKey === option.key && styles.optionButtonTextActive]}>{option.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Availability</Text>
+              <View style={styles.optionGrid}>
+                {([
+                  ['ALL', 'All players'], ['AVAILABLE', 'Available'], ['MINE', 'My squad'], ['OTHERS', 'Other squads'],
+                ] as [OwnershipFilter, string][]).map(([value, label]) => (
+                  <TouchableOpacity key={value} style={[styles.optionButton, ownershipFilter === value && styles.optionButtonActive]} onPress={() => setOwnershipFilter(value)}>
+                    <Text style={[styles.optionButtonText, ownershipFilter === value && styles.optionButtonTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={[styles.optionButton, watchlistOnly && styles.optionButtonActive]} onPress={() => setWatchlistOnly(value => !value)}>
+                  <Text style={[styles.optionButtonText, watchlistOnly && styles.optionButtonTextActive]}>Watchlist only</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Minimum minutes</Text>
+              <View style={styles.optionGrid}>
+                {[0, 90, 300, 600].map(value => (
+                  <TouchableOpacity key={value} style={[styles.smallOptionButton, minimumMinutes === value && styles.optionButtonActive]} onPress={() => setMinimumMinutes(value)}>
+                    <Text style={[styles.optionButtonText, minimumMinutes === value && styles.optionButtonTextActive]}>{value === 0 ? 'Any' : `${value}+`}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Club</Text>
+              <View style={styles.clubGrid}>
+                {['ALL', ...clubs].map(club => (
+                  <TouchableOpacity key={club} style={[styles.clubButton, selectedClub === club && styles.optionButtonActive]} onPress={() => setSelectedClub(club)}>
+                    <Text style={[styles.clubButtonText, selectedClub === club && styles.optionButtonTextActive]} numberOfLines={1}>{club === 'ALL' ? 'All clubs' : club}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.filterFooter}>
+              <TouchableOpacity style={styles.resetButton} onPress={() => {
+                setStatsPeriod('CURRENT'); setSortKey('TOTAL_POINTS'); setSelectedClub('ALL');
+                setOwnershipFilter('ALL'); setWatchlistOnly(false); setMinimumMinutes(0);
+              }}>
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.applyButton} onPress={() => setFiltersVisible(false)}>
+                <Text style={styles.applyButtonText}>Show {filteredPlayers.length} players</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Player Details Card Modal */}
       <PlayerCardModal 
@@ -557,9 +819,16 @@ export default function PlayerPoolScreen() {
 const createStyles = (colors: AppColors) => StyleSheet.create({
   safeContainer: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-  searchBoxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, paddingHorizontal: 12, margin: 16, borderRadius: 6, height: 44 },
+  searchBoxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, paddingLeft: 12, paddingRight: 5, marginHorizontal: 16, marginTop: 12, marginBottom: 8, borderRadius: 6, height: 44 },
   searchInputField: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  pillsContainerRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16 },
+  filterButton: { height: 32, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surfaceRaised },
+  filterButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  filterButtonText: { color: colors.accent, fontSize: 8, fontWeight: '900', marginLeft: 4 },
+  filterButtonTextActive: { color: colors.black },
+  filterCount: { minWidth: 16, height: 16, paddingHorizontal: 3, marginLeft: 4, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.black },
+  filterCountText: { color: colors.accent, fontSize: 8, fontWeight: '900' },
+  pillsScroll: { flexGrow: 0, flexShrink: 0 },
+  pillsContainerRow: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8 },
   pillBtn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, marginRight: 6 },
   pillBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   pillText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
@@ -572,7 +841,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   playerClubShort: { color: colors.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
   positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
-  pointsColumn: { alignItems: 'center', justifyContent: 'center', marginRight: 8, minWidth: 28 },
+  pointsColumn: { alignItems: 'center', justifyContent: 'center', marginRight: 8, minWidth: 42 },
   pointsValueText: { color: colors.accent, fontSize: 14, fontWeight: '900' },
   pointsLabelText: { color: colors.textDisabled, fontSize: 7, fontWeight: '900', marginTop: -3 },
   watchlistBtn: { padding: 6, backgroundColor: colors.surfaceMuted, borderRadius: 4, borderWidth: 1, borderColor: colors.border, marginRight: 4 },
@@ -583,6 +852,34 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   ownerBadgeText: { color: colors.textSecondary, fontSize: 9, fontWeight: '800', textAlign: 'center' },
   myOwnerBadgeText: { color: '#0052cc', fontWeight: '900' },
   emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: 40, fontWeight: '700', fontSize: 13 },
+  filterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end', alignItems: 'center' },
+  filterOverlayWeb: { justifyContent: 'center', padding: 24 },
+  filterSheet: { width: '100%', maxWidth: 640, maxHeight: '90%', backgroundColor: colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: 1, borderColor: colors.borderStrong, overflow: 'hidden' },
+  filterHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  filterEyebrow: { color: colors.accent, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  filterTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', textTransform: 'uppercase', marginTop: 2 },
+  filterClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfacePressed },
+  filterScrollContent: { padding: 16, paddingBottom: 20 },
+  filterSectionLabel: { color: colors.textMuted, fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.7, marginTop: 12, marginBottom: 7 },
+  segmentRow: { flexDirection: 'row', gap: 6 },
+  segmentButton: { flex: 1, minHeight: 36, borderRadius: 5, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, backgroundColor: colors.surfaceRaised },
+  segmentButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  segmentButtonText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800', textAlign: 'center' },
+  segmentButtonTextActive: { color: colors.black, fontWeight: '900' },
+  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  optionButton: { width: '48%', minHeight: 34, borderRadius: 5, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised, justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 7 },
+  smallOptionButton: { minWidth: 62, minHeight: 34, borderRadius: 5, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  optionButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  optionButtonText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
+  optionButtonTextActive: { color: colors.black, fontWeight: '900' },
+  clubGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  clubButton: { width: '31%', minHeight: 32, borderRadius: 5, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised, justifyContent: 'center', paddingHorizontal: 8 },
+  clubButtonText: { color: colors.textSecondary, fontSize: 9, fontWeight: '800' },
+  filterFooter: { flexDirection: 'row', padding: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.backgroundElevated },
+  resetButton: { width: 90, height: 40, borderRadius: 5, borderWidth: 1, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  resetButtonText: { color: colors.textSecondary, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  applyButton: { flex: 1, height: 40, borderRadius: 5, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  applyButtonText: { color: colors.black, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: colors.surface, width: '90%', maxHeight: '80%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.borderStrong },
   modalHeader: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
