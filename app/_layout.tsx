@@ -3,8 +3,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import {
   Platform,
-  View,
-  ActivityIndicator,
   StyleSheet,
   StatusBar,
 } from 'react-native';
@@ -25,6 +23,7 @@ import { AppearanceProvider } from '@/features/appearance/context/AppearanceCont
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { installGlobalErrorReporting } from '@/utils/errorReporting';
+import AppLaunchScreen from '@/components/AppLaunchScreen';
 
 export default function RootLayout() {
   return (
@@ -188,9 +187,7 @@ function RootLayoutContent() {
         </Stack>
 
         {!appReady && (
-          <View style={styles.loaderOverlay}>
-            <ActivityIndicator size="large" color={colors.accent} />
-          </View>
+          <AppLaunchScreen />
         )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -200,13 +197,5 @@ function RootLayoutContent() {
 const createStyles = (colors: AppColors) => StyleSheet.create({
   root: {
     flex: 1,
-  },
-
-  loaderOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    zIndex: 999,
   },
 });

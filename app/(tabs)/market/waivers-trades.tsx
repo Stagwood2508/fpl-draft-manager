@@ -1180,7 +1180,12 @@ if (!userId || !leagueId) {
                               {p.web_name}
                             </Text>
                             {isMobileLayout && (
-                              <Text style={styles.tradeCardMetaMobile}>{getShortTeamCode(p.team_name)} · {p.element_type}</Text>
+                              <View style={styles.tradeCardMetaRowMobile}>
+                                <Text style={styles.tradeCardMetaMobile}>{getShortTeamCode(p.team_name)}</Text>
+                                <View style={[styles.miniPosBadgeMobile, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
+                                  <Text style={styles.miniPosTextMobile}>{p.element_type}</Text>
+                                </View>
+                              </View>
                             )}
                           </View>
                           {!isMobileLayout && <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>}
@@ -1209,7 +1214,12 @@ if (!userId || !leagueId) {
                               {p.web_name}
                             </Text>
                             {isMobileLayout && (
-                              <Text style={styles.tradeCardMetaMobile}>{getShortTeamCode(p.team_name)} · {p.element_type}</Text>
+                              <View style={styles.tradeCardMetaRowMobile}>
+                                <Text style={styles.tradeCardMetaMobile}>{getShortTeamCode(p.team_name)}</Text>
+                                <View style={[styles.miniPosBadgeMobile, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
+                                  <Text style={styles.miniPosTextMobile}>{p.element_type}</Text>
+                                </View>
+                              </View>
                             )}
                           </View>
                           {!isMobileLayout && <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>}
@@ -1808,7 +1818,13 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: appColors.border,
   },
-  tradeSelectorCardMobile: { borderRadius: 3, paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
+  tradeSelectorCardMobile: {
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    marginBottom: 3,
+    backgroundColor: appColors.surfaceRaised,
+  },
   tradeSelectorCardShortMobile: { paddingVertical: 2, marginBottom: 1 },
 
   tradeSelectorCardSelected: {
@@ -1842,7 +1858,28 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     fontSize: 7,
     lineHeight: 8,
     fontWeight: '800',
-    marginTop: 1,
+  },
+
+  tradeCardMetaRowMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+
+  miniPosBadgeMobile: {
+    minWidth: 24,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    borderRadius: 3,
+    alignItems: 'center',
+  },
+
+  miniPosTextMobile: {
+    color: appColors.backgroundDeep,
+    fontSize: 6,
+    lineHeight: 7,
+    fontWeight: '900',
   },
 
   tradeCardTextSelected: {
