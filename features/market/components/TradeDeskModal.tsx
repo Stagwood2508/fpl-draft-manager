@@ -394,13 +394,20 @@ if (rivalDataRes.error) {
                         disabled={isSelectionDisabled}
                       >
                         <View style={styles.tradeCardRowFlow}>
-                          <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
-                            {p.web_name}
-                          </Text>
-                          <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>
-                          <View style={[styles.miniPosBadgeCompact, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
-                            <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
+                          <View style={styles.tradePlayerIdentity}>
+                            <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
+                              {p.web_name}
+                            </Text>
+                            {isMobileLayout && (
+                              <Text style={styles.tradeCardMetaMobile}>{getShortTeamCode(p.team_name)} · {p.element_type}</Text>
+                            )}
                           </View>
+                          {!isMobileLayout && <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>}
+                          {!isMobileLayout && (
+                            <View style={[styles.miniPosBadgeCompact, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
+                              <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
+                            </View>
+                          )}
                         </View>
                       </TouchableOpacity>
                     );
@@ -421,13 +428,20 @@ if (rivalDataRes.error) {
                         onPress={() => toggleSelectRivalTradePlayer(p.id)}
                       >
                         <View style={styles.tradeCardRowFlow}>
-                          <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
-                            {p.web_name}
-                          </Text>
-                          <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>
-                          <View style={[styles.miniPosBadgeCompact, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
-                            <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
+                          <View style={styles.tradePlayerIdentity}>
+                            <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
+                              {p.web_name}
+                            </Text>
+                            {isMobileLayout && (
+                              <Text style={styles.tradeCardMetaMobile}>{getShortTeamCode(p.team_name)} · {p.element_type}</Text>
+                            )}
                           </View>
+                          {!isMobileLayout && <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>}
+                          {!isMobileLayout && (
+                            <View style={[styles.miniPosBadgeCompact, { backgroundColor: POSITION_COLORS[p.element_type] || '#222' }]}>
+                              <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
+                            </View>
+                          )}
                         </View>
                       </TouchableOpacity>
                     );
@@ -627,9 +641,22 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     minWidth: 0,
     marginRight: 8,
   },
+  tradePlayerIdentity: {
+    flex: 1,
+    minWidth: 0,
+  },
   tradeCardTextMobile: {
-    fontSize: 10,
-    marginRight: 3,
+    fontSize: 9,
+    lineHeight: 10,
+    marginRight: 0,
+  },
+
+  tradeCardMetaMobile: {
+    color: colors.textMuted,
+    fontSize: 7,
+    lineHeight: 8,
+    fontWeight: '800',
+    marginTop: 1,
   },
 
   tradeCardTextSelected: {
