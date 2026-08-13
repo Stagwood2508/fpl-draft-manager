@@ -1152,7 +1152,7 @@ if (!userId || !leagueId) {
             <View style={[styles.tradeLayoutGrid, isMobileLayout && styles.tradeLayoutGridMobile]}>
               <View style={[styles.tradeCol, isMobileLayout && styles.tradeColMobile]}>
                 <Text style={[styles.colTitle, isMobileLayout && styles.colTitleMobile]}>{isMobileLayout ? 'Send mine' : 'Send My Asset(s)'}</Text>
-                <ScrollView style={styles.tradeScrollView} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                <ScrollView style={styles.tradeScrollView} contentContainerStyle={isMobileLayout && styles.tradeScrollContentMobile} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                   {myCounterRoster.map(p => {
                     const isSelected = mySelectedTradeIds.includes(p.id);
                     const pos = p.element_type;
@@ -1167,6 +1167,7 @@ if (!userId || !leagueId) {
                         style={[
                           styles.tradeSelectorCardCompact, 
                           isMobileLayout && styles.tradeSelectorCardMobile,
+                          isMobileLayout && styles.tradeSelectorCardFillMobile,
                           isShortMobile && styles.tradeSelectorCardShortMobile,
                           isSelected && styles.tradeSelectorCardSelected,
                           isSelectionDisabled && styles.tradeSelectorCardDisabled
@@ -1175,7 +1176,7 @@ if (!userId || !leagueId) {
                         disabled={isSelectionDisabled}
                       >
                         <View style={styles.tradeCardRowFlow}>
-                          <View style={styles.tradePlayerIdentity}>
+                          <View style={[styles.tradePlayerIdentity, isMobileLayout && styles.tradePlayerIdentityMobile]}>
                             <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
                               {p.web_name}
                             </Text>
@@ -1203,13 +1204,13 @@ if (!userId || !leagueId) {
 
               <View style={[styles.tradeCol, isMobileLayout && styles.tradeColMobile]}>
                 <Text style={[styles.colTitle, isMobileLayout && styles.colTitleMobile]}>{isMobileLayout ? 'Receive theirs' : 'Demand Asset(s)'}</Text>
-                <ScrollView style={styles.tradeScrollView} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                <ScrollView style={styles.tradeScrollView} contentContainerStyle={isMobileLayout && styles.tradeScrollContentMobile} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                   {rivalCounterRoster.map(p => {
                     const isSelected = rivalSelectedTradeIds.includes(p.id);
                     return (
-                      <TouchableOpacity key={p.id} style={[styles.tradeSelectorCardCompact, isMobileLayout && styles.tradeSelectorCardMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected]} onPress={() => toggleSelectRivalTradePlayer(p.id)}>
+                      <TouchableOpacity key={p.id} style={[styles.tradeSelectorCardCompact, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected]} onPress={() => toggleSelectRivalTradePlayer(p.id)}>
                         <View style={styles.tradeCardRowFlow}>
-                          <View style={styles.tradePlayerIdentity}>
+                          <View style={[styles.tradePlayerIdentity, isMobileLayout && styles.tradePlayerIdentityMobile]}>
                             <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
                               {p.web_name}
                             </Text>
@@ -1808,6 +1809,9 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   tradeScrollView: {
     flex: 1,
   },
+  tradeScrollContentMobile: {
+    flexGrow: 1,
+  },
 
   tradeSelectorCardCompact: {
     backgroundColor: appColors.surface,
@@ -1826,6 +1830,11 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     backgroundColor: appColors.surfaceRaised,
   },
   tradeSelectorCardShortMobile: { paddingVertical: 2, marginBottom: 1 },
+  tradeSelectorCardFillMobile: {
+    flexGrow: 1,
+    flexBasis: 0,
+    justifyContent: 'center',
+  },
 
   tradeSelectorCardSelected: {
     borderColor: appColors.accent,
@@ -1851,6 +1860,11 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  tradePlayerIdentityMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
   tradeCardTextMobile: { fontSize: 9, lineHeight: 10, marginRight: 0 },
 
   tradeCardMetaMobile: {
@@ -1864,7 +1878,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
+    flexShrink: 0,
   },
 
   miniPosBadgeMobile: {
