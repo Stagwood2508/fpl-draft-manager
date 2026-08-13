@@ -275,9 +275,13 @@ const currentLeagueId = leagueId;
           receiver_profile:profiles!transactions_receiver_id_fkey(display_name)
         `)
         .eq('league_id', currentLeagueId)
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order('created_at', { ascending: false });
-      setPendingRequests((txnData || []) as unknown as TransactionRecord[]);
+      const visibleTransactions = ((txnData || []) as unknown as TransactionRecord[]).filter(transaction =>
+        String(transaction.status).toUpperCase() !== 'PENDING' ||
+        transaction.sender_id === userId ||
+        transaction.receiver_id === userId
+      );
+      setPendingRequests(visibleTransactions);
 
       if (activeTab === 'WAIVERS') {
         let claimsQuery = supabase

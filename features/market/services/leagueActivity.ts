@@ -67,6 +67,7 @@ export async function getLeagueActivity(leagueId: string, perSourceLimit?: numbe
       )
     `)
     .eq('league_id', leagueId)
+    .neq('status', 'PENDING')
     .order('created_at', { ascending: false });
 
   let freeAgentQuery = supabase
@@ -151,7 +152,7 @@ export async function getLeagueActivity(leagueId: string, perSourceLimit?: numbe
       playersIn: rows.map(row => firstRelation<LeagueActivityPlayer>(row.player_in)).filter((player): player is LeagueActivityPlayer => Boolean(player)),
       playersOut: rows.map(row => firstRelation<LeagueActivityPlayer>(row.player_out)).filter((player): player is LeagueActivityPlayer => Boolean(player)),
     };
-  });
+  }).filter(item => item.status !== 'PENDING');
 
   const freeAgentActivities: LeagueActivityItem[] = (freeAgentResponse.error ? [] : freeAgentResponse.data || []).map((row: any) => {
     const playerIn = firstRelation<LeagueActivityPlayer>(row.player_in);
