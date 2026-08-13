@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import AuthScreenFrame from '@/components/AuthScreenFrame';
 import type { AppColors } from '@/constants/theme';
 import { saveDeviceTokenToProfile } from './login';
 
@@ -108,7 +109,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Draft FPL Hub</Text>
       <Text style={styles.subtitle}>Create Manager Account</Text>
 
@@ -169,12 +170,12 @@ export default function RegisterScreen() {
           Already have an account? Sign In
         </Text>
       </TouchableOpacity>
-    </View>
+    </AuthScreenFrame>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background },
   title: { fontSize: 28, fontWeight: '900', color: colors.textPrimary, textAlign: 'center' },
   subtitle: { fontSize: 13, color: colors.accent, textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
   

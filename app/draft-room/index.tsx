@@ -690,7 +690,7 @@ const PickConfirmationOverlay = ({
   }, [reveal]);
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.pickConfirmationOverlay}>
         <Animated.View
           style={[
@@ -2230,6 +2230,7 @@ useEffect(() => {
       visible={commissionerPlayerMode !== null}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={() => !commissionerAction && setCommissionerPlayerMode(null)}
     >
       <View style={styles.commissionerConfirmOverlay}>
@@ -3514,6 +3515,7 @@ useEffect(() => {
         visible={isSortMenuOpen}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setIsSortMenuOpen(false)}
       >
         <Pressable style={styles.sortMenuOverlay} onPress={() => setIsSortMenuOpen(false)}>
@@ -3552,7 +3554,7 @@ useEffect(() => {
       </Modal>
 
       {/* REORDER INDEX QUEUE MODAL */}
-      <Modal visible={dragMovingPlayer !== null} transparent animationType="fade">
+      <Modal visible={dragMovingPlayer !== null} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.modalBlurOverlay}>
           <View style={[styles.modalCardContainer, { maxHeight: '80%' }]}>
             <Text style={styles.modalPlayerTitle}>Reposition priority queue</Text>
@@ -3577,6 +3579,7 @@ useEffect(() => {
         visible={confirmCommissionerAutopick}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => !commissionerAction && setConfirmCommissionerAutopick(false)}
       >
         <View style={styles.commissionerConfirmOverlay}>

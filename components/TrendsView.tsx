@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Alert, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-gifted-charts';
 import { supabase } from '@/utils/supabase';
@@ -18,9 +18,8 @@ interface ViewProps {
   endGw?: number;
 }
 
-const screenWidth = Dimensions.get('window').width;
-
 export default function TrendsView({ startGw = 1, endGw = 38 }: ViewProps) {
+  const { width: screenWidth } = useWindowDimensions();
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +122,7 @@ export default function TrendsView({ startGw = 1, endGw = 38 }: ViewProps) {
         <View style={styles.chartWrapper}>
           <LineChart
             data={chartPoints}
-            width={screenWidth - 80}
+            width={Math.max(240, screenWidth - 80)}
             height={180}
             color={colors.accent}
             thickness={2}

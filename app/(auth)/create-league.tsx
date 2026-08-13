@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import AuthScreenFrame from '@/components/AuthScreenFrame';
 import type { AppColors } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 
@@ -131,7 +132,7 @@ const handleEnterDashboard = async () => {
 };
 
   return (
-    <View style={styles.container}>
+    <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Construct New League</Text>
       
       {!createdCode ? (
@@ -223,12 +224,12 @@ const handleEnterDashboard = async () => {
 </TouchableOpacity>
         </View>
       )}
-    </View>
+    </AuthScreenFrame>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: 20, justifyContent: 'center' },
+  container: { backgroundColor: colors.background, padding: 20, justifyContent: 'center' },
   title: { fontSize: 22, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase', marginBottom: 20 },
   label: { fontSize: 11, color: colors.textSecondary, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
   input: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, color: colors.textPrimary, padding: 14, borderRadius: 2, marginBottom: 16 },

@@ -690,7 +690,7 @@ export default function DraftResultsScreen() {
         </ScrollView>
       )}
 
-      <Modal visible={clubPickerVisible} transparent animationType="fade" onRequestClose={() => setClubPickerVisible(false)}>
+      <Modal visible={clubPickerVisible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setClubPickerVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.clubPickerCard}>
             <View style={styles.clubPickerHeader}>

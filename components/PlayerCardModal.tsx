@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
@@ -132,6 +134,9 @@ export default function PlayerCardModal({
 }: PlayerCardModalProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
+  const safeArea = useSafeAreaInsets();
+  const isMobileLayout = width < 700;
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'HISTORY' | 'SCHEDULE' | 'TRANSFER'>('OVERVIEW');
   const [loading, setLoading] = useState<boolean>(true);
   const [imageError, setImageError] = useState<boolean>(false);
@@ -360,9 +365,9 @@ export default function PlayerCardModal({
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.cardContainer}>
+    <Modal visible={visible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
+      <View style={[styles.overlay, isMobileLayout && styles.overlayMobile]}>
+        <View style={[styles.cardContainer, isMobileLayout && styles.cardContainerMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
           
           {/* TOP BAR / OWNERSHIP BADGE */}
           <View style={styles.topBar}>
@@ -460,7 +465,7 @@ export default function PlayerCardModal({
               <ActivityIndicator size="large" color={colors.accent} />
             </View>
           ) : (
-            <View style={styles.bodyContainer}>
+            <View style={[styles.bodyContainer, isMobileLayout && styles.bodyContainerMobile]}>
               
               {/* TAB 1: OVERVIEW & STATS */}
               {activeTab === 'OVERVIEW' && player && statsMode === 'LAST_SEASON' && !lastSeasonAvailable && (
@@ -800,6 +805,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     padding: 12,
   },
+  overlayMobile: { justifyContent: 'flex-start', alignItems: 'stretch', padding: 0 },
   cardContainer: {
     backgroundColor: colors.surface,
     width: '100%',
@@ -810,6 +816,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     borderColor: colors.borderStrong,
     padding: 16,
   },
+  cardContainerMobile: { width: '100%', maxWidth: undefined, height: '100%', maxHeight: undefined, borderRadius: 0, borderWidth: 0, paddingHorizontal: 10 },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -976,6 +983,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
 
   loaderBox: { height: 260, justifyContent: 'center', alignItems: 'center' },
   bodyContainer: { minHeight: 280, maxHeight: 380 },
+  bodyContainerMobile: { minHeight: 0, maxHeight: undefined, flex: 1 },
   historyUnavailable: {
     minHeight: 260,
     alignItems: 'center',

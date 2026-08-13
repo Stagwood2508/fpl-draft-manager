@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
+import AuthScreenFrame from '@/components/AuthScreenFrame';
 
 export default function OnboardingScreen() {
   const { colors } = useAppTheme();
@@ -32,7 +33,7 @@ const { data: member } = await supabase
   }, []);
 
   return (
-    <View style={styles.container}>
+    <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Ecosystem Setup</Text>
       <Text style={styles.subtitle}>Initialize your draft framework target</Text>
 
@@ -51,12 +52,12 @@ const { data: member } = await supabase
         <Text style={[styles.cardTitle, { color: '#FFF' }]}>🤝 JOIN A LEAGUE</Text>
         <Text style={styles.cardSub}>Enter an invite code provided by your league commissioner.</Text>
       </TouchableOpacity>
-    </View>
+    </AuthScreenFrame>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 20, backgroundColor: colors.background },
   title: { fontSize: 24, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase' },
   subtitle: { fontSize: 13, color: colors.accent, marginBottom: 40, fontWeight: '600' },
   choiceCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent, padding: 20, borderRadius: 4, marginBottom: 16 },

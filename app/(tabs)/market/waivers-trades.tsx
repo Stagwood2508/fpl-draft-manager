@@ -8,7 +8,9 @@ import {
   Alert,
   Modal,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/utils/supabase';
@@ -90,6 +92,10 @@ export default function TransactionsScreen() {
   const isFocused = useIsFocused();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width, height } = useWindowDimensions();
+  const safeArea = useSafeAreaInsets();
+  const isMobileLayout = width < 700;
+  const isShortMobile = isMobileLayout && height < 720;
   const { tab } = useLocalSearchParams<{ tab?: string | string[] }>();
 
   const {
@@ -1132,21 +1138,21 @@ if (!userId || !leagueId) {
       </ScrollView>
 
       {/* INLINE COUNTER NEGOTIATION DESK CARD MODAL */}
-      <Modal visible={isCounterModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsCounterModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.tradeModalContent}>
-            <Text style={styles.modalTitle}>Construct Counter Offer</Text>
-            <Text style={styles.tradeSubHeader}>
+      <Modal visible={isCounterModalVisible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setIsCounterModalVisible(false)}>
+        <View style={[styles.modalOverlay, isMobileLayout && styles.modalOverlayMobile]}>
+          <View style={[styles.tradeModalContent, isMobileLayout && styles.tradeModalContentMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
+            <Text style={[styles.modalTitle, isMobileLayout && styles.modalTitleMobile]}>Construct Counter Offer</Text>
+            <Text style={[styles.tradeSubHeader, isMobileLayout && styles.tradeSubHeaderMobile]}>
   Target Partner:{' '}
   {activeCounterTrade?.sender_id === userId
     ? activeCounterTrade?.receiver_display_name
     : activeCounterTrade?.sender_display_name}
 </Text>
 
-            <View style={styles.tradeLayoutGrid}>
-              <View style={styles.tradeCol}>
-                <Text style={styles.colTitle}>Send My Asset(s)</Text>
-                <ScrollView style={styles.tradeScrollView}>
+            <View style={[styles.tradeLayoutGrid, isMobileLayout && styles.tradeLayoutGridMobile]}>
+              <View style={[styles.tradeCol, isMobileLayout && styles.tradeColMobile]}>
+                <Text style={[styles.colTitle, isMobileLayout && styles.colTitleMobile]}>{isMobileLayout ? 'Send mine' : 'Send My Asset(s)'}</Text>
+                <ScrollView style={styles.tradeScrollView} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                   {myCounterRoster.map(p => {
                     const isSelected = mySelectedTradeIds.includes(p.id);
                     const pos = p.element_type;
@@ -1160,6 +1166,8 @@ if (!userId || !leagueId) {
                         key={p.id} 
                         style={[
                           styles.tradeSelectorCardCompact, 
+                          isMobileLayout && styles.tradeSelectorCardMobile,
+                          isShortMobile && styles.tradeSelectorCardShortMobile,
                           isSelected && styles.tradeSelectorCardSelected,
                           isSelectionDisabled && styles.tradeSelectorCardDisabled
                         ]}
@@ -1167,7 +1175,7 @@ if (!userId || !leagueId) {
                         disabled={isSelectionDisabled}
                       >
                         <View style={styles.tradeCardRowFlow}>
-                          <Text style={[styles.tradeCardTextCompact, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
+                          <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
                             {p.web_name}
                           </Text>
                           <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>
@@ -1181,15 +1189,15 @@ if (!userId || !leagueId) {
                 </ScrollView>
               </View>
 
-              <View style={styles.tradeCol}>
-                <Text style={styles.colTitle}>Demand Asset(s)</Text>
-                <ScrollView style={styles.tradeScrollView}>
+              <View style={[styles.tradeCol, isMobileLayout && styles.tradeColMobile]}>
+                <Text style={[styles.colTitle, isMobileLayout && styles.colTitleMobile]}>{isMobileLayout ? 'Receive theirs' : 'Demand Asset(s)'}</Text>
+                <ScrollView style={styles.tradeScrollView} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                   {rivalCounterRoster.map(p => {
                     const isSelected = rivalSelectedTradeIds.includes(p.id);
                     return (
-                      <TouchableOpacity key={p.id} style={[styles.tradeSelectorCardCompact, isSelected && styles.tradeSelectorCardSelected]} onPress={() => toggleSelectRivalTradePlayer(p.id)}>
+                      <TouchableOpacity key={p.id} style={[styles.tradeSelectorCardCompact, isMobileLayout && styles.tradeSelectorCardMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected]} onPress={() => toggleSelectRivalTradePlayer(p.id)}>
                         <View style={styles.tradeCardRowFlow}>
-                          <Text style={[styles.tradeCardTextCompact, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
+                          <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
                             {p.web_name}
                           </Text>
                           <Text style={styles.tradeCardMetaTextCompact}>{getShortTeamCode(p.team_name)}</Text>
@@ -1204,11 +1212,11 @@ if (!userId || !leagueId) {
               </View>
             </View>
 
-            <Text style={styles.tradeLockNotice}>
+            <Text style={[styles.tradeLockNotice, isMobileLayout && styles.tradeLockNoticeMobile]} numberOfLines={isMobileLayout ? 2 : undefined}>
               ⚠️ Multi-player swap constraint active: Swaps must be equal size and matching positions (e.g. swap MID for MID, DEF for DEF).
             </Text>
 
-            <View style={styles.modalActionRow}>
+            <View style={[styles.modalActionRow, isMobileLayout && styles.modalActionRowMobile]}>
               <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} onPress={() => { setIsCounterModalVisible(false); setActiveCounterTrade(null); }}>
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
               </TouchableOpacity>
@@ -1707,6 +1715,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     padding: appSpacing.lg,
   },
+  modalOverlayMobile: { justifyContent: 'flex-start', alignItems: 'stretch', padding: 0 },
 
   tradeModalContent: {
     backgroundColor: appColors.surfaceRaised,
@@ -1718,6 +1727,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: appColors.borderStrong,
   },
+  tradeModalContentMobile: { width: '100%', maxWidth: undefined, height: '100%', borderRadius: 0, paddingHorizontal: 6, borderWidth: 0 },
 
   modalTitle: {
     color: appColors.textPrimary,
@@ -1726,6 +1736,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
+  modalTitleMobile: { fontSize: 14, marginBottom: 1 },
 
   tradeSubHeader: {
     color: appColors.textSecondary,
@@ -1735,6 +1746,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     marginBottom: appSpacing.md,
     textTransform: 'uppercase',
   },
+  tradeSubHeaderMobile: { fontSize: 9, marginBottom: 2 },
 
   tradeLayoutGrid: {
     flex: 1,
@@ -1743,6 +1755,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     marginBottom: appSpacing.sm,
     gap: appSpacing.md,
   },
+  tradeLayoutGridMobile: { marginBottom: 3, gap: 4 },
 
   tradeCol: {
     flex: 1,
@@ -1753,6 +1766,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: appColors.border,
   },
+  tradeColMobile: { padding: 3, borderRadius: 5 },
 
   colTitle: {
     color: appColors.textSecondary,
@@ -1765,6 +1779,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderBottomColor: appColors.border,
     paddingBottom: appSpacing.sm,
   },
+  colTitleMobile: { fontSize: 8, marginBottom: 2, paddingBottom: 2, letterSpacing: 0.2 },
 
   tradeScrollView: {
     flex: 1,
@@ -1779,6 +1794,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: appColors.border,
   },
+  tradeSelectorCardMobile: { borderRadius: 3, paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
+  tradeSelectorCardShortMobile: { paddingVertical: 2, marginBottom: 1 },
 
   tradeSelectorCardSelected: {
     borderColor: appColors.accent,
@@ -1799,6 +1816,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     minWidth: 0,
     marginRight: 7,
   },
+  tradeCardTextMobile: { fontSize: 10, marginRight: 3 },
 
   tradeCardTextSelected: {
     color: appColors.accent,
@@ -1837,6 +1855,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     lineHeight: 15,
     flexShrink: 0,
   },
+  tradeLockNoticeMobile: { fontSize: 8, lineHeight: 10, marginVertical: 2, paddingHorizontal: 4 },
 
   tradeSelectorCardDisabled: {
     opacity: 0.5,
@@ -1854,6 +1873,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     marginTop: appSpacing.sm,
     flexShrink: 0,
   },
+  modalActionRowMobile: { marginTop: 2 },
 
   modalButton: {
     flex: 1,

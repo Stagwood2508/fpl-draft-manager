@@ -4,14 +4,16 @@ import {
   Alert,
   Modal,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -46,6 +48,7 @@ const formatDate = (value: string | null) => {
 };
 
 export default function LeagueAnnouncementsScreen() {
+  const safeArea = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ leagueId?: string | string[] }>();
   const { currentUserId, activeLeagueId } = useAppSession();
@@ -209,8 +212,9 @@ export default function LeagueAnnouncementsScreen() {
         ))}
       </ScrollView>
 
-      <Modal visible={editorOpen} transparent animationType="fade" onRequestClose={() => setEditorOpen(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={editorOpen} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setEditorOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.modalCard}>
             <Text style={styles.modalEyebrow}>{editingId ? 'EDIT MESSAGE' : 'NEW MESSAGE'}</Text>
             <Text style={styles.modalTitle}>{editingId ? 'Update announcement' : 'Notify the league'}</Text>
@@ -224,7 +228,8 @@ export default function LeagueAnnouncementsScreen() {
             <View style={styles.expiryOptions}>{EXPIRY_OPTIONS.map(option => <TouchableOpacity key={option.id} style={[styles.expiryOption, expiryChoice === option.id && styles.expiryOptionSelected]} onPress={() => setExpiryChoice(option.id)}><Text style={[styles.expiryOptionText, expiryChoice === option.id && styles.expiryOptionTextSelected]}>{option.label}</Text></TouchableOpacity>)}</View>
             <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => setEditorOpen(false)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity><TouchableOpacity style={styles.saveButton} disabled={saving} onPress={() => void saveAnnouncement()}>{saving ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Text style={styles.saveText}>{editingId ? 'UPDATE' : 'PUBLISH'}</Text>}</TouchableOpacity></View>
           </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -262,6 +267,8 @@ const styles = StyleSheet.create({
   cardBody: { ...appTypography.body, color: appColors.textSecondary, marginTop: 5 },
   cardMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 10 },
   modalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: appSpacing.lg, backgroundColor: 'rgba(0,0,0,0.82)' },
+  modalScroll: { width: '100%' },
+  modalScrollContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   modalCard: { width: '100%', maxWidth: 540, padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
   modalEyebrow: { ...appTypography.label, color: appColors.accent },
   modalTitle: { ...appTypography.screenTitle, color: appColors.textPrimary, marginTop: 2, marginBottom: appSpacing.md },

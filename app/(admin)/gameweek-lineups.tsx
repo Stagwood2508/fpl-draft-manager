@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
@@ -56,6 +56,7 @@ const POSITION_COLORS: Record<string, string> = {
 };
 
 export default function GameweekLineupsScreen() {
+  const safeArea = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ leagueId?: string }>();
   const { currentUserId, activeLeagueId } = useAppSession();
@@ -283,8 +284,8 @@ export default function GameweekLineupsScreen() {
         })}
       </ScrollView>
 
-      <Modal visible={Boolean(editing)} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={Boolean(editing)} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setEditing(null)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, 12), paddingBottom: Math.max(safeArea.bottom, 12) }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalEyebrow}>CONTROLLED CORRECTION</Text>
             <Text style={styles.modalTitle}>{editing ? teamNames.get(editing.user_id) || 'Manager' : ''} · GW{editing?.gameweek}</Text>

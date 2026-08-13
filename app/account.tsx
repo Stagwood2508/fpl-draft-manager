@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
@@ -51,7 +51,8 @@ export default function AccountAndPrivacyScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <Text style={styles.title}>Privacy & Account</Text>
           <TouchableOpacity onPress={() => router.back()}><Text style={styles.close}>CLOSE</Text></TouchableOpacity>
@@ -85,12 +86,14 @@ export default function AccountAndPrivacyScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  keyboardView: { flex: 1 },
   content: { padding: appSpacing.lg, maxWidth: 760, width: '100%', alignSelf: 'center', gap: 18 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { ...appTypography.screenTitle, color: colors.textPrimary, textTransform: 'uppercase' },

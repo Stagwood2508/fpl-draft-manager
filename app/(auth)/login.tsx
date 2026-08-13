@@ -7,6 +7,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import AuthScreenFrame from '@/components/AuthScreenFrame';
 import type { AppColors } from '@/constants/theme';
 
 // Helper function to render alerts reliably across Web and Mobile
@@ -120,7 +121,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Draft FPL Hub</Text>
       <Text style={styles.subtitle}>Sign In To Squad</Text>
 
@@ -174,12 +175,12 @@ export default function LoginScreen() {
       <TouchableOpacity style={styles.resetLink} onPress={() => router.push('/(auth)/forgot-password')}>
         <Text style={styles.resetText}>Forgot your password?</Text>
       </TouchableOpacity>
-    </View>
+    </AuthScreenFrame>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background },
   title: { fontSize: 28, fontWeight: '900', color: colors.textPrimary, textAlign: 'center' },
   subtitle: { fontSize: 13, color: colors.accent, textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
   

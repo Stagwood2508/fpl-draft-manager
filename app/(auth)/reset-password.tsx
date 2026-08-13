@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import AuthScreenFrame from '@/components/AuthScreenFrame';
 import { supabase } from '@/utils/supabase';
 
 export default function ResetPasswordScreen() {
@@ -104,7 +105,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Choose New Password</Text>
       {recoveryError ? (
         <View style={styles.errorCard}>
@@ -124,12 +125,12 @@ export default function ResetPasswordScreen() {
           </TouchableOpacity>
         </>
       )}
-    </View>
+    </AuthScreenFrame>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background },
   title: { color: colors.textPrimary, fontSize: 23, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 24 },
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.textPrimary, padding: 15, borderRadius: 5, marginBottom: 14 },
   button: { backgroundColor: colors.accent, padding: 15, alignItems: 'center', borderRadius: 5 },

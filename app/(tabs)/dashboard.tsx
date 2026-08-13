@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
@@ -115,6 +116,7 @@ function SummaryCard({ icon, label, value, meta, tone = 'default', onPress }: Su
 }
 
 export default function HomeDashboardScreen() {
+  const safeArea = useSafeAreaInsets();
   const { colors: appColors } = useAppTheme();
   const styles = useMemo(() => createStyles(appColors), [appColors]);
   const activityMeta = useMemo(() => ({
@@ -682,8 +684,8 @@ export default function HomeDashboardScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={leaguePickerOpen} transparent animationType="fade" onRequestClose={() => setLeaguePickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={leaguePickerOpen} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setLeaguePickerOpen(false)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalEyebrow}>LEAGUE CONTEXT</Text>
             <Text style={styles.modalTitle}>Switch active league</Text>
@@ -721,8 +723,8 @@ export default function HomeDashboardScreen() {
         </View>
       </Modal>
 
-      <Modal visible={announcementOpen && Boolean(announcement)} transparent animationType="fade" onRequestClose={() => setAnnouncementOpen(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={announcementOpen && Boolean(announcement)} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setAnnouncementOpen(false)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
           <View style={[styles.announcementModalCard, announcement?.priority === 'URGENT' && styles.announcementModalCardUrgent]}>
             <View style={styles.announcementModalHeading}>
               <View style={[styles.announcementModalIcon, announcement?.priority === 'URGENT' && styles.announcementModalIconUrgent]}>
@@ -755,8 +757,8 @@ export default function HomeDashboardScreen() {
         </View>
       </Modal>
 
-      <Modal visible={shortcutPickerOpen} transparent animationType="fade" onRequestClose={() => setShortcutPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={shortcutPickerOpen} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setShortcutPickerOpen(false)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
           <View style={styles.shortcutModalCard}>
             <Text style={styles.modalEyebrow}>PERSONAL HOME</Text>
             <Text style={styles.modalTitle}>Choose four quick routes</Text>

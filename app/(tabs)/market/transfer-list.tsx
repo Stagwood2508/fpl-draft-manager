@@ -9,8 +9,11 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  TextInput
+  TextInput,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '@/utils/supabase';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
@@ -64,6 +67,7 @@ const POSITION_ORDER: Record<string, number> = {
 export default function TransferMarketScreen() {
   const { colors: appColors } = useAppTheme();
   const styles = useMemo(() => createStyles(appColors), [appColors]);
+  const safeArea = useSafeAreaInsets();
   const isFocused = useIsFocused();
 
   const {
@@ -358,8 +362,8 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
       )}
 
       {/* POP-UP MODAL A: SET TRADE NOTE (FOR LISTING) */}
-      <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={() => setIsModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={isModalVisible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setIsModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>List Player for Transfer</Text>
             {selectedRosterItem && <Text style={styles.modalPlayerName}>{selectedRosterItem.players.web_name}</Text>}
@@ -376,12 +380,12 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* POP-UP MODAL B: DETAIL CARD DISPLAY */}
-      <Modal visible={isDetailModalVisible} animationType="fade" transparent={true} onRequestClose={() => setIsDetailModalVisible(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={isDetailModalVisible} animationType="fade" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setIsDetailModalVisible(false)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
           <View style={styles.cardDetailModal}>
             {viewingMarketItem && (
               <View>

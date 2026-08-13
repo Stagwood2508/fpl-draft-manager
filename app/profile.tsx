@@ -7,7 +7,9 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   Alert, 
-  ScrollView 
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/utils/supabase';
@@ -110,7 +112,12 @@ export default function GenericProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top', 'bottom', 'left', 'right']}>
-      <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+      <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ padding: 16 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Account Identity</Text>
         
         <View style={styles.card}>
@@ -156,12 +163,14 @@ export default function GenericProfileScreen() {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
   safeContainer: { flex: 1, backgroundColor: colors.background },
+  keyboardView: { flex: 1 },
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   title: { ...appTypography.screenTitle, color: colors.textPrimary, textTransform: 'uppercase', marginBottom: appSpacing.xl },

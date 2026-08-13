@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import AuthScreenFrame from '@/components/AuthScreenFrame';
 import { supabase } from '@/utils/supabase';
 
 export default function ForgotPasswordScreen() {
@@ -36,7 +37,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Reset Password</Text>
       <Text style={styles.copy}>
         Enter your account email and we will send you a secure password-reset link.
@@ -65,12 +66,12 @@ export default function ForgotPasswordScreen() {
       <TouchableOpacity style={styles.backLink} onPress={() => router.replace('/(auth)/login')}>
         <Text style={styles.backText}>Back to sign in</Text>
       </TouchableOpacity>
-    </View>
+    </AuthScreenFrame>
   );
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background },
   title: { color: colors.textPrimary, fontSize: 25, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center' },
   copy: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 10, marginBottom: 22 },
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.textPrimary, padding: 15, borderRadius: 5 },

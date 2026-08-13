@@ -11,9 +11,10 @@ import {
   Modal,
   ScrollView,
   RefreshControl,
-  Platform
+  Platform,
+  useWindowDimensions
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -129,6 +130,17 @@ const getPreviousSeasonLabel = () => {
   return `${previousStart}/${String(previousStart + 1).slice(-2)}`;
 };
 
+const getManagerInitials = (firstName?: string | null, lastName?: string | null, displayName?: string | null) => {
+  const firstInitial = firstName?.trim().charAt(0) || '';
+  const lastInitial = lastName?.trim().charAt(0) || '';
+  if (firstInitial || lastInitial) return `${firstInitial}${lastInitial}`.toUpperCase();
+
+  const nameParts = (displayName || '').trim().split(/\s+/).filter(Boolean);
+  if (nameParts.length >= 2) return `${nameParts[0].charAt(0)}${nameParts[nameParts.length - 1].charAt(0)}`.toUpperCase();
+  if (nameParts.length === 1) return nameParts[0].slice(0, 2).toUpperCase();
+  return 'M';
+};
+
 const getMetricValue = (player: PlayerAsset, period: StatsPeriod, key: SortKey) => {
   const stats = period === 'CURRENT' ? player.current_stats : (player.last_season_stats || EMPTY_STAT_LINE);
   switch (key) {
@@ -168,6 +180,9 @@ const POSITION_COLORS: Record<string, string> = {
 export default function PlayerPoolScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
+  const safeArea = useSafeAreaInsets();
+  const isMobileLayout = width < 700;
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -337,7 +352,9 @@ export default function PlayerPoolScreen() {
       const finalizedPool: PlayerAsset[] = (playersData || []).map(player => ({
         ...player,
         element_type: overridesMap[player.id] || player.element_type,
-        current_stats: toStatLine(currentStatsById.get(Number(player.id)), numeric(player.total_points)),
+        // Current-season figures must only come from current Gameweek rows. The
+        // Draft bootstrap total can retain the previous season before rollover.
+        current_stats: toStatLine(currentStatsById.get(Number(player.id)), 0),
         last_season_stats: previousStatsByCode.has(Number(player.code))
           ? toStatLine(previousStatsByCode.get(Number(player.code)))
           : null,
@@ -376,7 +393,6 @@ export default function PlayerPoolScreen() {
               if (memberMap[ownerUserId]) {
                 const name = memberMap[ownerUserId];
                 owners[key].display_name = name;
-                owners[key].short_initials = name.slice(0, 2).toUpperCase();
               }
             });
           }
@@ -385,15 +401,21 @@ export default function PlayerPoolScreen() {
           if (profilesData) {
             const profileMap: Record<string, { full: string; short: string }> = {};
             profilesData.forEach((p: any) => {
-              let shortTag = p.first_name && p.last_name ? `${p.first_name.charAt(0)}${p.last_name.charAt(0)}` : p.display_name?.slice(0, 2) || 'M';
-              profileMap[p.id] = { full: p.display_name || `Manager ${p.id.slice(0, 4)}`, short: shortTag.toUpperCase() };
+              profileMap[p.id] = {
+                full: p.display_name || `Manager ${p.id.slice(0, 4)}`,
+                short: getManagerInitials(p.first_name, p.last_name, p.display_name),
+              };
             });
 
             Object.keys(owners).forEach((key: any) => {
               const ownerUserId = owners[key].userId;
-              if (owners[key].display_name.startsWith('Manager') && profileMap[ownerUserId]) {
-                owners[key].display_name = profileMap[ownerUserId].full;
+              if (profileMap[ownerUserId]) {
+                // Keep the team name as the longer ownership/trade label, but
+                // always use the manager's own initials in the compact badge.
                 owners[key].short_initials = profileMap[ownerUserId].short;
+                if (owners[key].display_name.startsWith('Manager')) {
+                  owners[key].display_name = profileMap[ownerUserId].full;
+                }
               }
             });
           }
@@ -632,9 +654,9 @@ export default function PlayerPoolScreen() {
       )}
 
       {/* Compact desktop popover / mobile bottom sheet for scouting controls */}
-      <Modal visible={filtersVisible} animationType="slide" transparent onRequestClose={() => setFiltersVisible(false)}>
+      <Modal visible={filtersVisible} animationType="slide" transparent presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setFiltersVisible(false)}>
         <View style={[styles.filterOverlay, Platform.OS === 'web' && styles.filterOverlayWeb]}>
-          <View style={styles.filterSheet}>
+          <View style={[styles.filterSheet, isMobileLayout && { paddingBottom: Math.max(safeArea.bottom, 8) }]}>
             <View style={styles.filterHeader}>
               <View>
                 <Text style={styles.filterEyebrow}>PLAYER POOL</Text>
@@ -724,9 +746,9 @@ export default function PlayerPoolScreen() {
       />
 
       {/* POSITION-MATCHED WAIVER QUEUE MODAL (WAIVERS_OPEN) */}
-      <Modal visible={isWaiverModalVisible} animationType="slide" transparent={true} onRequestClose={() => !submittingWaiver && setIsWaiverModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <Modal visible={isWaiverModalVisible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => !submittingWaiver && setIsWaiverModalVisible(false)}>
+        <View style={[styles.modalOverlay, isMobileLayout && styles.modalOverlayMobile]}>
+          <View style={[styles.modalContent, isMobileLayout && styles.modalContentMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
             <Text style={styles.modalHeader}>Request Waiver Swap</Text>
             {selectedPoolPlayer && (
               <View style={styles.swapVisualContainer}>
@@ -881,7 +903,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   applyButton: { flex: 1, height: 40, borderRadius: 5, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   applyButtonText: { color: colors.black, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlayMobile: { justifyContent: 'flex-start', alignItems: 'stretch' },
   modalContent: { backgroundColor: colors.surface, width: '90%', maxHeight: '80%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.borderStrong },
+  modalContentMobile: { width: '100%', height: '100%', maxHeight: undefined, borderRadius: 0, borderWidth: 0, paddingHorizontal: 10 },
   modalHeader: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
   swapVisualContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.backgroundElevated, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
   swapCard: { flex: 1, alignItems: 'center', padding: 10, backgroundColor: colors.surfaceRaised, borderRadius: 6, borderWidth: 1, borderColor: colors.borderStrong, minHeight: 74, justifyContent: 'center' },

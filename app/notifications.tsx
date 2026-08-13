@@ -4,7 +4,6 @@ import {
   Alert,
   Modal,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -64,6 +64,7 @@ const relativeTime = (timestamp: string) => {
 };
 
 export default function NotificationCentreScreen() {
+  const safeArea = useSafeAreaInsets();
   const { colors: appColors } = useAppTheme();
   const styles = useMemo(() => createStyles(appColors), [appColors]);
   const categoryMeta = useMemo<Record<NotificationCategory, { icon: React.ComponentProps<typeof Ionicons>['name']; color: string; label: string }>>(() => ({
@@ -216,8 +217,8 @@ export default function NotificationCentreScreen() {
         {notifications.some(item => item.read_at) ? <TouchableOpacity style={styles.clearButton} onPress={clearRead}><Text style={styles.clearText}>CLEAR READ NOTIFICATIONS</Text></TouchableOpacity> : null}
       </ScrollView>
 
-      <Modal visible={preferencesOpen} transparent animationType="fade" onRequestClose={() => setPreferencesOpen(false)}>
-        <View style={styles.modalOverlay}>
+      <Modal visible={preferencesOpen} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setPreferencesOpen(false)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalEyebrow}>NOTIFICATION SETTINGS</Text>
             <Text style={styles.modalTitle}>Choose what reaches your inbox</Text>

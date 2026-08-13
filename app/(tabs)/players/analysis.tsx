@@ -7,14 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Dimensions
+  useWindowDimensions
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface PlayerAsset {
   id: number;
@@ -44,8 +42,9 @@ interface FixtureDifficulty {
 }
 
 export default function PlayerAnalysisScreen() {
+  const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  const styles = React.useMemo(() => createStyles(colors, width), [colors, width]);
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [playerPool, setPlayerPool] = useState<PlayerAsset[]>([]);
@@ -208,7 +207,7 @@ export default function PlayerAnalysisScreen() {
   );
 }
 
-const createStyles = (colors: AppColors) => StyleSheet.create({
+const createStyles = (colors: AppColors, screenWidth: number) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   pickerContainer: { paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -223,7 +222,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   
   // MATRIX LAYOUT STYLES
   matrixContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 },
-  matrixCard: { width: (SCREEN_WIDTH - 28) / 5.4, borderWidth: 1, paddingVertical: 10, borderRadius: 2, alignItems: 'center', position: 'relative' },
+  matrixCard: { width: Math.max(54, (screenWidth - 28) / 5.4), borderWidth: 1, paddingVertical: 10, borderRadius: 2, alignItems: 'center', position: 'relative' },
   matrixGw: { color: colors.textSecondary, fontSize: 9, fontWeight: '800' },
   matrixOpp: { color: colors.textPrimary, fontSize: 14, fontWeight: '900', marginTop: 4 },
   matrixLoc: { color: colors.textSecondary, fontSize: 8, fontWeight: '700', marginTop: 2 },

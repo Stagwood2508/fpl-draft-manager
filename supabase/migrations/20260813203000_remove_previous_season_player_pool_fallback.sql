@@ -1,10 +1,5 @@
--- Compact, authenticated player-pool statistics for current-season scouting.
-
-alter table public.player_gameweek_stats
-  add column if not exists starts integer not null default 0,
-  add column if not exists expected_goals numeric not null default 0,
-  add column if not exists expected_assists numeric not null default 0,
-  add column if not exists expected_goal_involvements numeric not null default 0;
+-- The Draft bootstrap can retain last season's total_points during rollover.
+-- Current-season scouting must therefore be based only on current Gameweek rows.
 
 create or replace function public.get_player_pool_current_stats(
   p_through_gameweek integer default 38
@@ -78,7 +73,7 @@ as $$
     group by stats.player_id
   )
   select
-    player.id::integer as player_id,
+    player.id::integer,
     coalesce(aggregates.total_points, 0)::bigint,
     coalesce(aggregates.minutes, 0)::bigint,
     coalesce(aggregates.starts, 0)::bigint,
@@ -105,4 +100,4 @@ revoke all on function public.get_player_pool_current_stats(integer) from public
 grant execute on function public.get_player_pool_current_stats(integer) to authenticated, service_role;
 
 comment on function public.get_player_pool_current_stats(integer) is
-  'Returns one compact current-season scouting row per active player; recent form is points per appearance across the latest five populated Gameweeks.';
+  'Returns current-season player-pool totals from Gameweek rows only; it deliberately never falls back to the Draft bootstrap season total.';

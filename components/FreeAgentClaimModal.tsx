@@ -8,7 +8,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
@@ -48,6 +50,10 @@ export default function FreeAgentClaimModal({
 }: FreeAgentClaimModalProps) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width, height } = useWindowDimensions();
+  const safeArea = useSafeAreaInsets();
+  const isMobileLayout = width < 700;
+  const isShortMobile = isMobileLayout && height < 720;
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resolvedLid, setResolvedLid] = useState<string | null>(null);
@@ -217,9 +223,9 @@ export default function FreeAgentClaimModal({
   if (!targetPlayer) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modalCard}>
+    <Modal visible={visible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
+      <View style={[styles.overlay, isMobileLayout && styles.overlayMobile]}>
+        <View style={[styles.modalCard, isMobileLayout && styles.modalCardMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
           {/* Header */}
           <Text style={styles.modalBadge}>FREE AGENT PICKUP ({rosterType})</Text>
           <Text style={styles.modalTitle}>Confirm Player Swap</Text>
@@ -255,7 +261,7 @@ export default function FreeAgentClaimModal({
               <ActivityIndicator size="small" color="#00ff87" />
             </View>
           ) : (
-            <ScrollView style={styles.rosterScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={[styles.rosterScroll, isMobileLayout && styles.rosterScrollMobile]} showsVerticalScrollIndicator={false} nestedScrollEnabled>
               {myRoster.map((player) => {
                 const isSelected = selectedDropPlayerId === player.id;
                 const canDrop = isDropAllowed(player.element_type);
@@ -265,6 +271,8 @@ export default function FreeAgentClaimModal({
                     key={player.id}
                     style={[
                       styles.dropPlayerCard,
+                      isMobileLayout && styles.dropPlayerCardMobile,
+                      isShortMobile && styles.dropPlayerCardShortMobile,
                       isSelected && styles.dropPlayerCardSelected,
                       !canDrop && styles.dropPlayerCardDisabled,
                     ]}
@@ -338,6 +346,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
+  overlayMobile: { justifyContent: 'flex-start', alignItems: 'stretch', padding: 0 },
   modalCard: {
     backgroundColor: colors.surface,
     width: '100%',
@@ -347,6 +356,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     borderColor: colors.borderStrong,
     padding: 16,
   },
+  modalCardMobile: { width: '100%', height: '100%', maxHeight: undefined, borderRadius: 0, borderWidth: 0, paddingHorizontal: 8 },
   modalBadge: {
     color: colors.accent,
     fontSize: 10,
@@ -418,6 +428,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     maxHeight: 220,
     marginBottom: 12,
   },
+  rosterScrollMobile: { flex: 1, maxHeight: undefined, marginBottom: 4 },
   dropPlayerCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -429,6 +440,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     padding: 10,
     marginBottom: 6,
   },
+  dropPlayerCardMobile: { paddingVertical: 6, paddingHorizontal: 8, marginBottom: 3 },
+  dropPlayerCardShortMobile: { paddingVertical: 4, marginBottom: 2 },
   dropPlayerCardSelected: {
     borderColor: colors.danger,
     backgroundColor: colors.dangerSoft,
