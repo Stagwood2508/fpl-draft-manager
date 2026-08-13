@@ -34,7 +34,6 @@ interface PlayerAsset {
   team_name: string;
   team_short_name?: string;
   element_type: string;
-  total_points: number;
   current_stats: PlayerStatLine;
   last_season_stats: PlayerStatLine | null;
 }
@@ -104,8 +103,8 @@ const EMPTY_STAT_LINE: PlayerStatLine = {
 
 const numeric = (value: unknown) => Number(value || 0);
 
-const toStatLine = (row: any, fallbackTotal = 0): PlayerStatLine => ({
-  total_points: row ? numeric(row.total_points) : fallbackTotal,
+const toStatLine = (row: any): PlayerStatLine => ({
+  total_points: numeric(row?.total_points),
   minutes: numeric(row?.minutes),
   starts: numeric(row?.starts),
   appearances: numeric(row?.appearances ?? row?.starts),
@@ -315,9 +314,9 @@ export default function PlayerPoolScreen() {
       const [playersResponse, currentStatsResponse, previousStatsResponse] = await Promise.all([
         supabase
           .from('players')
-          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type, total_points')
+          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type')
           .eq('is_active', true)
-          .order('total_points', { ascending: false }),
+          .order('web_name', { ascending: true }),
         supabase.rpc('get_player_pool_current_stats', { p_through_gameweek: resolvedGameweek }),
         supabase
           .from('player_season_stats')
@@ -328,7 +327,7 @@ export default function PlayerPoolScreen() {
       if (playersResponse.error) throw playersResponse.error;
       const playersData = playersResponse.data || [];
       if (currentStatsResponse.error) {
-        console.warn('Current player-pool aggregates unavailable; using total-points fallback:', currentStatsResponse.error.message);
+        console.warn('Current player-pool aggregates unavailable; current-season values will remain zero:', currentStatsResponse.error.message);
       }
       if (previousStatsResponse.error) {
         console.warn('Previous-season player-pool figures unavailable:', previousStatsResponse.error.message);
@@ -352,9 +351,8 @@ export default function PlayerPoolScreen() {
       const finalizedPool: PlayerAsset[] = (playersData || []).map(player => ({
         ...player,
         element_type: overridesMap[player.id] || player.element_type,
-        // Current-season figures must only come from current Gameweek rows. The
-        // Draft bootstrap total can retain the previous season before rollover.
-        current_stats: toStatLine(currentStatsById.get(Number(player.id)), 0),
+        // Current-season figures come exclusively from current Gameweek rows.
+        current_stats: toStatLine(currentStatsById.get(Number(player.id))),
         last_season_stats: previousStatsByCode.has(Number(player.code))
           ? toStatLine(previousStatsByCode.get(Number(player.code)))
           : null,
