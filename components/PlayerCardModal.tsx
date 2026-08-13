@@ -284,7 +284,39 @@ export default function PlayerCardModal({
           setPlayer(basePlayer);
         }
       } else {
-        setPlayer(basePlayer);
+        const { data: currentStatsData, error: currentStatsError } = await supabase
+          .rpc('get_player_pool_current_stats', {
+            p_through_gameweek: Math.max(currentGameweek, 1),
+          })
+          .eq('player_id', playerId)
+          .maybeSingle();
+
+        if (currentStatsError) {
+          console.warn('Current player-card aggregates unavailable:', currentStatsError.message);
+        }
+
+        const currentStats = currentStatsData as any;
+        const appearances = Number(currentStats?.appearances || currentStats?.starts || 0);
+        const currentTotal = Number(currentStats?.total_points || 0);
+
+        setPlayer({
+          ...basePlayer,
+          total_points: currentTotal,
+          minutes: Number(currentStats?.minutes || 0),
+          starts: Number(currentStats?.starts || 0),
+          goals_scored: Number(currentStats?.goals_scored || 0),
+          assists: Number(currentStats?.assists || 0),
+          clean_sheets: Number(currentStats?.clean_sheets || 0),
+          saves: Number(currentStats?.saves || 0),
+          penalties_saved: Number(currentStats?.penalties_saved || 0),
+          bonus: Number(currentStats?.bonus || 0),
+          defensive_contribution: Number(currentStats?.defensive_contribution || 0),
+          ict_index: Number(currentStats?.ict_index || 0),
+          expected_goals: Number(currentStats?.expected_goals || 0),
+          expected_assists: Number(currentStats?.expected_assists || 0),
+          form: String(Number(currentStats?.recent_form || 0)),
+          points_per_game: appearances > 0 ? (currentTotal / appearances).toFixed(1) : '0.0',
+        });
       }
 
       if (statsMode === 'CURRENT') {

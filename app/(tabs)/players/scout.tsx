@@ -34,6 +34,7 @@ interface PlayerAsset {
   team_name: string;
   team_short_name?: string;
   element_type: string;
+  draft_rank: number;
   current_stats: PlayerStatLine;
   last_season_stats: PlayerStatLine | null;
 }
@@ -60,7 +61,7 @@ interface PlayerStatLine {
 type StatsPeriod = 'CURRENT' | 'LAST_SEASON';
 type OwnershipFilter = 'ALL' | 'AVAILABLE' | 'MINE' | 'OTHERS';
 type SortKey =
-  | 'TOTAL_POINTS' | 'FORM' | 'POINTS_PER_START' | 'MINUTES' | 'STARTS'
+  | 'DRAFT_RANK' | 'TOTAL_POINTS' | 'FORM' | 'POINTS_PER_START' | 'MINUTES' | 'STARTS'
   | 'GOALS' | 'ASSISTS' | 'GOAL_INVOLVEMENTS' | 'CLEAN_SHEETS'
   | 'SAVES' | 'PENALTIES_SAVED' | 'BONUS' | 'DEFCON' | 'ICT'
   | 'EXPECTED_GOALS' | 'EXPECTED_ASSISTS' | 'EXPECTED_INVOLVEMENTS';
@@ -72,9 +73,11 @@ interface SortOption {
   positions?: string[];
   currentOnly?: boolean;
   decimals?: number;
+  ascending?: boolean;
 }
 
 const SORT_OPTIONS: SortOption[] = [
+  { key: 'DRAFT_RANK', label: 'Draft rank', shortLabel: 'RANK', ascending: true },
   { key: 'TOTAL_POINTS', label: 'Total points', shortLabel: 'PTS' },
   { key: 'FORM', label: 'Recent form (last 5)', shortLabel: 'FORM', currentOnly: true, decimals: 1 },
   { key: 'POINTS_PER_START', label: 'Points per start', shortLabel: 'PTS/ST', decimals: 1 },
@@ -141,6 +144,7 @@ const getManagerInitials = (firstName?: string | null, lastName?: string | null,
 };
 
 const getMetricValue = (player: PlayerAsset, period: StatsPeriod, key: SortKey) => {
+  if (key === 'DRAFT_RANK') return Number(player.draft_rank || 999999);
   const stats = period === 'CURRENT' ? player.current_stats : (player.last_season_stats || EMPTY_STAT_LINE);
   switch (key) {
     case 'FORM': return stats.recent_form;
@@ -201,7 +205,7 @@ export default function PlayerPoolScreen() {
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL');
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>('CURRENT');
-  const [sortKey, setSortKey] = useState<SortKey>('TOTAL_POINTS');
+  const [sortKey, setSortKey] = useState<SortKey>('DRAFT_RANK');
   const [selectedClub, setSelectedClub] = useState('ALL');
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('ALL');
   const [watchlistOnly, setWatchlistOnly] = useState(false);
@@ -240,7 +244,7 @@ export default function PlayerPoolScreen() {
   }), [selectedPosition, statsPeriod]);
 
   useEffect(() => {
-    if (!availableSortOptions.some(option => option.key === sortKey)) setSortKey('TOTAL_POINTS');
+    if (!availableSortOptions.some(option => option.key === sortKey)) setSortKey('DRAFT_RANK');
   }, [availableSortOptions, sortKey]);
 
   const clubs = useMemo(() => Array.from(new Set(allPlayers.map(player => player.team_name).filter(Boolean))).sort(), [allPlayers]);
@@ -266,8 +270,12 @@ export default function PlayerPoolScreen() {
         const stats = statsPeriod === 'CURRENT' ? player.current_stats : player.last_season_stats;
         return minimumMinutes === 0 || Boolean(stats && stats.minutes >= minimumMinutes);
       })
-      .sort((a, b) => getMetricValue(b, statsPeriod, sortKey) - getMetricValue(a, statsPeriod, sortKey) || a.web_name.localeCompare(b.web_name));
-  }, [allPlayers, selectedPosition, selectedClub, searchQuery, watchlistOnly, watchlistIds, ownershipMap, ownershipFilter, currentUserId, minimumMinutes, statsPeriod, sortKey]);
+      .sort((a, b) => {
+        const aValue = getMetricValue(a, statsPeriod, sortKey);
+        const bValue = getMetricValue(b, statsPeriod, sortKey);
+        return (selectedSort.ascending ? aValue - bValue : bValue - aValue) || a.web_name.localeCompare(b.web_name);
+      });
+  }, [allPlayers, selectedPosition, selectedClub, searchQuery, watchlistOnly, watchlistIds, ownershipMap, ownershipFilter, currentUserId, minimumMinutes, statsPeriod, sortKey, selectedSort.ascending]);
 
   const loadScoutEngineContext = async () => {
     try {
@@ -314,7 +322,7 @@ export default function PlayerPoolScreen() {
       const [playersResponse, currentStatsResponse, previousStatsResponse] = await Promise.all([
         supabase
           .from('players')
-          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type')
+          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type, draft_rank')
           .eq('is_active', true)
           .order('web_name', { ascending: true }),
         supabase.rpc('get_player_pool_current_stats', { p_through_gameweek: resolvedGameweek }),
@@ -566,7 +574,9 @@ export default function PlayerPoolScreen() {
     const isWaiverLocked = !owner && marketStatus === 'FREE_AGENCY' && waiverLockedPlayerIds.has(item.id);
     const mappedPositionColor = POSITION_COLORS[item.element_type] || '#222';
     const metricValue = getMetricValue(item, statsPeriod, sortKey);
-    const metricDisplay = selectedSort.decimals !== undefined ? metricValue.toFixed(selectedSort.decimals) : Math.round(metricValue).toString();
+    const metricDisplay = sortKey === 'DRAFT_RANK'
+      ? (metricValue >= 999 ? 'N/A' : `#${Math.round(metricValue)}`)
+      : (selectedSort.decimals !== undefined ? metricValue.toFixed(selectedSort.decimals) : Math.round(metricValue).toString());
 
     return (
       <View style={styles.playerRow}>
@@ -721,7 +731,7 @@ export default function PlayerPoolScreen() {
 
             <View style={styles.filterFooter}>
               <TouchableOpacity style={styles.resetButton} onPress={() => {
-                setStatsPeriod('CURRENT'); setSortKey('TOTAL_POINTS'); setSelectedClub('ALL');
+                setStatsPeriod('CURRENT'); setSortKey('DRAFT_RANK'); setSelectedClub('ALL');
                 setOwnershipFilter('ALL'); setWatchlistOnly(false); setMinimumMinutes(0);
               }}>
                 <Text style={styles.resetButtonText}>Reset</Text>
