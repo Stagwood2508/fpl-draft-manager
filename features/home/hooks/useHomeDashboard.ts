@@ -241,7 +241,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         supabase.rpc('get_my_waiver_status', { p_league_id: activeLeagueId }),
         supabase
           .from('waiver_claims')
-          .select('id', { count: 'exact', head: true })
+          .select('id, gameweek')
           .eq('league_id', activeLeagueId)
           .eq('user_id', currentUserId)
           .eq('status', 'pending'),
@@ -342,7 +342,9 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
             ? null
             : Number(waiverData.priority),
           managerCount: Number(waiverData.manager_count || memberships.length),
-          pendingClaims: pendingWaiverResponse.count || 0,
+          pendingClaims: (pendingWaiverResponse.data || []).filter((claim: any) =>
+            Number(claim.gameweek) === Number(waiverData.gameweek ?? gameweekNumber)
+          ).length,
           marketStatus: waiverData.market_status || gameweek?.status || null,
         },
         pendingTrades: pendingTradeResponse.count || 0,
