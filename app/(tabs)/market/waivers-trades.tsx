@@ -817,45 +817,48 @@ if (!userId || !leagueId) {
     }
   };
 
-  const handleCancelWaiverClaim = async (claimId: string) => {
-    Alert.alert("Cancel Claim", "Remove this waiver request from your active queue?", [
-      { text: "No", style: "cancel" },
-      {
-        text: "Yes, Remove",
-        onPress: async () => {
-          try {
-            setProcessing(true);
+  const handleCancelWaiverClaim = (claimId: string) => {
+    confirmAction(
+      'Cancel Claim',
+      'Remove this waiver request from your active queue?',
+      'Yes, Remove',
+      async () => {
+        try {
+          setProcessing(true);
           if (!userId || !leagueId) {
-  throw new Error('Your user or league session is unavailable.');
-}
-
-const { data, error } = await supabase.rpc('cancel_waiver_claim', {
-  p_claim_id: claimId,
-});
-            if (error) throw error;
-            if (!data?.success) {
-              const messages: Record<string, string> = {
-                CLAIM_NOT_FOUND: 'This claim no longer exists. The waiver list will now refresh.',
-                CLAIM_OWNER_REQUIRED: 'Only the manager who submitted this claim can cancel it.',
-                CLAIM_ALREADY_PROCESSED: 'This claim has already been processed and cannot be cancelled.',
-                WAIVER_WINDOW_CLOSED: 'The waiver deadline has passed, so this claim can no longer be cancelled.',
-              };
-              throw new Error(messages[data?.error] || 'The claim could not be cancelled. Please try again.');
-            }
-            setPendingWaiverClaims(current =>
-              current
-                .filter(claim => claim.id !== claimId)
-                .map((claim, index) => ({ ...claim, priority_order: index + 1 }))
-            );
-            await fetchTransactionContext();
-          } catch (err: any) {
-            Alert.alert("Cancellation Failed", err.message);
-          } finally {
-            setProcessing(false);
+            throw new Error('Your user or league session is unavailable.');
           }
+
+          const { data, error } = await supabase.rpc('cancel_waiver_claim', {
+            p_claim_id: claimId,
+          });
+          if (error) throw error;
+          if (!data?.success) {
+            const messages: Record<string, string> = {
+              CLAIM_NOT_FOUND: 'This claim no longer exists. The waiver list will now refresh.',
+              CLAIM_OWNER_REQUIRED: 'Only the manager who submitted this claim can cancel it.',
+              CLAIM_ALREADY_PROCESSED: 'This claim has already been processed and cannot be cancelled.',
+              WAIVER_WINDOW_CLOSED: 'The waiver deadline has passed, so this claim can no longer be cancelled.',
+            };
+            throw new Error(messages[data?.error] || 'The claim could not be cancelled. Please try again.');
+          }
+
+          setPendingWaiverClaims(current =>
+            current
+              .filter(claim => claim.id !== claimId)
+              .map((claim, index) => ({ ...claim, priority_order: index + 1 }))
+          );
+          await fetchTransactionContext();
+        } catch (err: any) {
+          const message = err?.message || 'The claim could not be cancelled.';
+          if (Platform.OS === 'web') window.alert(`Cancellation Failed\n\n${message}`);
+          else Alert.alert('Cancellation Failed', message);
+        } finally {
+          setProcessing(false);
         }
-      }
-    ]);
+      },
+      true
+    );
   };
 
   const getShortTeamCode = (name: string) => {
