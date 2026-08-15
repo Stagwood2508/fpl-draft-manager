@@ -442,6 +442,7 @@ declare
   v_success_count integer := 0;
   v_failure_count integer := 0;
   v_is_first_window boolean;
+  v_manager_order uuid[];
 begin
   if v_actor_id is not null
      and coalesce(auth.role(), '') <> 'service_role'
@@ -491,45 +492,44 @@ begin
       and coalesce(previous_window.is_waiver_processed, false)
   );
 
-  drop table if exists pg_temp.waiver_manager_order;
-  create temporary table waiver_manager_order (
-    user_id uuid primary key,
-    processing_position integer not null
-  ) on commit drop;
-
   if v_is_first_window then
-    insert into waiver_manager_order (user_id, processing_position)
-    select
-      lm.user_id,
-      row_number() over (
-        order by
-          case when v_settings.initial_waiver_order_rule = 'DRAFT_ORDER' then lm.draft_order end asc nulls last,
-          case when v_settings.initial_waiver_order_rule = 'REVERSE_DRAFT' then lm.draft_order end desc nulls last,
-          lm.user_id
-      )::integer
+    select pg_catalog.array_agg(
+      lm.user_id order by
+        case when v_settings.initial_waiver_order_rule = 'DRAFT_ORDER' then lm.draft_order end asc nulls last,
+        case when v_settings.initial_waiver_order_rule = 'REVERSE_DRAFT' then lm.draft_order end desc nulls last,
+        lm.user_id
+    )
+    into v_manager_order
     from public.league_members lm
     where lm.league_id = p_league_id;
   else
-    insert into waiver_manager_order (user_id, processing_position)
-    select
-      standings.user_id,
-      row_number() over (order by standings.rank desc, standings.user_id)::integer
-    from public.get_league_standings(
-      p_league_id,
-      greatest(p_gameweek - 1, 1),
-      false
-    ) standings;
-
-    insert into waiver_manager_order (user_id, processing_position)
-    select
-      lm.user_id,
-      coalesce((select max(wmo.processing_position) from waiver_manager_order wmo), 0)
-        + row_number() over (order by lm.draft_order desc nulls last, lm.user_id)::integer
-    from public.league_members lm
-    where lm.league_id = p_league_id
-      and not exists (
-        select 1 from waiver_manager_order wmo where wmo.user_id = lm.user_id
-      );
+    with standings_order as (
+      select
+        standings.user_id,
+        row_number() over (order by standings.rank desc, standings.user_id)::integer as processing_position
+      from public.get_league_standings(
+        p_league_id,
+        greatest(p_gameweek - 1, 1),
+        false
+      ) standings
+    ),
+    complete_order as (
+      select ordered.user_id, ordered.processing_position
+      from standings_order ordered
+      union all
+      select
+        lm.user_id,
+        coalesce((select max(ordered.processing_position) from standings_order ordered), 0)
+          + row_number() over (order by lm.draft_order desc nulls last, lm.user_id)::integer
+      from public.league_members lm
+      where lm.league_id = p_league_id
+        and not exists (
+          select 1 from standings_order ordered where ordered.user_id = lm.user_id
+        )
+    )
+    select pg_catalog.array_agg(ordered.user_id order by ordered.processing_position)
+    into v_manager_order
+    from complete_order ordered;
   end if;
 
   loop
@@ -537,7 +537,10 @@ begin
     v_pass_success := false;
 
     for v_manager in
-      select * from waiver_manager_order order by processing_position
+      select manager.user_id
+      from pg_catalog.unnest(coalesce(v_manager_order, array[]::uuid[]))
+        with ordinality as manager(user_id, processing_position)
+      order by manager.processing_position
     loop
       v_manager_success := false;
 

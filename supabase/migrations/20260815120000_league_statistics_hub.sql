@@ -31,7 +31,8 @@ as $$
            coalesce(fixture.home_score, 0)::integer as score,
            coalesce(fixture.away_score, 0)::integer as opponent_score,
            fixture.away_user_id as opponent_id
-    from public.league_fixtures fixture, bounds
+    from public.league_fixtures fixture
+    cross join bounds
     where fixture.league_id = p_league_id
       and fixture.gameweek between bounds.start_gw and bounds.end_gw
       and coalesce(fixture.is_finished, false)
@@ -40,7 +41,8 @@ as $$
            coalesce(fixture.away_score, 0)::integer,
            coalesce(fixture.home_score, 0)::integer,
            fixture.home_user_id
-    from public.league_fixtures fixture, bounds
+    from public.league_fixtures fixture
+    cross join bounds
     where fixture.league_id = p_league_id
       and fixture.gameweek between bounds.start_gw and bounds.end_gw
       and coalesce(fixture.is_finished, false)
@@ -64,7 +66,8 @@ as $$
                  coalesce(stats.defensive_contribution, 0)::integer
                )
            )::integer as benched_points
-    from public.gameweek_lineup_snapshots snapshot, bounds
+    from public.gameweek_lineup_snapshots snapshot
+    cross join bounds
     cross join lateral unnest(snapshot.effective_bench_player_ids) bench(player_id)
     join public.players player on player.id = bench.player_id
     left join public.player_gameweek_stats stats
@@ -176,14 +179,16 @@ as $$
            fixture.home_team_name as team_name, fixture.away_team_name as opponent_name,
            coalesce(fixture.home_score, 0)::integer as points,
            coalesce(fixture.away_score, 0)::integer as opponent_points
-    from public.league_fixtures fixture, bounds
+    from public.league_fixtures fixture
+    cross join bounds
     where fixture.league_id = p_league_id and fixture.gameweek between bounds.start_gw and bounds.end_gw
       and coalesce(fixture.is_finished, false)
     union all
     select fixture.gameweek, fixture.away_user_id, fixture.home_user_id,
            fixture.away_team_name, fixture.home_team_name,
            coalesce(fixture.away_score, 0)::integer, coalesce(fixture.home_score, 0)::integer
-    from public.league_fixtures fixture, bounds
+    from public.league_fixtures fixture
+    cross join bounds
     where fixture.league_id = p_league_id and fixture.gameweek between bounds.start_gw and bounds.end_gw
       and coalesce(fixture.is_finished, false) and fixture.away_user_id is not null
   ),
@@ -222,7 +227,8 @@ as $$
   ),
   selected_players as (
     select snapshot.gameweek, selected.player_id
-    from public.gameweek_lineup_snapshots snapshot, bounds
+    from public.gameweek_lineup_snapshots snapshot
+    cross join bounds
     cross join lateral unnest(snapshot.effective_starting_player_ids) selected(player_id)
     where snapshot.league_id = p_league_id and snapshot.user_id = p_user_id
       and snapshot.gameweek between bounds.start_gw and bounds.end_gw
@@ -248,7 +254,8 @@ as $$
             coalesce(stats.defensive_contribution, 0)::integer
           )
       )::integer as points
-    from public.gameweek_lineup_snapshots snapshot, bounds
+    from public.gameweek_lineup_snapshots snapshot
+    cross join bounds
     cross join lateral unnest(snapshot.starting_player_ids || snapshot.bench_player_ids) roster(player_id)
     join public.players player on player.id = roster.player_id
     left join public.player_gameweek_stats stats
