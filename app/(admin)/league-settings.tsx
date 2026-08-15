@@ -37,6 +37,9 @@ interface LeagueSettings {
   trade_cutoff_rule?: 'WAIVER_DEADLINE' | 'GAMEWEEK_DEADLINE';
   dropped_player_rule?: 'NEXT_WAIVER' | 'IMMEDIATE_FREE_AGENT';
   initial_waiver_order_rule?: 'REVERSE_DRAFT' | 'DRAFT_ORDER';
+  defcon_thresholds_def?: unknown;
+  defcon_thresholds_mid?: unknown;
+  defcon_thresholds_fwd?: unknown;
 }
 
 interface PlayerSearchTarget {
@@ -51,6 +54,41 @@ interface TierSetting {
   threshold: number;
   points: number;
 }
+
+const DEFAULT_DEFCON_TIERS: ReadonlyArray<TierSetting> = [
+  { tier: 1, threshold: 4, points: 1 },
+  { tier: 2, threshold: 7, points: 2 },
+  { tier: 3, threshold: 10, points: 3 },
+];
+
+const createDefaultTiers = (): TierSetting[] => DEFAULT_DEFCON_TIERS.map(tier => ({ ...tier }));
+
+const normaliseDefconTiers = (value: unknown): TierSetting[] => {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+
+  return DEFAULT_DEFCON_TIERS.map(defaultTier => {
+    const arrayTier = Array.isArray(value)
+      ? value.find(item => Number((item as Partial<TierSetting>)?.tier) === defaultTier.tier)
+      : undefined;
+    const objectTier = !Array.isArray(value) ? source[`tier_${defaultTier.tier}`] : undefined;
+    const storedTier = (arrayTier || objectTier || {}) as Partial<TierSetting>;
+    const threshold = Number(storedTier.threshold);
+    const points = Number(storedTier.points);
+
+    return {
+      tier: defaultTier.tier,
+      threshold: Number.isFinite(threshold) ? threshold : defaultTier.threshold,
+      points: Number.isFinite(points) ? points : defaultTier.points,
+    };
+  });
+};
+
+const serialiseDefconTiers = (tiers: TierSetting[]) => Object.fromEntries(
+  normaliseDefconTiers(tiers).map(tier => [
+    `tier_${tier.tier}`,
+    { threshold: tier.threshold, points: tier.points },
+  ]),
+);
 
 export default function UnifiedLeagueSettingsScreen() {
   const { colors } = useAppTheme();
@@ -127,12 +165,6 @@ export default function UnifiedLeagueSettingsScreen() {
     setLiveSuggestions(matches);
   }, [searchQuery, masterCachePlayers, isLocked]);
 
-  const createDefaultTiers = (): TierSetting[] => [
-    { tier: 1, threshold: 4, points: 1 },
-    { tier: 2, threshold: 7, points: 2 },
-    { tier: 3, threshold: 10, points: 3 },
-  ];
-
   const loadMasterSettingsFramework = async () => {
     try {
       setLoading(true);
@@ -190,9 +222,9 @@ export default function UnifiedLeagueSettingsScreen() {
 
       if (settingsData) {
         setSettings(settingsData as LeagueSettings);
-        setDefTiers(settingsData.defcon_thresholds_def || createDefaultTiers());
-        setMidTiers(settingsData.defcon_thresholds_mid || createDefaultTiers());
-        setFwdTiers(settingsData.defcon_thresholds_fwd || createDefaultTiers());
+        setDefTiers(normaliseDefconTiers(settingsData.defcon_thresholds_def));
+        setMidTiers(normaliseDefconTiers(settingsData.defcon_thresholds_mid));
+        setFwdTiers(normaliseDefconTiers(settingsData.defcon_thresholds_fwd));
 
         if (settingsData.roster_type) {
           setRosterType(settingsData.roster_type as 'STRICT' | 'FLEXIBLE');
@@ -262,11 +294,11 @@ export default function UnifiedLeagueSettingsScreen() {
     if (isLocked) return;
     const numericValue = parseInt(value, 10) || 0;
     if (position === 'DEF') {
-      const updated = [...defTiers]; updated[index][field] = numericValue; setDefTiers(updated);
+      setDefTiers(current => current.map((tier, tierIndex) => tierIndex === index ? { ...tier, [field]: numericValue } : tier));
     } else if (position === 'MID') {
-      const updated = [...midTiers]; updated[index][field] = numericValue; setMidTiers(updated);
+      setMidTiers(current => current.map((tier, tierIndex) => tierIndex === index ? { ...tier, [field]: numericValue } : tier));
     } else if (position === 'FWD') {
-      const updated = [...fwdTiers]; updated[index][field] = numericValue; setFwdTiers(updated);
+      setFwdTiers(current => current.map((tier, tierIndex) => tierIndex === index ? { ...tier, [field]: numericValue } : tier));
     }
   };
 
@@ -310,6 +342,24 @@ export default function UnifiedLeagueSettingsScreen() {
 
     try {
       setSavingMatrix(true);
+
+      const invalidTierGroup = [
+        { label: 'Defender', tiers: defTiers },
+        { label: 'Midfielder', tiers: midTiers },
+        { label: 'Forward', tiers: fwdTiers },
+      ].find(group => group.tiers.some((tier, index) => (
+        tier.threshold < 0
+        || tier.points < 0
+        || (index > 0 && tier.threshold <= group.tiers[index - 1].threshold)
+      )));
+
+      if (invalidTierGroup) {
+        Alert.alert(
+          'Check DEFCON tiers',
+          `${invalidTierGroup.label} thresholds must increase from Tier 1 to Tier 3, and thresholds and points cannot be negative.`,
+        );
+        return;
+      }
       
       const mm = String(schedMonth).padStart(2, '0');
       const dd = String(schedDay).padStart(2, '0');
@@ -334,9 +384,9 @@ export default function UnifiedLeagueSettingsScreen() {
         ...settings,
         roster_type: rosterType,
         draft_start_time: localTimestampString, 
-        defcon_thresholds_def: defTiers,
-        defcon_thresholds_mid: midTiers,
-        defcon_thresholds_fwd: fwdTiers,
+        defcon_thresholds_def: serialiseDefconTiers(defTiers),
+        defcon_thresholds_mid: serialiseDefconTiers(midTiers),
+        defcon_thresholds_fwd: serialiseDefconTiers(fwdTiers),
         updated_at: new Date().toISOString()
       };
 
@@ -836,7 +886,7 @@ export default function UnifiedLeagueSettingsScreen() {
             </TouchableOpacity>
             {defconExpanded && (
               <View style={styles.accordionContentBlock}>
-                <Text style={styles.sectionExplanationText}>Define cumulative active tactical requirements to grant defensive tier points.</Text>
+                <Text style={styles.sectionExplanationText}>Set the contribution threshold and points for each position. A player receives the points from the highest tier reached; tiers are not added together.</Text>
                 {renderPositionTierRows('Defenders (CBIT Rules)', 'DEF', defTiers)}
                 {renderPositionTierRows('Midfielders (CBIRT Rules)', 'MID', midTiers)}
                 {renderPositionTierRows('Forwards (CBIRT Rules)', 'FWD', fwdTiers)}
