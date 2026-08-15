@@ -90,28 +90,29 @@ export const appTypography = {
 export type AppColors = typeof darkAppColors;
 
 export const lightAppColors: AppColors = {
-  background: '#F3F6F8',
-  backgroundDeep: '#FFFFFF',
-  backgroundElevated: '#EAF0F3',
+  // Cool Stadium: blue-grey page chrome with crisp white content surfaces.
+  background: '#EEF4F7',
+  backgroundDeep: '#F9FBFC',
+  backgroundElevated: '#E6EEF2',
 
   surface: '#FFFFFF',
-  surfaceRaised: '#F7FAFB',
-  surfaceMuted: '#E7EDF1',
-  surfacePressed: '#DDE6EB',
+  surfaceRaised: '#F4F8FA',
+  surfaceMuted: '#E2EBEF',
+  surfacePressed: '#D8E4E9',
 
-  border: '#CED9E0',
-  borderStrong: '#AEBEC8',
-  borderSubtle: '#DEE6EB',
+  border: '#C9D7DE',
+  borderStrong: '#AFC1CB',
+  borderSubtle: '#DDE6EA',
 
-  textPrimary: '#10202B',
-  textSecondary: '#4C5D68',
-  textMuted: '#71808A',
-  textDisabled: '#A4ADB4',
+  textPrimary: '#102536',
+  textSecondary: '#455E6D',
+  textMuted: '#647986',
+  textDisabled: '#9BAAB3',
 
-  accent: '#008A49',
-  accentDark: '#006C39',
-  accentSoft: 'rgba(0, 138, 73, 0.10)',
-  accentBorder: 'rgba(0, 138, 73, 0.32)',
+  accent: '#087A52',
+  accentDark: '#05633F',
+  accentSoft: 'rgba(8, 122, 82, 0.10)',
+  accentBorder: 'rgba(8, 122, 82, 0.32)',
 
   danger: '#C73545',
   dangerSoft: 'rgba(199, 53, 69, 0.10)',

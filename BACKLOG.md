@@ -1,5 +1,87 @@
 # Change Backlog
 
+_Last reconciled with the codebase: 15 August 2026._
+
+## Current beta-readiness snapshot
+
+The planned V1 product is feature-complete for a **controlled beta**. Drafting,
+rosters, lineups, waivers, free agents, trades, fixtures, live scoring and the
+manager-facing Home/League/Market/Squad workflows are implemented. The remaining
+launch gates are deployment verification and realistic multi-manager rehearsals,
+not major missing feature screens.
+
+### Completed since the previous backlog refresh
+
+- [x] Harden beta security and remove elevated browser-accessible mutation routes.
+  - Profile data is restricted to the owner and shared-league managers.
+  - Direct table writes are removed for protected draft and transaction changes.
+  - The authenticated RPC surface is explicitly allowlisted and regression-tested.
+  - Draft submissions, including the legacy compatibility route, enforce the same server checks.
+- [x] Make league creation atomic and repair multi-league startup routing.
+- [x] Add beta operations and account-management essentials.
+  - Password reset works on web and installed builds through the recovery deep link.
+  - Crash/error reports and tester feedback are recorded with account-scoped access.
+  - Privacy information and permanent account deletion are available in Settings.
+- [x] Add a controlled Gameweek rehearsal harness with one-tap restoration.
+  - Commissioners can start, advance, inspect and roll back a rehearsal.
+  - The report includes scoring integrity, waiver processing and reconciliation results.
+  - Later fixes align rehearsal waiver deadlines, preserve the correct open window,
+    process waivers before free agency, rerun totals after autosubs and repair rollback state.
+- [x] Harden waiver creation and management.
+  - Managers can create conditional claims for the same target player with different drops.
+  - Claim uniqueness is scoped to the league, manager and Gameweek rather than the target alone.
+  - Pending claims can be reordered and cancelled through server-authoritative functions.
+  - Only one authoritative waiver window is active, and stale processed-state flags can be repaired.
+- [x] Separate current-season and previous-season player statistics.
+  - Current points come only from Gameweek stat rows and never fall back to the Draft bootstrap total.
+  - Previous-season history remains available as an explicit scouting period.
+  - Player-pool sorting includes Draft Rank (the current default), current/previous points,
+    form, starts, minutes, goals, assists, clean sheets, saves, bonus, DEFCON, ICT and expected returns.
+  - The player card uses the same selected/current season rather than displaying last season as current.
+- [x] Complete the latest trade-workspace refinements.
+  - Mobile offer and counteroffer builders show both 15-player squads at once and use the full screen height.
+  - Player names, clubs and coloured positions remain visible in compact rows.
+  - Pending negotiations are private to the sender and receiver; completed outcomes are league-visible.
+- [x] Complete the cross-platform mobile compatibility pass.
+  - Primary screens, modals and forms respect notches, home indicators and mobile keyboards.
+  - Squad, Match Centre, player cards, transaction tools and authentication flows adapt to small screens.
+  - Light and dark appearance modes use the shared application theme.
+- [x] Add installable-build and launch presentation support.
+  - EAS preview-build configuration and required Expo dependencies are present.
+  - Native adaptive icon and splash assets are high resolution.
+  - The branded loading screen bridges native startup and session initialization.
+  - The web build now copies and injects the PWA manifest and high-resolution launcher icons into Vercel output.
+
+### Outstanding before opening the controlled beta
+
+- [ ] Deploy and verify the latest database migrations in the target Supabase environment.
+  - Confirm `20260813200000_player_pool_current_season_stats.sql` and
+    `20260813203000_remove_previous_season_player_pool_fallback.sql` are applied.
+  - Apply `20260814010000_private_pending_trade_offers.sql` and verify a third manager
+    cannot read a pending offer but can see its accepted or rejected outcome.
+- [ ] Redeploy the latest web build and verify the production PWA output.
+  - Confirm `/manifest.webmanifest` returns the manifest rather than the app HTML.
+  - Confirm the 1024px maskable icon is served, then reinstall after clearing the old site data.
+  - Confirm Draft Rank is the player-list default and current totals start at zero when no Gameweek data exists.
+- [ ] Produce one fresh Android preview build after the final mobile, trade, player-card and splash changes.
+- [ ] Run one final realistic draft rehearsal with concurrent managers through all 15 rounds.
+  - Verify snake order, timeout/away auto-picks, reconnects, completion, legal 15-player rosters and fixture creation.
+- [ ] Run a complete controlled Gameweek rehearsal from pre-deadline through finalisation.
+  - Cover lineup locking, live points, provisional/final bonus, DEFCON, autosubs, waiver processing,
+    free-agent availability, trades, standings, fixture totals and rollback reconciliation.
+- [ ] Repeat fixture checks with at least one even-manager and one odd-manager league.
+  - Confirm one fixture per manager per Gameweek and the rotating league-average opponent.
+- [ ] Run the existing security and lifecycle regression SQL tests against the deployed beta schema.
+- [ ] Record the beta operating procedure: tester cohort, support/feedback route, backup point,
+  rollback owner and what data may be reset during the controlled test.
+
+### Explicitly deferred until after the controlled beta
+
+- [ ] Native push notifications. The in-app notification centre is complete; remote push delivery is deferred.
+- [ ] League Lounge, direct/group messaging and podcast publishing/alerts.
+- [ ] Draft grades or AI-generated squad analysis.
+- [ ] Broader App Store distribution, marketing and public onboarding polish.
+
 ## High priority
 
 - [x] Make draft progression fully server-controlled so it continues when every manager disconnects or leaves the draft room.
@@ -103,7 +185,7 @@ Draft grading and AI-generated post-draft analysis are intentionally outside the
 - [x] Reorder managers before the draft begins.
 - [x] Restart the draft before official season activity begins.
 
-## Remaining work for V1
+## Original V1 draft-room completion checklist
 
 ### Security before production
 
@@ -289,3 +371,10 @@ The implementation is complete in the working tree. It shares the fixture-genera
   - Decide whether analysis should be rules-based, AI-generated or a combination of both.
   - Define the grading criteria, data inputs, cost limits and how subjective results should be explained to managers.
   - Treat this as an optional enhancement rather than a launch requirement.
+- [ ] Add native push delivery after notification categories and beta behaviour are proven.
+  - Start with commissioner announcements, trade offers, waiver outcomes and draft reminders.
+  - Keep granular manager preferences and avoid duplicate in-app/push alerts.
+- [ ] Design a prominent League Lounge rather than hiding social features deep in League settings.
+  - Include league messaging, commissioner moderation and unread state.
+  - Add commissioner-managed podcast episodes or external links with optional notifications.
+  - Decide retention, reporting and moderation rules before replacing existing league chat channels.
