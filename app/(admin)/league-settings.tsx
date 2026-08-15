@@ -98,9 +98,15 @@ export default function UnifiedLeagueSettingsScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
   const searchInputY = useRef<number>(0);
+  const saveFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [savingMatrix, setSavingMatrix] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueName, setLeagueName] = useState<string>('');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -153,6 +159,10 @@ export default function UnifiedLeagueSettingsScreen() {
   useEffect(() => {
     loadMasterSettingsFramework();
   }, [params?.leagueId]);
+
+  useEffect(() => () => {
+    if (saveFeedbackTimer.current) clearTimeout(saveFeedbackTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!searchQuery.trim() || isLocked) {
@@ -302,6 +312,20 @@ export default function UnifiedLeagueSettingsScreen() {
     }
   };
 
+  const presentSaveFeedback = (
+    type: 'success' | 'error',
+    title: string,
+    message: string,
+  ) => {
+    if (saveFeedbackTimer.current) clearTimeout(saveFeedbackTimer.current);
+    setSaveFeedback({ type, title, message });
+    saveFeedbackTimer.current = setTimeout(() => setSaveFeedback(null), 6000);
+
+    if (Platform.OS !== 'web') {
+      Alert.alert(title, message);
+    }
+  };
+
   const tweakTimeValue = (field: 'DAY' | 'MONTH' | 'HOUR' | 'MIN', delta: number) => {
     if (isLocked) return;
     if (field === 'DAY') {
@@ -342,6 +366,7 @@ export default function UnifiedLeagueSettingsScreen() {
 
     try {
       setSavingMatrix(true);
+      setSaveFeedback(null);
 
       const invalidTierGroup = [
         { label: 'Defender', tiers: defTiers },
@@ -401,13 +426,18 @@ export default function UnifiedLeagueSettingsScreen() {
       }
       
       setSettings(payload);
-      Alert.alert(
+      presentSaveFeedback(
+        'success',
         'League settings saved',
         'Your scoring rules, roster settings and draft timetable have been updated successfully.',
       );
     } catch (err: any) {
       console.error('Full Settings Save Crash:', err);
-      Alert.alert('Save Interrupted', err.message || 'An unexpected error occurred during save.');
+      presentSaveFeedback(
+        'error',
+        'Settings not saved',
+        err.message || 'An unexpected error occurred during save.',
+      );
     } finally {
       setSavingMatrix(false);
     }
@@ -903,8 +933,28 @@ export default function UnifiedLeagueSettingsScreen() {
               </View>
             ) : (
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAllSettingsMatrix} disabled={savingMatrix}>
-                <Text style={styles.saveBtnText}>{savingMatrix ? 'COMMITTING CONFIGURATIONS...' : '💾 SAVE ALL LEAGUE CONFIGURATIONS'}</Text>
+                <Text style={styles.saveBtnText}>{savingMatrix ? 'SAVING LEAGUE SETTINGS...' : 'SAVE ALL LEAGUE SETTINGS'}</Text>
               </TouchableOpacity>
+            )}
+            {saveFeedback && (
+              <View
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={[
+                  styles.saveFeedback,
+                  saveFeedback.type === 'success' ? styles.saveFeedbackSuccess : styles.saveFeedbackError,
+                ]}
+              >
+                <Ionicons
+                  name={saveFeedback.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
+                  size={22}
+                  color={saveFeedback.type === 'success' ? colors.accent : colors.danger}
+                />
+                <View style={styles.saveFeedbackCopy}>
+                  <Text style={styles.saveFeedbackTitle}>{saveFeedback.title}</Text>
+                  <Text style={styles.saveFeedbackMessage}>{saveFeedback.message}</Text>
+                </View>
+              </View>
             )}
           </View>
         </ScrollView>
@@ -965,6 +1015,12 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
 
   saveBtn: { backgroundColor: colors.accent, borderWidth: 1, borderColor: colors.accent, padding: 14, borderRadius: 2, alignItems: 'center', marginTop: 16 },
   saveBtnText: { color: colors.black, fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
+  saveFeedback: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginTop: 10, borderWidth: 1, borderRadius: 6 },
+  saveFeedbackSuccess: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  saveFeedbackError: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder },
+  saveFeedbackCopy: { flex: 1 },
+  saveFeedbackTitle: { color: colors.textPrimary, fontSize: 12, fontWeight: '900' },
+  saveFeedbackMessage: { color: colors.textSecondary, fontSize: 11, fontWeight: '600', marginTop: 2, lineHeight: 15 },
   sectionExplanationText: { color: colors.textMuted, fontSize: 11, fontWeight: '600', marginBottom: 12, lineHeight: 15 },
   positionSubBlock: { marginBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle, paddingBottom: 10 },
   positionSubHeader: { color: colors.accent, fontSize: 10, fontWeight: '900', textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.5 },
