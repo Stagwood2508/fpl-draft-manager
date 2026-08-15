@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
@@ -81,6 +82,26 @@ interface WaiverStatusSummary {
   priority_source?: 'REVERSE_DRAFT' | 'DRAFT_ORDER' | 'LEAGUE_POSITION';
 }
 
+interface TradeImpactPlayer {
+  side: 'SENDER_GIVES' | 'RECEIVER_GIVES';
+  player_id: number;
+  player_name: string;
+  club: string;
+  position: string;
+  before_points: number;
+  since_points: number;
+  since_minutes: number;
+  since_goals: number;
+  since_assists: number;
+  since_appearances: number;
+}
+
+interface TradeImpactData {
+  success: boolean;
+  trade_gameweek: number;
+  players: TradeImpactPlayer[];
+}
+
 const POSITION_COLORS: Record<string, string> = {
   GKP: '#FFC107',
   DEF: '#00A2FF',
@@ -134,6 +155,10 @@ export default function TransactionsScreen() {
   const [rivalCounterRoster, setRivalCounterRoster] = useState<PlayerAsset[]>([]);
   const [mySelectedTradeIds, setMySelectedTradeIds] = useState<number[]>([]);
   const [rivalSelectedTradeIds, setRivalSelectedTradeIds] = useState<number[]>([]);
+  const [tradeImpactPackage, setTradeImpactPackage] = useState<GroupedTradePackage | null>(null);
+  const [tradeImpact, setTradeImpact] = useState<TradeImpactData | null>(null);
+  const [tradeImpactLoading, setTradeImpactLoading] = useState(false);
+  const [tradeImpactPeriod, setTradeImpactPeriod] = useState<'BEFORE' | 'SINCE'>('SINCE');
 
   const confirmAction = (
   title: string,
@@ -876,6 +901,29 @@ if (!userId || !leagueId) {
     return name.slice(0, 3).toUpperCase();
   };
 
+  const openTradeImpact = async (pkg: GroupedTradePackage) => {
+    if (!leagueId) return;
+    setTradeImpactPackage(pkg);
+    setTradeImpact(null);
+    setTradeImpactPeriod('SINCE');
+    setTradeImpactLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_trade_impact', {
+        p_league_id: leagueId,
+        p_transaction_id: pkg.originalRowIds[0],
+      });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data.error || 'Trade analysis is unavailable.');
+      setTradeImpact(data as TradeImpactData);
+    } catch (error: any) {
+      if (Platform.OS === 'web') window.alert(`Trade Analysis\n\n${error?.message || 'Unable to calculate this trade.'}`);
+      else Alert.alert('Trade Analysis', error?.message || 'Unable to calculate this trade.');
+      setTradeImpactPackage(null);
+    } finally {
+      setTradeImpactLoading(false);
+    }
+  };
+
   const renderSideBySideTradePackage = (pkg: GroupedTradePackage) => {
     const maxRows = Math.max(pkg.playersIn.length, pkg.playersOut.length);
 
@@ -1133,6 +1181,11 @@ if (!userId || !leagueId) {
                     
                     {/* Render Side-by-Side 2-Column Asset Grid */}
                     {renderSideBySideTradePackage(pkg)}
+                    {pkg.status === 'ACCEPTED' && (
+                      <TouchableOpacity style={styles.tradeAnalysisButton} onPress={() => void openTradeImpact(pkg)}>
+                        <Text style={styles.tradeAnalysisButtonText}>VIEW TRADE IMPACT</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               })
@@ -1140,6 +1193,57 @@ if (!userId || !leagueId) {
           </>
         )}
       </ScrollView>
+
+      <Modal visible={Boolean(tradeImpactPackage)} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setTradeImpactPackage(null)}>
+        <View style={styles.tradeImpactOverlay}>
+          <View style={[styles.tradeImpactSheet, isMobileLayout && styles.tradeImpactSheetMobile, isMobileLayout && { paddingBottom: Math.max(safeArea.bottom, 12) }]}>
+            <View style={styles.tradeImpactHandle} />
+            <View style={styles.tradeImpactHeader}>
+              <View>
+                <Text style={styles.tradeImpactTitle}>Trade Impact</Text>
+                <Text style={styles.tradeImpactSubtitle}>{tradeImpactPackage?.sender_display_name} ↔ {tradeImpactPackage?.receiver_display_name}</Text>
+              </View>
+              <TouchableOpacity style={styles.tradeImpactClose} onPress={() => setTradeImpactPackage(null)}><Text style={styles.tradeImpactCloseText}>×</Text></TouchableOpacity>
+            </View>
+
+            <View style={styles.tradeImpactToggle}>
+              {(['BEFORE', 'SINCE'] as const).map(period => (
+                <TouchableOpacity key={period} style={[styles.tradeImpactToggleButton, tradeImpactPeriod === period && styles.tradeImpactToggleButtonActive]} onPress={() => setTradeImpactPeriod(period)}>
+                  <Text style={[styles.tradeImpactToggleText, tradeImpactPeriod === period && styles.tradeImpactToggleTextActive]}>{period === 'BEFORE' ? 'Before trade' : `Since GW${tradeImpact?.trade_gameweek || '—'}`}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {tradeImpactLoading ? <View style={styles.tradeImpactLoading}><ActivityIndicator color={colors.accent} /></View> : tradeImpact && (
+              <ScrollView contentContainerStyle={styles.tradeImpactContent}>
+                <View style={styles.tradeImpactColumns}>
+                  {([
+                    { side: 'SENDER_GIVES' as const, label: `${tradeImpactPackage?.sender_display_name} gave` },
+                    { side: 'RECEIVER_GIVES' as const, label: `${tradeImpactPackage?.receiver_display_name} gave` },
+                  ]).map(column => {
+                    const players = tradeImpact.players.filter(player => player.side === column.side);
+                    const total = players.reduce((sum, player) => sum + Number(tradeImpactPeriod === 'BEFORE' ? player.before_points : player.since_points), 0);
+                    return <View key={column.side} style={styles.tradeImpactColumn}>
+                      <Text style={styles.tradeImpactColumnTitle} numberOfLines={1}>{column.label}</Text>
+                      {players.map(player => {
+                        const points = Number(tradeImpactPeriod === 'BEFORE' ? player.before_points : player.since_points) || 0;
+                        const per90 = tradeImpactPeriod === 'SINCE' && player.since_minutes ? (player.since_points * 90 / player.since_minutes).toFixed(1) : '—';
+                        return <View key={player.player_id} style={styles.tradeImpactPlayer}>
+                          <View style={styles.tradeImpactPlayerTop}><Text style={styles.tradeImpactPlayerName} numberOfLines={1}>{player.player_name}</Text><Text style={styles.tradeImpactPlayerPoints}>{points}</Text></View>
+                          <Text style={styles.tradeImpactPlayerMeta}>{player.club} · {player.position}</Text>
+                          {tradeImpactPeriod === 'SINCE' && <Text style={styles.tradeImpactPlayerDetail}>{player.since_appearances} apps · {player.since_goals}G {player.since_assists}A · {per90}/90</Text>}
+                        </View>;
+                      })}
+                      <View style={styles.tradeImpactTotal}><Text style={styles.tradeImpactTotalLabel}>TOTAL</Text><Text style={styles.tradeImpactTotalValue}>{total}</Text></View>
+                    </View>;
+                  })}
+                </View>
+                {tradeImpactPeriod === 'SINCE' && tradeImpact.players.every(player => player.since_appearances === 0) && <Text style={styles.tradeImpactTooEarly}>Too early to assess — no post-trade appearances have been recorded.</Text>}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* INLINE COUNTER NEGOTIATION DESK CARD MODAL */}
       <Modal visible={isCounterModalVisible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setIsCounterModalVisible(false)}>
@@ -1323,6 +1427,21 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderColor: appColors.accentBorder,
     borderRadius: appRadius.medium,
   },
+  tradeAnalysisButton: { marginTop: 10, borderTopWidth: 1, borderTopColor: appColors.border, paddingTop: 10, alignItems: 'center' },
+  tradeAnalysisButtonText: { color: appColors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  tradeImpactOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'flex-end' },
+  tradeImpactSheet: { width: 760, maxWidth: '94%', maxHeight: '88%', backgroundColor: appColors.backgroundElevated, borderRadius: 22, borderWidth: 1, borderColor: appColors.border, marginBottom: 22, overflow: 'hidden' },
+  tradeImpactSheetMobile: { width: '100%', maxWidth: '100%', marginBottom: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  tradeImpactHandle: { width: 52, height: 5, borderRadius: 3, backgroundColor: appColors.textMuted, alignSelf: 'center', marginTop: 10 },
+  tradeImpactHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: appColors.border },
+  tradeImpactTitle: { color: appColors.textPrimary, fontSize: 20, fontWeight: '900' }, tradeImpactSubtitle: { color: appColors.textSecondary, fontSize: 12, marginTop: 3 },
+  tradeImpactClose: { width: 34, height: 34, borderRadius: 17, backgroundColor: appColors.surface, alignItems: 'center', justifyContent: 'center' }, tradeImpactCloseText: { color: appColors.textPrimary, fontSize: 24, lineHeight: 26 },
+  tradeImpactToggle: { flexDirection: 'row', alignSelf: 'center', backgroundColor: appColors.surface, borderRadius: appRadius.pill, padding: 3, marginVertical: 12, borderWidth: 1, borderColor: appColors.border },
+  tradeImpactToggleButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: appRadius.pill }, tradeImpactToggleButtonActive: { backgroundColor: appColors.accent }, tradeImpactToggleText: { color: appColors.textMuted, fontSize: 11, fontWeight: '800' }, tradeImpactToggleTextActive: { color: appColors.black },
+  tradeImpactLoading: { minHeight: 300, justifyContent: 'center' }, tradeImpactContent: { padding: 14, paddingBottom: 24 }, tradeImpactColumns: { flexDirection: 'row', gap: 10 },
+  tradeImpactColumn: { flex: 1, minWidth: 0 }, tradeImpactColumnTitle: { color: appColors.accent, fontSize: 11, fontWeight: '900', borderBottomWidth: 1, borderBottomColor: appColors.accentBorder, paddingBottom: 7, marginBottom: 6 },
+  tradeImpactPlayer: { backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium, padding: 9, marginBottom: 6 }, tradeImpactPlayerTop: { flexDirection: 'row', gap: 5, alignItems: 'center' }, tradeImpactPlayerName: { flex: 1, color: appColors.textPrimary, fontSize: 12, fontWeight: '900' }, tradeImpactPlayerPoints: { color: appColors.textPrimary, fontSize: 16, fontWeight: '900' }, tradeImpactPlayerMeta: { color: appColors.textMuted, fontSize: 9, marginTop: 2 }, tradeImpactPlayerDetail: { color: appColors.textSecondary, fontSize: 9, marginTop: 5 },
+  tradeImpactTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 9, borderTopWidth: 1, borderTopColor: appColors.border }, tradeImpactTotalLabel: { color: appColors.textMuted, fontSize: 10, fontWeight: '800' }, tradeImpactTotalValue: { color: appColors.textPrimary, fontSize: 16, fontWeight: '900' }, tradeImpactTooEarly: { color: appColors.textMuted, textAlign: 'center', fontSize: 11, marginTop: 18, lineHeight: 16 },
   waiverStatusMainRow: { flexDirection: 'row', alignItems: 'center', minHeight: 42 },
   waiverWindowIdentity: { width: 66 },
   waiverStatusEyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 8 },

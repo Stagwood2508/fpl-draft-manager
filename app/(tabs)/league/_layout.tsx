@@ -43,6 +43,12 @@ export default function LeagueLayout() {
           title: 'MATCHES',
         }}
       />
+      <MaterialTopTabs.Screen
+        name="stats"
+        options={{
+          title: 'STATS',
+        }}
+      />
     </MaterialTopTabs>
   );
 }
