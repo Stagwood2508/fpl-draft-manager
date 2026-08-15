@@ -376,6 +376,7 @@ export default function UnifiedLeagueSettingsScreen() {
 
       if (leagueErr) {
         console.error('Leagues Table Update Error:', leagueErr);
+        throw new Error(`Failed to save roster settings: ${leagueErr.message}`);
       }
 
       // 2. Upsert LEAGUE_SETTINGS table
@@ -400,7 +401,10 @@ export default function UnifiedLeagueSettingsScreen() {
       }
       
       setSettings(payload);
-      Alert.alert('Configuration Saved 🎉', 'All scoring variables, roster limits, and draft timetables successfully committed.');
+      Alert.alert(
+        'League settings saved',
+        'Your scoring rules, roster settings and draft timetable have been updated successfully.',
+      );
     } catch (err: any) {
       console.error('Full Settings Save Crash:', err);
       Alert.alert('Save Interrupted', err.message || 'An unexpected error occurred during save.');
