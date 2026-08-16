@@ -148,6 +148,7 @@ export default function HomeDashboardScreen() {
     pendingTrades,
     recentActivity,
     announcement,
+    chronicle,
     loading,
     refreshing,
     errorMessage,
@@ -387,6 +388,22 @@ export default function HomeDashboardScreen() {
                 <Text style={styles.announcementStripBody} numberOfLines={1}>{announcement.body}</Text>
               </View>
               {announcement.isPinned ? <Ionicons name="pin" size={13} color={appColors.textMuted} /> : null}
+              <Ionicons name="chevron-forward" size={14} color={appColors.textDisabled} />
+            </TouchableOpacity>
+          ) : null}
+
+          {draftCompleted && chronicle ? (
+            <TouchableOpacity
+              style={styles.chronicleStrip}
+              onPress={() => router.push({ pathname: '/league-chronicle', params: { leagueId: activeLeagueId || '', gameweek: chronicle.gameweek } })}
+              activeOpacity={0.78}
+            >
+              <View style={styles.chronicleIcon}><Ionicons name="newspaper-outline" size={17} color={appColors.warning} /></View>
+              <View style={styles.chronicleCopy}>
+                <Text style={styles.chronicleLabel}>GW{chronicle.gameweek} CHRONICLE</Text>
+                <Text style={styles.chronicleTitle} numberOfLines={1}>{chronicle.title}</Text>
+              </View>
+              <Text style={styles.chronicleRead}>READ</Text>
               <Ionicons name="chevron-forward" size={14} color={appColors.textDisabled} />
             </TouchableOpacity>
           ) : null}
@@ -861,6 +878,12 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   announcementStripTitle: { color: appColors.accent, fontSize: 10, fontWeight: '900' },
   announcementStripTitleUrgent: { color: appColors.danger },
   announcementStripBody: { ...appTypography.metadata, color: appColors.textSecondary, marginTop: 1 },
+  chronicleStrip: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: appSpacing.md, backgroundColor: appColors.warningSoft, borderWidth: 1, borderColor: `${appColors.warning}55`, borderRadius: appRadius.medium },
+  chronicleIcon: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderRadius: appRadius.small },
+  chronicleCopy: { flex: 1, minWidth: 0 },
+  chronicleLabel: { ...appTypography.label, color: appColors.warning, fontSize: 7 },
+  chronicleTitle: { color: appColors.textPrimary, fontSize: 10, fontWeight: '900', marginTop: 2 },
+  chronicleRead: { ...appTypography.label, color: appColors.warning, fontSize: 8 },
   draftSection: { overflow: 'hidden', borderRadius: appRadius.large },
   draftLiveCard: { padding: appSpacing.xl, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.large },
   draftLiveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 9 },

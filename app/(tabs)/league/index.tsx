@@ -9,6 +9,8 @@ import {
   Animated 
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
@@ -31,6 +33,7 @@ interface StandingRow {
 }
 
 export default function StandingsScreen() {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [loading, setLoading] = useState(true);
@@ -218,12 +221,18 @@ export default function StandingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {isLive && (
-          <View style={styles.liveBadgeContainer}>
-            <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
-            <Text style={styles.liveBadgeText}>IN-PLAY GW{currentGW}</Text>
-          </View>
-        )}
+        <View style={styles.topBarActions}>
+          {isLive && (
+            <View style={styles.liveBadgeContainer}>
+              <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
+              <Text style={styles.liveBadgeText}>IN-PLAY GW{currentGW}</Text>
+            </View>
+          )}
+          <TouchableOpacity style={styles.chronicleButton} onPress={() => router.push('/league-chronicle')} accessibilityLabel="Open League Chronicle">
+            <Ionicons name="newspaper-outline" size={15} color={colors.accent} />
+            <Text style={styles.chronicleButtonText}>CHRONICLE</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {errorMessage && (
@@ -320,6 +329,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   toggleContainer: { flexDirection: 'row', backgroundColor: colors.surfaceMuted, borderRadius: 8, padding: 2 },
+  topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  chronicleButton: { minHeight: 29, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: 12 },
+  chronicleButtonText: { color: colors.accent, fontSize: 7, fontWeight: '900', letterSpacing: 0.3 },
   toggleButton: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6 },
   toggleButtonDisabled: { opacity: 0.42 },
   toggleButtonActive: { backgroundColor: colors.surfacePressed },

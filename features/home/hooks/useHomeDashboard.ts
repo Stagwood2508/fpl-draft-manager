@@ -74,6 +74,14 @@ export interface HomeAnnouncement {
   expiresAt: string | null;
 }
 
+export interface HomeChronicle {
+  id: string;
+  gameweek: number;
+  title: string;
+  summary: string;
+  publishedAt: string;
+}
+
 interface HomeDashboardState {
   memberships: HomeLeagueMembership[];
   activeLeague: HomeLeagueMembership['league'] | null;
@@ -87,6 +95,7 @@ interface HomeDashboardState {
   pendingTrades: number;
   recentActivity: LeagueActivityItem[];
   announcement: HomeAnnouncement | null;
+  chronicle: HomeChronicle | null;
 }
 
 const EMPTY_STATE: HomeDashboardState = {
@@ -112,6 +121,7 @@ const EMPTY_STATE: HomeDashboardState = {
   pendingTrades: 0,
   recentActivity: [],
   announcement: null,
+  chronicle: null,
 };
 
 const firstRelation = <T,>(value: T | T[] | null | undefined): T | null => {
@@ -208,6 +218,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         pendingTradeResponse,
         recentActivity,
         announcementResponse,
+        chronicleResponse,
       ] = await Promise.all([
         supabase
           .from('draft_sessions')
@@ -263,12 +274,22 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           .order('published_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase
+          .from('league_chronicles')
+          .select('id, gameweek, title, summary, published_at')
+          .eq('league_id', activeLeagueId)
+          .order('gameweek', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       if (standingsResponse.error) throw standingsResponse.error;
       if (fixtureResponse.error) throw fixtureResponse.error;
       if (rosterResponse.error) throw rosterResponse.error;
       if (announcementResponse.error) throw announcementResponse.error;
+      if (chronicleResponse.error && chronicleResponse.error.code !== '42P01') {
+        console.warn('[HOME DASHBOARD] Chronicle teaser unavailable:', chronicleResponse.error.message);
+      }
 
       let fixture: HomeFixture | null = fixtureResponse.data ? {
         id: String(fixtureResponse.data.id),
@@ -358,6 +379,13 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           publishedAt: announcementResponse.data.published_at,
           expiresAt: announcementResponse.data.expires_at || null,
         } : null,
+        chronicle: chronicleResponse.data ? {
+          id: String(chronicleResponse.data.id),
+          gameweek: Number(chronicleResponse.data.gameweek),
+          title: chronicleResponse.data.title,
+          summary: chronicleResponse.data.summary,
+          publishedAt: chronicleResponse.data.published_at,
+        } : null,
       });
     } catch (error: any) {
       console.error('[HOME DASHBOARD] Unable to load summary:', error);
@@ -382,6 +410,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `league_id=eq.${activeLeagueId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'free_agent_transactions', filter: `league_id=eq.${activeLeagueId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'league_announcements', filter: `league_id=eq.${activeLeagueId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'league_chronicles', filter: `league_id=eq.${activeLeagueId}` }, refresh)
       .subscribe();
 
     return () => {
