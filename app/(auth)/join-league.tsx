@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
@@ -12,8 +12,9 @@ export default function JoinLeagueScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ inviteCode?: string }>();
    const { refreshLeagueMembership } = useAppSession();
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(() => String(params.inviteCode || '').trim().toUpperCase());
   const [teamName, setTeamName] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -141,6 +142,13 @@ router.replace({
     <AuthScreenFrame contentStyle={styles.container}>
       <Text style={styles.title}>Join Existing League</Text>
 
+      {params.inviteCode ? (
+        <View style={styles.inviteBanner}>
+          <Text style={styles.inviteBannerLabel}>LEAGUE INVITATION</Text>
+          <Text style={styles.inviteBannerText}>Your invite code has been added automatically.</Text>
+        </View>
+      ) : null}
+
       <Text style={styles.label}>Invitation Token</Text>
       <TextInput
         style={styles.input}
@@ -180,6 +188,9 @@ router.replace({
 const createStyles = (colors: AppColors) => StyleSheet.create({
   container: { backgroundColor: colors.background, padding: 20, justifyContent: 'center' },
   title: { fontSize: 22, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase', marginBottom: 20 },
+  inviteBanner: { padding: 12, marginBottom: 16, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: 4 },
+  inviteBannerLabel: { color: colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  inviteBannerText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', marginTop: 3 },
   label: { fontSize: 11, color: colors.textSecondary, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
   input: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, color: colors.textPrimary, padding: 14, borderRadius: 2, marginBottom: 16 },
   btn: { backgroundColor: colors.accent, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },

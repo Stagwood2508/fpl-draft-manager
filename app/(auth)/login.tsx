@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Platform, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -50,6 +50,8 @@ export default function LoginScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ inviteCode?: string }>();
+  const inviteCode = String(params.inviteCode || '').trim().toUpperCase();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -97,7 +99,9 @@ export default function LoginScreen() {
       }
 
       // 4. Route accurately based on membership status
-      if (membership?.league_id) {
+      if (inviteCode) {
+        router.replace({ pathname: '/(auth)/join-league', params: { inviteCode } });
+      } else if (membership?.league_id) {
         router.replace('/(tabs)/dashboard');
       } else {
         router.replace('/(auth)/onboarding');
@@ -166,7 +170,7 @@ export default function LoginScreen() {
         <Text style={styles.btnText}>{loading ? 'PROCESSING...' : 'LOG IN'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.switchLink} onPress={() => router.push('/(auth)/register')}>
+      <TouchableOpacity style={styles.switchLink} onPress={() => router.push({ pathname: '/(auth)/register', params: inviteCode ? { inviteCode } : {} })}>
         <Text style={styles.switchText}>
           Don't have an account? Create one
         </Text>

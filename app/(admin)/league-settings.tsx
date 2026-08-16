@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Share
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import { supabase } from '@/utils/supabase';
 import { synchronizeFplPlayerPool } from '@/utils/fplSync';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
+import { buildLeagueInviteLink } from '@/utils/leagueInvite';
 
 interface LeagueSettings {
   draft_clock_duration: number;
@@ -291,16 +293,30 @@ export default function UnifiedLeagueSettingsScreen() {
     }
   };
 
-  const copyInviteToken = () => {
+  const inviteLink = inviteCode ? buildLeagueInviteLink(inviteCode) : '';
+
+  const copyInviteLink = async () => {
     if (!inviteCode) return;
-    
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(inviteCode);
+
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 2500);
+      Alert.alert('Invite link copied', `Send the link to a manager to invite them to ${leagueName}.`);
+      return;
     }
-    
-    setCopiedToken(true);
-    setTimeout(() => setCopiedToken(false), 2500);
-    Alert.alert('Invite Token Copied! 📋', `Code: ${inviteCode}\nShare this token with managers to join ${leagueName}.`);
+
+    await shareInviteLink();
+  };
+
+  const shareInviteLink = async () => {
+    if (!inviteCode) return;
+    const message = `Join ${leagueName} on FPL Draft Manager. Open this link to get started:\n${inviteLink}\n\nInvite code: ${inviteCode}`;
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.share) {
+      await navigator.share({ title: `Join ${leagueName}`, text: message, url: inviteLink });
+      return;
+    }
+    await Share.share({ title: `Join ${leagueName}`, message, url: inviteLink });
   };
 
   const handleUpdateFieldState = (key: keyof LeagueSettings, value: any) => {
@@ -574,17 +590,28 @@ export default function UnifiedLeagueSettingsScreen() {
             <View style={styles.inviteDeckCard}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.inviteDeckHeading}>🔑 League Invitation Token</Text>
-                  <Text style={styles.inviteDeckSub}>Share this token with new managers to join {leagueName}</Text>
+                  <Text style={styles.inviteDeckHeading}>LEAGUE INVITATION</Text>
+                  <Text style={styles.inviteDeckSub}>Send a direct link so managers arrive with the code already entered.</Text>
                 </View>
-                <TouchableOpacity style={styles.copyTokenBtn} onPress={copyInviteToken}>
-                  <Ionicons name={copiedToken ? "checkmark-circle" : "copy-outline"} size={16} color={copiedToken ? "#00ff87" : "#000"} />
-                  <Text style={styles.copyTokenBtnText}>{copiedToken ? 'COPIED' : 'COPY CODE'}</Text>
-                </TouchableOpacity>
               </View>
 
               <View style={styles.inviteCodeDisplayRow}>
+                <Text style={styles.inviteCodeLabel}>INVITE CODE</Text>
                 <Text style={styles.inviteCodeText}>{inviteCode}</Text>
+              </View>
+              <View style={styles.inviteLinkRow}>
+                <Ionicons name="link-outline" size={16} color={colors.accent} />
+                <Text style={styles.inviteLinkText} numberOfLines={1}>{inviteLink}</Text>
+              </View>
+              <View style={styles.inviteActions}>
+                <TouchableOpacity style={styles.copyLinkBtn} onPress={() => void copyInviteLink()}>
+                  <Ionicons name={copiedToken ? 'checkmark-circle' : 'copy-outline'} size={16} color={colors.accent} />
+                  <Text style={styles.copyLinkBtnText}>{copiedToken ? 'COPIED' : Platform.OS === 'web' ? 'COPY LINK' : 'OPEN SHARE'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.shareLinkBtn} onPress={() => void shareInviteLink()}>
+                  <Ionicons name="share-social-outline" size={16} color={colors.backgroundDeep} />
+                  <Text style={styles.shareLinkBtnText}>SHARE INVITE</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -1006,13 +1033,19 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   scrollContainer: { padding: 16, paddingBottom: 50 },
   title: { fontSize: 20, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase' },
 
-  inviteDeckCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent, padding: 16, borderRadius: 4, marginBottom: 16 },
+  inviteDeckCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accentBorder, padding: 16, borderRadius: 8, marginBottom: 16 },
   inviteDeckHeading: { color: colors.accent, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
   inviteDeckSub: { color: colors.textSecondary, fontSize: 11, marginTop: 2, fontWeight: '600' },
-  copyTokenBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.accent, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 2 },
-  copyTokenBtnText: { color: colors.black, fontWeight: '900', fontSize: 11, marginLeft: 4 },
-  inviteCodeDisplayRow: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 2, paddingVertical: 12, marginTop: 12, alignItems: 'center' },
-  inviteCodeText: { color: colors.textPrimary, fontSize: 28, fontWeight: '900', letterSpacing: 6 },
+  inviteCodeDisplayRow: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingVertical: 10, marginTop: 12, alignItems: 'center' },
+  inviteCodeLabel: { color: colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 0.6 },
+  inviteCodeText: { color: colors.textPrimary, fontSize: 23, fontWeight: '900', letterSpacing: 5, marginTop: 2 },
+  inviteLinkRow: { minHeight: 39, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, marginTop: 8, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 6 },
+  inviteLinkText: { flex: 1, color: colors.textSecondary, fontSize: 10, fontWeight: '700' },
+  inviteActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  copyLinkBtn: { minHeight: 40, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: 6 },
+  copyLinkBtnText: { color: colors.accent, fontWeight: '900', fontSize: 9 },
+  shareLinkBtn: { minHeight: 40, flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 6 },
+  shareLinkBtnText: { color: colors.backgroundDeep, fontWeight: '900', fontSize: 9 },
 
   lockedGlobalBadge: { backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
   lockedGlobalBadgeText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },

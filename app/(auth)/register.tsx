@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Platform, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
@@ -21,6 +21,8 @@ export default function RegisterScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ inviteCode?: string }>();
+  const inviteCode = String(params.inviteCode || '').trim().toUpperCase();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState(''); 
@@ -84,7 +86,9 @@ export default function RegisterScreen() {
       await saveDeviceTokenToProfile(user.id);
 
       // Direct replacement ensures web router transitions immediately
-      router.replace('/(auth)/onboarding');
+      router.replace(inviteCode
+        ? { pathname: '/(auth)/join-league', params: { inviteCode } }
+        : '/(auth)/onboarding');
 
     } catch (err: any) {
       console.error('Registration Error Details:', err);
@@ -165,7 +169,7 @@ export default function RegisterScreen() {
         <Text style={styles.btnText}>{loading ? 'PROCESSING...' : 'REGISTER'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.switchLink} onPress={() => router.push('/(auth)/login')}>
+      <TouchableOpacity style={styles.switchLink} onPress={() => router.push({ pathname: '/(auth)/login', params: inviteCode ? { inviteCode } : {} })}>
         <Text style={styles.switchText}>
           Already have an account? Sign In
         </Text>

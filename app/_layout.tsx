@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import Head from 'expo-router/head';
 import {
   Platform,
@@ -42,6 +42,7 @@ function RootLayoutContent() {
   const { colors, resolvedMode, appearanceReady } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const rawSegments = useSegments();
+  const globalParams = useGlobalSearchParams<{ inviteCode?: string }>();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -126,12 +127,17 @@ function RootLayoutContent() {
       currentSubSegment === 'league-onboarding' ||
       currentSubSegment === 'create-league' ||
       currentSubSegment === 'join-league' ||
+      currentSubSegment === 'register' ||
+      (currentSubSegment === 'login' && Boolean(globalParams.inviteCode)) ||
       currentSubSegment === 'forgot-password' ||
       currentSubSegment === 'reset-password';
 
     if (!sessionActive) {
       if (!inAuthGroup) {
-        router.replace('/(auth)/login');
+        router.replace({
+          pathname: '/(auth)/login',
+          params: globalParams.inviteCode ? { inviteCode: String(globalParams.inviteCode) } : {},
+        });
       }
 
       return;
@@ -151,6 +157,7 @@ function RootLayoutContent() {
   }, [
     appReady,
     hasLeague,
+    globalParams.inviteCode,
     rawSegments,
     router,
     sessionActive,
