@@ -433,3 +433,8 @@ entrypoint = "./functions/sync-live-stats/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/sync-fpl-player-pool/index.ts"
+
+[functions.send-push-notification]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-push-notification/index.ts"

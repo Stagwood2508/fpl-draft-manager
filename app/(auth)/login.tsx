@@ -2,9 +2,6 @@ import React, { useState } from 'react';
 import { Platform, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import AuthScreenFrame from '@/components/AuthScreenFrame';
@@ -18,33 +15,6 @@ const notifyUser = (title: string, message: string) => {
     Alert.alert(title, message);
   }
 };
-
-// Isolated device registry logic to update the manager profile
-export async function saveDeviceTokenToProfile(userId: string) {
-  if (!Device.isDevice) return;
-
-  try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') return;
-
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.projectId;
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-
-    if (tokenData.data) {
-      await supabase
-        .from('profiles')
-        .update({ expo_push_token: tokenData.data })
-        .eq('id', userId);
-    }
-  } catch (err) {
-    console.log("Token registration failed silently:", err);
-  }
-}
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
@@ -84,10 +54,8 @@ export default function LoginScreen() {
         throw new Error('Authentication succeeded, but user session payload was missing. Please verify your email address.');
       }
 
-      // 2. Save device token on successful login
-      await saveDeviceTokenToProfile(user.id);
-
-      // 3. Query league membership explicitly catching database errors
+      // 2. Query league membership explicitly catching database errors.
+      // Push permission is requested later from the manager's notification settings.
       const { data: membership, error: memberError } = await supabase
         .from('league_members')
         .select('league_id')
@@ -98,7 +66,7 @@ export default function LoginScreen() {
         console.warn('Membership lookup error:', memberError.message);
       }
 
-      // 4. Route accurately based on membership status
+      // 3. Route accurately based on membership status
       if (inviteCode) {
         router.replace({ pathname: '/(auth)/join-league', params: { inviteCode } });
       } else if (membership?.league_id) {

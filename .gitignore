@@ -11,6 +11,10 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# Firebase private service-account keys (google-services.json is public app config)
+*-firebase-adminsdk-*.json
+firebase-service-account*.json
+
 # OS generated files
 .DS_Store
 Thumbs.db

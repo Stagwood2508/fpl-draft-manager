@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/the
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { supabase } from '@/utils/supabase';
+import { disablePushNotifications, enablePushNotifications } from '@/features/notifications/services/pushNotifications';
 
 type NotificationCategory = 'ANNOUNCEMENT' | 'TRADE' | 'WAIVER' | 'MATCH' | 'SYSTEM';
 type InboxFilter = 'ALL' | 'UNREAD';
@@ -36,17 +38,21 @@ interface NotificationItem {
 }
 
 interface NotificationPreferences {
+  push_enabled: boolean;
   announcements_enabled: boolean;
   trades_enabled: boolean;
   waivers_enabled: boolean;
   match_updates_enabled: boolean;
+  draft_enabled: boolean;
 }
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
+  push_enabled: false,
   announcements_enabled: true,
   trades_enabled: true,
   waivers_enabled: true,
   match_updates_enabled: true,
+  draft_enabled: true,
 };
 
 const firstRelation = <T,>(value: T | T[] | null | undefined): T | null => Array.isArray(value) ? value[0] || null : value || null;
@@ -83,6 +89,8 @@ export default function NotificationCentreScreen() {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const [savingPreferences, setSavingPreferences] = useState(false);
+  const [pushChanging, setPushChanging] = useState(false);
+  const [sendingPushTest, setSendingPushTest] = useState(false);
 
   const loadNotifications = useCallback(async (asRefresh = false) => {
     if (!currentUserId) {
@@ -101,7 +109,7 @@ export default function NotificationCentreScreen() {
           .limit(100),
         supabase
           .from('notification_preferences')
-          .select('announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled')
+          .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, draft_enabled')
           .eq('user_id', currentUserId)
           .maybeSingle(),
       ]);
@@ -177,6 +185,43 @@ export default function NotificationCentreScreen() {
     else setPreferencesOpen(false);
   };
 
+  const changePushEnabled = async (enabled: boolean) => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Installed app required', 'Push notifications are currently available in the installed Android app. Browser notifications will be added separately.');
+      return;
+    }
+    setPushChanging(true);
+    try {
+      if (enabled) {
+        const result = await enablePushNotifications(true);
+        if (result.status !== 'ENABLED') {
+          Alert.alert(result.status === 'DENIED' ? 'Permission required' : 'Push unavailable', result.message);
+          return;
+        }
+      } else {
+        await disablePushNotifications();
+      }
+      setPreferences(current => ({ ...current, push_enabled: enabled }));
+    } catch (error: any) {
+      Alert.alert('Push setting not changed', error?.message || 'Please try again.');
+    } finally {
+      setPushChanging(false);
+    }
+  };
+
+  const sendPushTest = async () => {
+    setSendingPushTest(true);
+    try {
+      const { error } = await supabase.rpc('create_test_push_notification');
+      if (error) throw error;
+      Alert.alert('Test queued', 'The notification should arrive shortly. You can leave the app or lock your phone while waiting.');
+    } catch (error: any) {
+      Alert.alert('Test not queued', error?.message || 'Please try again.');
+    } finally {
+      setSendingPushTest(false);
+    }
+  };
+
   if (loading) return <SafeAreaView style={styles.centered}><ActivityIndicator size="large" color={appColors.accent} /></SafeAreaView>;
 
   return (
@@ -222,11 +267,21 @@ export default function NotificationCentreScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalEyebrow}>NOTIFICATION SETTINGS</Text>
             <Text style={styles.modalTitle}>Choose what reaches your inbox</Text>
+            <View style={styles.pushPreferenceCard}>
+              <View style={styles.pushPreferenceIcon}><Ionicons name="notifications-outline" size={20} color={appColors.accent} /></View>
+              <View style={styles.preferenceCopy}>
+                <Text style={styles.preferenceLabel}>Push notifications</Text>
+                <Text style={styles.preferenceDescription}>{Platform.OS === 'web' ? 'Available in the installed Android app' : preferences.push_enabled ? 'Enabled on this device' : 'Off until you choose to enable them'}</Text>
+              </View>
+              {pushChanging ? <ActivityIndicator size="small" color={appColors.accent} /> : <Switch disabled={Platform.OS === 'web'} value={preferences.push_enabled} onValueChange={value => void changePushEnabled(value)} trackColor={{ false: appColors.surfaceMuted, true: appColors.accentDark }} thumbColor={preferences.push_enabled ? appColors.accent : appColors.textMuted} />}
+            </View>
+            {Platform.OS !== 'web' && preferences.push_enabled ? <TouchableOpacity style={styles.pushTestButton} disabled={sendingPushTest} onPress={() => void sendPushTest()}>{sendingPushTest ? <ActivityIndicator size="small" color={appColors.accent} /> : <><Ionicons name="paper-plane-outline" size={14} color={appColors.accent} /><Text style={styles.pushTestText}>SEND A TEST NOTIFICATION</Text></>}</TouchableOpacity> : null}
             {([
               ['announcements_enabled', 'League announcements', 'Commissioner updates and urgent notices', 'megaphone-outline'],
               ['trades_enabled', 'Trades', 'New offers and offer outcomes', 'people-outline'],
               ['waivers_enabled', 'Waivers', 'Successful and unsuccessful claims', 'swap-vertical-outline'],
               ['match_updates_enabled', 'Match updates', 'Live and final match alerts when enabled', 'football-outline'],
+              ['draft_enabled', 'Draft reminders', 'Waiting-room and draft-start alerts', 'timer-outline'],
             ] as const).map(([key, label, description, icon]) => (
               <View key={key} style={styles.preferenceRow}>
                 <Ionicons name={icon} size={18} color={appColors.accent} />
@@ -280,6 +335,10 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 520, padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
   modalEyebrow: { ...appTypography.label, color: appColors.accent },
   modalTitle: { ...appTypography.screenTitle, color: appColors.textPrimary, marginTop: 2, marginBottom: appSpacing.md },
+  pushPreferenceCard: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: appSpacing.sm, marginBottom: 5, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.medium },
+  pushPreferenceIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderRadius: appRadius.medium },
+  pushTestButton: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 5, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.small },
+  pushTestText: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
   preferenceRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: appColors.borderSubtle },
   preferenceCopy: { flex: 1 },
   preferenceLabel: { color: appColors.textPrimary, fontSize: 12, fontWeight: '800' },

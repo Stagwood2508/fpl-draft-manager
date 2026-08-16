@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "666388197445",
+    "project_id": "fpl-draft-app-b836d",
+    "storage_bucket": "fpl-draft-app-b836d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:666388197445:android:7c9d2a82268c356321b32c",
+        "android_client_info": {
+          "package_name": "com.andy.fpldraftmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRq8mLYrlMKEcDcZYbpMdudVgPn_BGZMQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

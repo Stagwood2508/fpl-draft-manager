@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import Head from 'expo-router/head';
@@ -25,6 +26,9 @@ import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { installGlobalErrorReporting } from '@/utils/errorReporting';
 import AppLaunchScreen from '@/components/AppLaunchScreen';
+import { configurePushPresentation, notificationRoute, refreshPushRegistration } from '@/features/notifications/services/pushNotifications';
+
+configurePushPresentation();
 
 export default function RootLayout() {
   return (
@@ -50,6 +54,7 @@ function RootLayoutContent() {
     authInitialized,
     sessionActive,
     hasLeague,
+    currentUserId,
   } = useAppSession();
 
   const [fontsLoaded, fontError] = useFonts({
@@ -68,6 +73,29 @@ function RootLayoutContent() {
     authInitialized &&
     fontsReady &&
     membershipReady;
+
+  useEffect(() => {
+    if (!appReady || !sessionActive || !currentUserId) return;
+    void refreshPushRegistration(currentUserId);
+  }, [appReady, currentUserId, sessionActive]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const openNotification = (notification: Notifications.Notification) => {
+      const route = notificationRoute(notification);
+      if (route) router.push(route as any);
+    };
+    const initialResponse = Notifications.getLastNotificationResponse();
+    if (initialResponse?.notification) {
+      openNotification(initialResponse.notification);
+      Notifications.clearLastNotificationResponse();
+    }
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      openNotification(response.notification);
+      Notifications.clearLastNotificationResponse();
+    });
+    return () => subscription.remove();
+  }, [router]);
 
   useEffect(() => installGlobalErrorReporting(() => pathname), [pathname]);
 

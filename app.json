@@ -20,6 +20,7 @@
       "bundleIdentifier": "com.andy.fpldraftmanager"
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A1F14"

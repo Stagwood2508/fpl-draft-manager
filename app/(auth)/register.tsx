@@ -6,7 +6,6 @@ import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import AuthScreenFrame from '@/components/AuthScreenFrame';
 import type { AppColors } from '@/constants/theme';
-import { saveDeviceTokenToProfile } from './login';
 
 // Helper function to render alerts reliably across Web and Mobile
 const notifyUser = (title: string, message: string) => {
@@ -81,9 +80,6 @@ export default function RegisterScreen() {
       if (!user) {
         throw new Error('Registration succeeded, but no user session was returned. Please check if email confirmation is enabled in your Supabase dashboard.');
       }
-
-      // Try registering device push token safely
-      await saveDeviceTokenToProfile(user.id);
 
       // Direct replacement ensures web router transitions immediately
       router.replace(inviteCode
