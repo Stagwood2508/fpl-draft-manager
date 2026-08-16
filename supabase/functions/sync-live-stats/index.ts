@@ -375,6 +375,7 @@ serve(async (req) => {
     );
 
     let fixtureFinalizationData = null;
+    let cupFinalizationData = null;
     if (autoSubError) {
       console.error("Auto-sub processing error:", autoSubError.message);
     } else {
@@ -391,6 +392,20 @@ serve(async (req) => {
         fixtureFinalizationData = finalizationData;
         if (finalizationData?.success) {
           console.log(`Finalized ${finalizationData.fixtures_finalized || 0} league fixtures.`);
+
+          const { data: finalizedCups, error: cupFinalizationError } = await supabase.rpc(
+            "finalize_cup_gameweek",
+            { p_gameweek: gwNumber },
+          );
+
+          if (cupFinalizationError) {
+            console.error("Cup finalization error:", cupFinalizationError.message);
+          } else {
+            cupFinalizationData = finalizedCups;
+            console.log(
+              `Finalized ${finalizedCups?.fixtures_finalized || 0} cup fixtures.`,
+            );
+          }
         }
       }
     }
@@ -402,6 +417,7 @@ serve(async (req) => {
         records_processed: rowsToUpsert.length,
         schedule_records: gameweekRows.length,
         fixture_finalization: fixtureFinalizationData,
+        cup_finalization: cupFinalizationData,
         message: `Successfully synced live stats for GW${gwNumber}`,
       }),
       {

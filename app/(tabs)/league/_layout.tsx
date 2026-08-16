@@ -18,9 +18,9 @@ export default function LeagueLayout() {
           borderBottomColor: colors.border,
         },
         tabBarLabelStyle: { 
-          fontSize: 12, 
-          fontWeight: '900', 
-          letterSpacing: 0.8 
+          fontSize: 10,
+          fontWeight: '900',
+          letterSpacing: 0.5
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
@@ -41,6 +41,12 @@ export default function LeagueLayout() {
         name="matches"
         options={{
           title: 'MATCHES',
+        }}
+      />
+      <MaterialTopTabs.Screen
+        name="cups"
+        options={{
+          title: 'CUPS',
         }}
       />
       <MaterialTopTabs.Screen

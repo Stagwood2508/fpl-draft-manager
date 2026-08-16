@@ -707,6 +707,16 @@ export default function HomeDashboardScreen() {
               )}
             />
             <TouchableOpacity
+              style={styles.createAnotherLeagueButton}
+              onPress={() => {
+                setLeaguePickerOpen(false);
+                router.push('/(auth)/create-league');
+              }}
+            >
+              <Ionicons name="trophy-outline" size={18} color={appColors.backgroundDeep} />
+              <Text style={styles.createAnotherLeagueText}>Create another league</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.joinAnotherLeagueButton}
               onPress={() => {
                 setLeaguePickerOpen(false);
@@ -988,8 +998,10 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   leagueOptionCopy: { flex: 1 },
   leagueOptionName: { color: appColors.textPrimary, fontSize: 13, fontWeight: '900' },
   leagueOptionMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 2 },
- modalClose: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: appSpacing.sm, backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
+  modalClose: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: appSpacing.sm, backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   modalCloseText: { ...appTypography.label, color: appColors.textSecondary },
+  createAnotherLeagueButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: appSpacing.sm, backgroundColor: appColors.accent, borderWidth: 1, borderColor: appColors.accent, borderRadius: appRadius.small },
+  createAnotherLeagueText: { ...appTypography.label, color: appColors.backgroundDeep },
   joinAnotherLeagueButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: appSpacing.sm, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.small },
   joinAnotherLeagueText: { ...appTypography.label, color: appColors.accent },
   shortcutModalCard: { width: '100%', maxWidth: 520, maxHeight: '88%', padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
