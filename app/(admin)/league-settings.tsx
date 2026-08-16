@@ -156,6 +156,14 @@ export default function UnifiedLeagueSettingsScreen() {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
   ];
 
+  const deviceTimeZone = React.useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'your device timezone';
+    } catch {
+      return 'your device timezone';
+    }
+  }, []);
+
   useEffect(() => {
     loadMasterSettingsFramework();
   }, [params?.leagueId]);
@@ -386,12 +394,34 @@ export default function UnifiedLeagueSettingsScreen() {
         return;
       }
       
-      const mm = String(schedMonth).padStart(2, '0');
-      const dd = String(schedDay).padStart(2, '0');
-      const hh = String(schedHour).padStart(2, '0');
-      const min = String(schedMinute).padStart(2, '0');
-      
-      const localTimestampString = `${schedYear}-${mm}-${dd}T${hh}:${min}:00.000Z`;
+      // The controls show device-local values. Construct a local Date first, then
+      // convert that single instant to UTC for storage and all server countdowns.
+      const selectedDraftDate = new Date(
+        schedYear,
+        schedMonth - 1,
+        schedDay,
+        schedHour,
+        schedMinute,
+        0,
+        0,
+      );
+      const isValidLocalDate = !Number.isNaN(selectedDraftDate.getTime())
+        && selectedDraftDate.getFullYear() === schedYear
+        && selectedDraftDate.getMonth() === schedMonth - 1
+        && selectedDraftDate.getDate() === schedDay
+        && selectedDraftDate.getHours() === schedHour
+        && selectedDraftDate.getMinutes() === schedMinute;
+
+      if (!isValidLocalDate) {
+        presentSaveFeedback(
+          'error',
+          'Check draft date',
+          `That date or time is not valid in ${deviceTimeZone}. Please choose another draft time.`,
+        );
+        return;
+      }
+
+      const draftStartTime = selectedDraftDate.toISOString();
 
       // 1. Update LEAGUES table directly with roster_type
       const { error: leagueErr } = await supabase
@@ -409,7 +439,7 @@ export default function UnifiedLeagueSettingsScreen() {
         league_id: leagueId,
         ...settings,
         roster_type: rosterType,
-        draft_start_time: localTimestampString, 
+        draft_start_time: draftStartTime,
         defcon_thresholds_def: serialiseDefconTiers(defTiers),
         defcon_thresholds_mid: serialiseDefconTiers(midTiers),
         defcon_thresholds_fwd: serialiseDefconTiers(fwdTiers),
@@ -763,6 +793,12 @@ export default function UnifiedLeagueSettingsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+            <View style={styles.timeZoneNotice}>
+              <Ionicons name="globe-outline" size={14} color={colors.accent} />
+              <Text style={styles.timeZoneText}>
+                Time shown in {deviceTimeZone}. Managers in other timezones will count down to the same draft start.
+              </Text>
+            </View>
           </View>
 
           {/* BLOCK 2: TACTICAL POSITION OVERRIDES HUB */}
@@ -999,6 +1035,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   wheelSubLabel: { color: colors.textMuted, fontSize: 7, fontWeight: '900', marginTop: 2, letterSpacing: 0.5 },
   deckMatrixDividerText: { color: colors.textMuted, fontSize: 12, fontWeight: 'bold', marginHorizontal: 10 },
   deckTimeColonSymbol: { color: colors.accent, fontSize: 16, fontWeight: '900', marginHorizontal: 6, marginTop: -14 },
+  timeZoneNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10, paddingHorizontal: 2 },
+  timeZoneText: { flex: 1, color: colors.textMuted, fontSize: 10, fontWeight: '600', lineHeight: 14 },
 
   accordionHeaderButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderRadius: 4 },
   accordionHeaderText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
