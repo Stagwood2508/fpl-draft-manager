@@ -64,6 +64,7 @@ export default function TradeDeskModal({
   const { width, height } = useWindowDimensions();
   const safeArea = useSafeAreaInsets();
   const isMobileLayout = width < 700;
+  const isDesktopWeb = Platform.OS === 'web' && !isMobileLayout;
   const isShortMobile = isMobileLayout && height < 720;
   const [modalLoading, setModalLoading] = useState(false);
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
@@ -344,9 +345,10 @@ if (rivalDataRes.error) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
-      <View style={[styles.modalOverlay, isMobileLayout && styles.modalOverlayMobile]}>
+      <View style={[styles.modalOverlay, isDesktopWeb && styles.modalOverlayDesktopWeb, isMobileLayout && styles.modalOverlayMobile]}>
         <View style={[
           styles.tradeModalContent,
+          isDesktopWeb && styles.tradeModalContentDesktopWeb,
           isMobileLayout && styles.tradeModalContentMobile,
           isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) },
         ]}>
@@ -362,7 +364,7 @@ if (rivalDataRes.error) {
               {/* Left Column */}
               <View style={[styles.tradeCol, isMobileLayout && styles.tradeColMobile]}>
                 <Text style={[styles.colTitle, isMobileLayout && styles.colTitleMobile]}>{isMobileLayout ? 'Send mine' : 'Send My Asset(s)'}</Text>
-                <ScrollView style={styles.tradeScrollView} contentContainerStyle={isMobileLayout && styles.tradeScrollContentMobile} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                <ScrollView style={styles.tradeScrollView} contentContainerStyle={isMobileLayout ? styles.tradeScrollContentMobile : styles.tradeScrollContentDesktopWeb} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                   {myTradeRoster.map(p => {
                     const isSelected = mySelectedTradeIds.includes(p.id);
                     const pos = p.element_type;
@@ -389,7 +391,7 @@ if (rivalDataRes.error) {
                     return (
                       <TouchableOpacity 
                         key={p.id} 
-                        style={[styles.tradeSelectorCardCompact, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected, isSelectionDisabled && styles.tradeSelectorCardDisabled]}
+                        style={[styles.tradeSelectorCardCompact, isDesktopWeb && styles.tradeSelectorCardDesktopWeb, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected, isSelectionDisabled && styles.tradeSelectorCardDisabled]}
                         onPress={() => toggleSelectMyTradePlayer(p.id)}
                         disabled={isSelectionDisabled}
                       >
@@ -423,13 +425,13 @@ if (rivalDataRes.error) {
               {/* Right Column */}
               <View style={[styles.tradeCol, isMobileLayout && styles.tradeColMobile]}>
                 <Text style={[styles.colTitle, isMobileLayout && styles.colTitleMobile]}>{isMobileLayout ? 'Receive theirs' : 'Demand Asset(s)'}</Text>
-                <ScrollView style={styles.tradeScrollView} contentContainerStyle={isMobileLayout && styles.tradeScrollContentMobile} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                <ScrollView style={styles.tradeScrollView} contentContainerStyle={isMobileLayout ? styles.tradeScrollContentMobile : styles.tradeScrollContentDesktopWeb} showsVerticalScrollIndicator={false} nestedScrollEnabled>
                   {rivalTradeRoster.map(p => {
                     const isSelected = rivalSelectedTradeIds.includes(p.id);
                     return (
                       <TouchableOpacity 
                         key={p.id} 
-                        style={[styles.tradeSelectorCardCompact, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected]}
+                        style={[styles.tradeSelectorCardCompact, isDesktopWeb && styles.tradeSelectorCardDesktopWeb, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected]}
                         onPress={() => toggleSelectRivalTradePlayer(p.id)}
                       >
                         <View style={styles.tradeCardRowFlow}>
@@ -494,6 +496,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  modalOverlayDesktopWeb: {
+    padding: 10,
+  },
   modalOverlayMobile: {
     justifyContent: 'flex-start',
     alignItems: 'stretch',
@@ -515,6 +520,12 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
     overflow: 'hidden',
+  },
+  tradeModalContentDesktopWeb: {
+    width: '96%',
+    maxWidth: 1180,
+    height: '96%',
+    padding: 14,
   },
   tradeModalContentMobile: {
     width: '100%',
@@ -586,6 +597,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   tradeScrollView: {
     flex: 1,
   },
+  tradeScrollContentDesktopWeb: {
+    flexGrow: 1,
+  },
   tradeScrollContentMobile: {
     flexGrow: 1,
   },
@@ -617,6 +631,15 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     marginBottom: 7,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  tradeSelectorCardDesktopWeb: {
+    flexGrow: 1,
+    flexBasis: 0,
+    minHeight: 0,
+    justifyContent: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    marginBottom: 4,
   },
   tradeSelectorCardMobile: {
     borderRadius: 6,
