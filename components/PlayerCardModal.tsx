@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Image,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -16,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
-import KitIcon from '@/components/KitIcon';
+import PlayerHeadshot from '@/components/PlayerHeadshot';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
@@ -139,8 +138,6 @@ export default function PlayerCardModal({
   const isMobileLayout = width < 700;
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'HISTORY' | 'SCHEDULE' | 'TRANSFER'>('OVERVIEW');
   const [loading, setLoading] = useState<boolean>(true);
-  const [imageError, setImageError] = useState<boolean>(false);
-
   const [player, setPlayer] = useState<PlayerDetails | null>(null);
   const [history, setHistory] = useState<GameweekStat[]>([]);
   const [schedule, setSchedule] = useState<UpcomingFixture[]>([]);
@@ -149,7 +146,6 @@ export default function PlayerCardModal({
 
   useEffect(() => {
     if (visible && playerId) {
-      setImageError(false);
       loadPlayerData();
     } else {
       setActiveTab('OVERVIEW');
@@ -157,7 +153,6 @@ export default function PlayerCardModal({
       setHistory([]);
       setSchedule([]);
       setLastSeasonAvailable(true);
-      setImageError(false);
     }
   }, [visible, playerId, leagueId, currentGameweek, statsMode]);
 
@@ -419,18 +414,13 @@ export default function PlayerCardModal({
           {player && (
             <View style={styles.heroSection}>
               <View style={styles.avatarWrapper}>
-                {(player.photo_code || player.code || player.id) && !imageError ? (
-                  <Image
-                    source={{
-                      uri: `https://resources.premierleague.com/premierleague/photos/players/250x250/p${player.photo_code || player.code || player.id}.png`,
-                    }}
-                    style={styles.playerPhoto}
-                    resizeMode="contain"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <KitIcon teamId={player.team_id || 0} size={42} />
-                )}
+                <PlayerHeadshot
+                  code={player.code}
+                  photoCode={player.photo_code}
+                  teamId={player.team_id}
+                  style={styles.playerPhoto}
+                  fallbackSize={42}
+                />
               </View>
 
               <View style={styles.heroMain}>

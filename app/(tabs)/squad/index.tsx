@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -17,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
-import KitIcon from '@/components/KitIcon';
+import PlayerHeadshot from '@/components/PlayerHeadshot';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import {
   AppColors,
@@ -175,7 +174,6 @@ export default function SquadScreen() {
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [watchlistIds, setWatchlistIds] = useState<Set<number>>(new Set());
-  const [failedImageIds, setFailedImageIds] = useState<Set<number>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [selectedRosterId, setSelectedRosterId] = useState<string | null>(null);
   const [inspectingPlayerId, setInspectingPlayerId] = useState<number | null>(null);
@@ -530,8 +528,6 @@ export default function SquadScreen() {
   const renderPlayer = (item: RosterItem, benchPriority?: number) => {
     const selected = selectedRosterId === item.id;
     const availability = getAvailability(item.players, appColors);
-    const imageCode = item.players.photo_code || item.players.code || item.players.id;
-    const imageFailed = failedImageIds.has(item.player_id);
     const isBenchOutfield = !item.is_starting && item.players.element_type !== 'GKP';
     const roleLabel = benchPriority
       ? `SUB ${benchPriority} · ${item.players.element_type}`
@@ -560,16 +556,13 @@ export default function SquadScreen() {
           </View>
 
           <View style={[styles.avatar, isCompact && styles.avatarCompact]}>
-            {imageCode && !imageFailed ? (
-              <Image
-                source={{ uri: `https://resources.premierleague.com/premierleague/photos/players/250x250/p${imageCode}.png` }}
-                style={[styles.headshot, isCompact && styles.headshotCompact]}
-                resizeMode="contain"
-                onError={() => setFailedImageIds(current => new Set(current).add(item.player_id))}
-              />
-            ) : (
-              <KitIcon teamId={item.players.team_id || 0} size={isCompact ? 28 : 34} />
-            )}
+            <PlayerHeadshot
+              code={item.players.code}
+              photoCode={item.players.photo_code}
+              teamId={item.players.team_id}
+              style={[styles.headshot, isCompact && styles.headshotCompact]}
+              fallbackSize={isCompact ? 28 : 34}
+            />
           </View>
 
           <Text style={[styles.playerName, isCompact && styles.playerNameCompact]} numberOfLines={1}>
