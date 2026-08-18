@@ -107,6 +107,123 @@ interface PickConfirmation {
 }
 
 type MainTab = 'POOL' | 'WATCHLIST' | 'SQUAD';
+type RosterType = 'STRICT' | 'FLEXIBLE';
+type RosterPosition = 'GKP' | 'DEF' | 'MID' | 'FWD';
+type RosterCounts = Record<RosterPosition, number>;
+
+const ROSTER_POSITIONS: RosterPosition[] = ['GKP', 'DEF', 'MID', 'FWD'];
+const ROSTER_SIZE = 15;
+const ROSTER_RULES: Record<RosterType, Record<RosterPosition, { min: number; max: number }>> = {
+  STRICT: {
+    GKP: { min: 2, max: 2 },
+    DEF: { min: 5, max: 5 },
+    MID: { min: 5, max: 5 },
+    FWD: { min: 3, max: 3 },
+  },
+  FLEXIBLE: {
+    GKP: { min: 2, max: 2 },
+    DEF: { min: 4, max: 6 },
+    MID: { min: 4, max: 6 },
+    FWD: { min: 2, max: 4 },
+  },
+};
+
+const getRosterCounts = (
+  roster: Record<string, (DraftedPlayer | null)[]>
+): RosterCounts => ({
+  GKP: (roster.GKP || []).filter(Boolean).length,
+  DEF: (roster.DEF || []).filter(Boolean).length,
+  MID: (roster.MID || []).filter(Boolean).length,
+  FWD: (roster.FWD || []).filter(Boolean).length,
+});
+
+const formatRequiredPositions = (counts: RosterCounts, rosterType: RosterType) => {
+  const rules = ROSTER_RULES[rosterType];
+  return ROSTER_POSITIONS
+    .map(position => ({
+      position,
+      required: Math.max(0, rules[position].min - counts[position]),
+    }))
+    .filter(item => item.required > 0)
+    .map(item => `${item.required} ${item.position}`)
+    .join(', ');
+};
+
+const getRosterPickEligibility = (
+  counts: RosterCounts,
+  rosterType: RosterType,
+  position: RosterPosition
+) => {
+  const rules = ROSTER_RULES[rosterType];
+  const totalPicked = ROSTER_POSITIONS.reduce((total, key) => total + counts[key], 0);
+
+  if (totalPicked >= ROSTER_SIZE) {
+    return { eligible: false, reason: 'Your 15-player roster is already complete.' };
+  }
+
+  if (counts[position] >= rules[position].max) {
+    return {
+      eligible: false,
+      reason: `You have reached the ${rules[position].max}-player ${position} limit.`,
+    };
+  }
+
+  const nextCounts = { ...counts, [position]: counts[position] + 1 };
+  const remainingAfterPick = ROSTER_SIZE - totalPicked - 1;
+  const requiredAfterPick = ROSTER_POSITIONS.reduce(
+    (total, key) => total + Math.max(0, rules[key].min - nextCounts[key]),
+    0
+  );
+
+  if (requiredAfterPick > remainingAfterPick) {
+    const remainingBeforePick = ROSTER_SIZE - totalPicked;
+    const requiredPositions = formatRequiredPositions(counts, rosterType);
+    return {
+      eligible: false,
+      reason: `You cannot add another ${position}. Your remaining ${remainingBeforePick} squad place${remainingBeforePick === 1 ? '' : 's'} must include ${requiredPositions} to complete a valid roster.`,
+    };
+  }
+
+  return { eligible: true, reason: null };
+};
+
+const getPickFailureFeedback = (rawError: unknown) => {
+  const errorCode = String(rawError || '').toUpperCase();
+
+  if (errorCode.includes('POSITION_REQUIRED_FOR_VALID_FLEXIBLE_ROSTER')) {
+    return {
+      title: 'Roster Balance Required',
+      message: 'That pick would leave too few squad places to meet the flexible-roster minimums. Choose a position still required by your roster.',
+      clearSelection: true,
+    };
+  }
+  if (errorCode.includes('POSITION_FULL')) {
+    return {
+      title: 'Position Limit Reached',
+      message: 'That position has reached its roster limit. Choose another position.',
+      clearSelection: true,
+    };
+  }
+  if (errorCode.includes('ROSTER_FULL')) {
+    return { title: 'Roster Complete', message: 'Your 15-player roster is already complete.', clearSelection: true };
+  }
+  if (errorCode.includes('PLAYER_ALREADY_TAKEN')) {
+    return { title: 'Selection Sniped!', message: 'Another manager drafted this player right before you.', clearSelection: true };
+  }
+  if (errorCode.includes('NOT_YOUR_TURN')) {
+    return { title: 'Not Your Turn', message: 'The draft moved on before this pick reached the server.', clearSelection: true };
+  }
+  if (errorCode.includes('PICK_DEADLINE_EXPIRED')) {
+    return { title: 'Time Expired', message: 'The server clock expired before this pick arrived. The draft is resyncing safely.', clearSelection: true };
+  }
+
+  return {
+    title: 'Pick Not Accepted',
+    message: 'The pick was not accepted. The draft has been refreshed; check your roster and try again.',
+    clearSelection: false,
+  };
+};
+
 type SortMetric =
   | 'RANK'
   | 'POINTS'
@@ -338,6 +455,23 @@ useEffect(() => {
     );
   }
 
+  if (status === 'PAUSED') {
+    return (
+      <View style={[styles.turnHeader, themeStyles.turnHeader, styles.pausedBg]}>
+        <View style={styles.pausedTurnCopy}>
+          <Text style={[styles.turnLabel, themeStyles.textPrimary]}>DRAFT PAUSED</Text>
+          <Text style={[styles.turnMetaSub, themeStyles.textSecondary]}>
+            The current turn is frozen
+            {secondsLeft > 0 ? ` with ${secondsLeft}s remaining` : ''}.
+          </Text>
+        </View>
+        <View style={styles.pausedTurnBadge}>
+          <Ionicons name="pause" size={18} color="#FFB340" />
+        </View>
+      </View>
+    );
+  }
+
   let headerStyle: any[] = isMyTurn
     ? [styles.myTurnBg, themeStyles.myTurnBg]
     : [styles.rivalTurnBg, themeStyles.rivalTurnBg];
@@ -434,6 +568,7 @@ const PlayerPoolRow = React.memo(({
   onLongPressRow,
   onMoveUp,
   onMoveDown,
+  rosterBlockedReason,
   sortMetric = 'POINTS',
 }: {
   item: DraftedPlayer;
@@ -448,11 +583,13 @@ const PlayerPoolRow = React.memo(({
   onLongPressRow?: (p: DraftedPlayer) => void;
   onMoveUp?: (p: DraftedPlayer) => void;
   onMoveDown?: (p: DraftedPlayer) => void;
+  rosterBlockedReason?: string | null;
   sortMetric?: SortMetric;
 }) => {
   const { colors } = useAppTheme();
   const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const isPickDisabled = showPickCheckbox && !isMyTurn;
+  const isRosterBlocked = showPickCheckbox && Boolean(rosterBlockedReason);
   const [isInfoHovered, setIsInfoHovered] = useState(false);
 
   return (
@@ -515,9 +652,9 @@ const PlayerPoolRow = React.memo(({
       
       {showPickCheckbox && (
         <PlayerRowAction
-          icon={isPickDisabled ? 'lock-closed' : isSelected ? 'checkbox' : 'add-circle-outline'}
-          label={isPickDisabled ? 'WAIT' : isSelected ? 'SELECTED' : 'SELECT'}
-          active={isSelected && !isPickDisabled}
+          icon={isPickDisabled || isRosterBlocked ? 'lock-closed' : isSelected ? 'checkbox' : 'add-circle-outline'}
+          label={isPickDisabled ? 'WAIT' : isRosterBlocked ? 'ROSTER' : isSelected ? 'SELECTED' : 'SELECT'}
+          active={isSelected && !isPickDisabled && !isRosterBlocked}
           disabled={isPickDisabled}
           onPress={() => onSelect(item)}
         />
@@ -648,23 +785,6 @@ const PickReviewPanel = React.memo(({
           {panel}
         </View>
       </Modal>
-    );
-  }
-
-  if (status === 'PAUSED') {
-    return (
-      <View style={[styles.turnHeader, styles.pausedBg]}>
-        <View style={styles.pausedTurnCopy}>
-          <Text style={styles.turnLabel}>DRAFT PAUSED</Text>
-          <Text style={styles.turnMetaSub}>
-            The current turn is frozen
-            {secondsLeft > 0 ? ` with ${secondsLeft}s remaining` : ''}.
-          </Text>
-        </View>
-        <View style={styles.pausedTurnBadge}>
-          <Ionicons name="pause" size={18} color="#FFB340" />
-        </View>
-      </View>
     );
   }
 
@@ -903,10 +1023,36 @@ const isDesktop = width >= 1050;
   const [myRoster, setMyRoster] = useState<Record<string, (DraftedPlayer | null)[]>>({
     GKP: [null, null], DEF: [null, null, null, null, null], MID: [null, null, null, null, null], FWD: [null, null, null]
   });
-
-  const [filledPositions, setFilledPositions] = useState<Record<string, boolean>>({
-    GKP: false, DEF: false, MID: false, FWD: false
-  });
+  const [rosterType, setRosterType] = useState<RosterType>('STRICT');
+  const rosterCounts = useMemo(() => getRosterCounts(myRoster), [myRoster]);
+  const positionEligibility = useMemo(
+    () => Object.fromEntries(
+      ROSTER_POSITIONS.map(position => [
+        position,
+        getRosterPickEligibility(rosterCounts, rosterType, position),
+      ])
+    ) as Record<RosterPosition, ReturnType<typeof getRosterPickEligibility>>,
+    [rosterCounts, rosterType]
+  );
+  const filledPositions = useMemo(
+    () => Object.fromEntries(
+      ROSTER_POSITIONS.map(position => [position, !positionEligibility[position].eligible])
+    ) as Record<RosterPosition, boolean>,
+    [positionEligibility]
+  );
+  const rosterConstraintNotice = useMemo(() => {
+    if (rosterType !== 'FLEXIBLE') return null;
+    const totalPicked = ROSTER_POSITIONS.reduce((total, position) => total + rosterCounts[position], 0);
+    const remaining = ROSTER_SIZE - totalPicked;
+    const requiredPositions = formatRequiredPositions(rosterCounts, rosterType);
+    const requiredCount = ROSTER_POSITIONS.reduce(
+      (total, position) => total + Math.max(0, ROSTER_RULES[rosterType][position].min - rosterCounts[position]),
+      0
+    );
+    return remaining > 0 && requiredCount === remaining && requiredPositions
+      ? `Roster balance: your remaining ${remaining} pick${remaining === 1 ? '' : 's'} must be ${requiredPositions}.`
+      : null;
+  }, [rosterCounts, rosterType]);
 
   const [picksUntilMyTurn, setPicksUntilMyTurn] = useState<number>(0);
 
@@ -1063,7 +1209,7 @@ const isDesktop = width >= 1050;
       player => player.id === selectedPlayer.id
     );
     const selectedPositionIsFull = Boolean(
-      filledPositions[selectedPlayer.element_type]
+      filledPositions[selectedPlayer.element_type as RosterPosition]
     );
 
     if (!playerIsStillAvailable || selectedPositionIsFull) {
@@ -1371,6 +1517,7 @@ const { data: teamsProfiles } = await supabase
       );
       const autopickStates = (autopickStateResponse.data || []) as ManagerAutopickState[];
       const activeRosterType = (settingsResponse.data?.roster_type as 'STRICT' | 'FLEXIBLE') || 'STRICT';
+      setRosterType(activeRosterType);
       const rosterLimits = activeRosterType === 'FLEXIBLE'
         ? { GKP: 2, DEF: 6, MID: 6, FWD: 4 }
         : { GKP: 2, DEF: 5, MID: 5, FWD: 3 };
@@ -1547,13 +1694,6 @@ const { data: teamsProfiles } = await supabase
       });
       setMyRoster(freshRoster);
 
-      setFilledPositions({
-        GKP: freshRoster.GKP.filter(x => x !== null).length >= rosterLimits.GKP,
-        DEF: freshRoster.DEF.filter(x => x !== null).length >= rosterLimits.DEF,
-        MID: freshRoster.MID.filter(x => x !== null).length >= rosterLimits.MID,
-        FWD: freshRoster.FWD.filter(x => x !== null).length >= rosterLimits.FWD,
-      });
-
       return true;
 
     } catch (err) {
@@ -1702,7 +1842,7 @@ useEffect(() => {
       const metricDifference = getPlayerSortValue(b, sortOrder) - getPlayerSortValue(a, sortOrder);
       return metricDifference || (a.draft_rank - b.draft_rank);
     });
-    sorted = sorted.filter(p => !filledPositions[p.element_type]);
+    sorted = sorted.filter(p => !filledPositions[p.element_type as RosterPosition]);
     if (activeFilter !== 'ALL') sorted = sorted.filter(p => p.element_type === activeFilter);
     if (activeClub !== 'ALL') sorted = sorted.filter(p => p.team_name === activeClub);
 
@@ -1713,6 +1853,12 @@ useEffect(() => {
 
     return sorted;
   }, [sortOrder, availablePlayers, activeFilter, activeClub, playerSearch, filledPositions]);
+
+  useEffect(() => {
+    if (activeFilter !== 'ALL' && filledPositions[activeFilter as RosterPosition]) {
+      setActiveFilter('ALL');
+    }
+  }, [activeFilter, filledPositions]);
 
   const executeDirectPriorityReindex = async (targetPlayerId: number, targetIndex: number) => {
     if (!leagueId || !myUserId) return;
@@ -1749,6 +1895,15 @@ useEffect(() => {
 
   const handleSelectPress = (player: DraftedPlayer) => {
     setPickSubmissionError(null);
+    const position = player.element_type as RosterPosition;
+    const eligibility = positionEligibility[position];
+    if (!eligibility?.eligible) {
+      const message = eligibility?.reason || 'That player cannot be added while keeping a valid roster.';
+      setSelectedPlayer(null);
+      if (Platform.OS === 'web') window.alert(`Roster requirement\n\n${message}`);
+      else Alert.alert('Roster Requirement', message);
+      return;
+    }
     setSelectedPlayer(selectedPlayer?.id === player.id ? null : player);
   };
 
@@ -2070,19 +2225,11 @@ useEffect(() => {
 
       if (pickResult && !pickResult.success) {
         await resyncDraftRoom(leagueId, myUserId, managersList);
-
-        if (pickResult.error === 'PLAYER_ALREADY_TAKEN') {
-          Alert.alert('Selection Sniped!', 'Another manager drafted this player right before you.');
-          setSelectedPlayer(null);
-        } else if (pickResult.error === 'NOT_YOUR_TURN') {
-          Alert.alert('Not Your Turn', 'The draft moved on before this pick reached the server.');
-          setSelectedPlayer(null);
-        } else if (pickResult.error === 'PICK_DEADLINE_EXPIRED') {
-          Alert.alert('Time Expired', 'The server clock expired before this pick arrived. The draft is resyncing safely.');
-          setSelectedPlayer(null);
-        } else {
-          setPickSubmissionError('The pick was not accepted. Check the selection and try again.');
-        }
+        const feedback = getPickFailureFeedback(pickResult.error);
+        setPickSubmissionError(feedback.message);
+        if (feedback.clearSelection) setSelectedPlayer(null);
+        if (Platform.OS === 'web') window.alert(`${feedback.title}\n\n${feedback.message}`);
+        else Alert.alert(feedback.title, feedback.message);
         return;
       }
 
@@ -2114,14 +2261,16 @@ useEffect(() => {
         Alert.alert('Time Expired', 'The server clock expired before this pick arrived. The latest draft state is now shown.');
         return;
       }
-      if (serverMessage.includes('POSITION_FULL')) {
-        setSelectedPlayer(null);
-        setPickSubmissionError('That position has reached its roster limit. Choose another position.');
-        return;
-      }
-      if (serverMessage.includes('POSITION_REQUIRED_FOR_VALID_FLEXIBLE_ROSTER')) {
-        setSelectedPlayer(null);
-        setPickSubmissionError('Choose a position still required to complete a valid flexible roster.');
+      if (
+        serverMessage.includes('POSITION_FULL') ||
+        serverMessage.includes('POSITION_REQUIRED_FOR_VALID_FLEXIBLE_ROSTER') ||
+        serverMessage.includes('ROSTER_FULL')
+      ) {
+        const feedback = getPickFailureFeedback(serverMessage);
+        setPickSubmissionError(feedback.message);
+        if (feedback.clearSelection) setSelectedPlayer(null);
+        if (Platform.OS === 'web') window.alert(`${feedback.title}\n\n${feedback.message}`);
+        else Alert.alert(feedback.title, feedback.message);
         return;
       }
 
@@ -3153,13 +3302,13 @@ useEffect(() => {
 
                   <View style={styles.toolbarRow}>
                     <View style={[styles.miniPositionRow, themeStyles.surface]}>
-                      {['ALL', 'GKP', 'DEF', 'MID', 'FWD'].map(pos => (
+                      {(['ALL', 'GKP', 'DEF', 'MID', 'FWD'] as const).map(pos => (
                         <TouchableOpacity
-                          key={pos} disabled={pos !== 'ALL' && filledPositions[pos]}
-                          style={[styles.miniPosBadge, activeFilter === pos && styles.miniPosBadgeActive, pos !== 'ALL' && filledPositions[pos] && styles.disabledPositionTab]}
+                          key={pos} disabled={pos !== 'ALL' && filledPositions[pos as RosterPosition]}
+                          style={[styles.miniPosBadge, activeFilter === pos && styles.miniPosBadgeActive, pos !== 'ALL' && filledPositions[pos as RosterPosition] && styles.disabledPositionTab]}
                           onPress={() => setActiveFilter(pos)}
                         >
-                          <Text style={[styles.miniPosText, activeFilter === pos && styles.miniPosTextActive, pos !== 'ALL' && filledPositions[pos] && { color: '#222', textDecorationLine: 'line-through' }]}>{pos}</Text>
+                          <Text style={[styles.miniPosText, activeFilter === pos && styles.miniPosTextActive, pos !== 'ALL' && filledPositions[pos as RosterPosition] && { color: '#222', textDecorationLine: 'line-through' }]}>{pos}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -3171,6 +3320,13 @@ useEffect(() => {
                       <Ionicons name="chevron-down" size={11} color="#607180" />
                     </TouchableOpacity>
                   </View>
+
+                  {rosterConstraintNotice && (
+                    <View style={styles.rosterConstraintNotice}>
+                      <Ionicons name="shield-checkmark-outline" size={13} color="#FFB340" />
+                      <Text style={styles.rosterConstraintNoticeText}>{rosterConstraintNotice}</Text>
+                    </View>
+                  )}
 
                   <View style={styles.clubFilterRow}>
                     <Text style={styles.clubFilterLabel}>CLUB</Text>
@@ -3216,6 +3372,7 @@ useEffect(() => {
                 <PlayerPoolRow
                   item={item} isSelected={selectedPlayer?.id === item.id} isOnWatchlist={true} isMyTurn={isMyTurn}
                   watchlistIndex={watchlistIds.indexOf(item.id) + 1} showPickCheckbox={isLive} onInspect={setInspectingPlayer}
+                  rosterBlockedReason={positionEligibility[item.element_type as RosterPosition]?.reason}
                   onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress} onLongPressRow={(p) => setDragMovingPlayer(p)}
                   onMoveUp={(p) => handleMoveWatchlistPlayer(p, 'UP')} onMoveDown={(p) => handleMoveWatchlistPlayer(p, 'DOWN')}
                 />
@@ -4166,6 +4323,24 @@ navTabTextActive: {
   color: '#00F27A',
 },
   poolFiltersContainer: { paddingVertical: 4, gap: 5 },
+  rosterConstraintNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 179, 64, 0.32)',
+    backgroundColor: 'rgba(255, 179, 64, 0.08)',
+    borderRadius: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  rosterConstraintNoticeText: {
+    flex: 1,
+    color: '#D7BB88',
+    fontSize: 9,
+    fontWeight: '700',
+    lineHeight: 13,
+  },
   playerSearchBox: { minHeight: 32, flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, paddingHorizontal: 9, backgroundColor: '#08111A', borderWidth: 1, borderColor: '#1B2A36', borderRadius: 7 },
   playerSearchInput: { flex: 1, color: '#F7FAFC', fontSize: 11, fontWeight: '700', paddingVertical: 5, paddingHorizontal: 7 },
   clearSearchButton: { padding: 4 },
