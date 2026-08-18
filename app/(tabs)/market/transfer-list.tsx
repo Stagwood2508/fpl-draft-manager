@@ -49,6 +49,11 @@ interface OwnershipInfo {
   display_name: string;
 }
 
+type ListingFeedback = {
+  kind: 'success' | 'error';
+  message: string;
+};
+
 const POSITION_COLORS: Record<string, string> = {
   GKP: '#FFC107',
   DEF: '#00A2FF',
@@ -86,6 +91,7 @@ const leagueId = activeLeagueId;
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedRosterItem, setSelectedRosterItem] = useState<RosterItem | null>(null);
   const [tradeNoteText, setTradeNoteText] = useState('');
+  const [listingFeedback, setListingFeedback] = useState<ListingFeedback | null>(null);
 
   // Detail Modal State (For viewing listed player demands)
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
@@ -197,8 +203,9 @@ const syncMarketDataEngine = async () => {
 };
 
   const handleToggleSwitch = (item: RosterItem) => {
+    setListingFeedback(null);
     if (item.is_transfer_listed) {
-      updateTransferBlockDatabase(item.id, false, null);
+      void updateTransferBlockDatabase(item.id, false, null);
     } else {
       setSelectedRosterItem(item);
       setTradeNoteText('');
@@ -209,6 +216,7 @@ const syncMarketDataEngine = async () => {
   const updateTransferBlockDatabase = async (rosterId: string, nextStatus: boolean, note: string | null) => {
     try {
       setMutatingId(rosterId);
+      setListingFeedback(null);
 if (!userId || !leagueId) {
   throw new Error('Your user or league session is unavailable.');
 }
@@ -222,20 +230,44 @@ const { data, error } = await supabase.rpc('set_transfer_listing', {
 if (error) throw error;
 if (!data?.success) throw new Error(data?.error || 'The transfer listing could not be updated.');
 
+      const normalizedNote = nextStatus ? note?.trim() || null : null;
+
       setMyPersonalRoster(prev =>
-        prev.map(item => (item.id === rosterId ? { ...item, is_transfer_listed: nextStatus, trade_note: note } : item))
+        prev.map(item => (item.id === rosterId ? { ...item, is_transfer_listed: nextStatus, trade_note: normalizedNote } : item))
       );
       setIsModalVisible(false);
+      setSelectedRosterItem(null);
+      setTradeNoteText('');
+      setListingFeedback({
+        kind: 'success',
+        message: nextStatus
+          ? 'Player added to the transfer list.'
+          : 'Player removed from the transfer list.',
+      });
     } catch (err: any) {
-      Alert.alert('Database Mutation Rejected', err.message);
+      const rawMessage = String(err?.message || 'The transfer listing could not be updated.');
+      const messages: Record<string, string> = {
+        AUTH_REQUIRED: 'Your session has expired. Sign in again and retry.',
+        ROSTER_PLAYER_NOT_OWNED: 'This player is no longer in your active squad. Refresh the page and retry.',
+        TRADE_NOTE_TOO_LONG: 'The transfer note is too long. Shorten it and retry.',
+      };
+      const message = messages[rawMessage] || rawMessage;
+      setListingFeedback({ kind: 'error', message });
+      console.error('Transfer listing update failed:', err);
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`Transfer listing failed\n\n${message}`);
+      } else {
+        Alert.alert('Transfer listing failed', message);
+      }
     } finally {
       setMutatingId(null);
     }
   };
 
-  const handleSaveListing = () => {
+  const handleSaveListing = async () => {
     if (!selectedRosterItem) return;
-    updateTransferBlockDatabase(selectedRosterItem.id, true, tradeNoteText.trim() || null);
+    await updateTransferBlockDatabase(selectedRosterItem.id, true, tradeNoteText.trim() || null);
   };
 
   const handleProposeTrade = async (targetPlayer: PlayerAsset, rivalId: string) => {
@@ -282,6 +314,29 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
           {showManagementPanel ? '✕ CLOSE MY SHOP WINDOW' : '⚙️ MANAGE MY TRANSFER BLOCK'}
         </Text>
       </TouchableOpacity>
+
+      {listingFeedback && (
+        <View
+          style={[
+            styles.listingFeedback,
+            listingFeedback.kind === 'error'
+              ? styles.listingFeedbackError
+              : styles.listingFeedbackSuccess,
+          ]}
+          accessibilityRole="alert"
+        >
+          <Text
+            style={[
+              styles.listingFeedbackText,
+              listingFeedback.kind === 'error'
+                ? styles.listingFeedbackTextError
+                : styles.listingFeedbackTextSuccess,
+            ]}
+          >
+            {listingFeedback.message}
+          </Text>
+        </View>
+      )}
 
       {/* RENDER MODE A: PERSONAL SHOP WINDOW */}
       {showManagementPanel ? (
@@ -372,11 +427,23 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
             <TextInput style={styles.textInput} placeholder="e.g., Looking for a starting MID..." placeholderTextColor="#666" multiline={true} numberOfLines={4} value={tradeNoteText} onChangeText={setTradeNoteText} maxLength={150} />
 
             <View style={styles.modalActionRow}>
-              <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} onPress={() => setIsModalVisible(false)}>
+              <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} onPress={() => setIsModalVisible(false)} disabled={mutatingId === selectedRosterItem?.id}>
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.modalButtonConfirm]} onPress={handleSaveListing}>
-                <Text style={styles.modalButtonConfirmText}>List Player</Text>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonConfirm,
+                  mutatingId === selectedRosterItem?.id && styles.modalButtonDisabled,
+                ]}
+                onPress={() => void handleSaveListing()}
+                disabled={mutatingId === selectedRosterItem?.id}
+              >
+                {mutatingId === selectedRosterItem?.id ? (
+                  <ActivityIndicator size="small" color={appColors.accentForeground} />
+                ) : (
+                  <Text style={styles.modalButtonConfirmText}>List Player</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -484,6 +551,39 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
 
   triggerTextActive: {
     color: appColors.accent,
+  },
+
+  listingFeedback: {
+    marginHorizontal: appSpacing.lg,
+    marginBottom: appSpacing.sm,
+    paddingVertical: 9,
+    paddingHorizontal: appSpacing.md,
+    borderWidth: 1,
+    borderRadius: appRadius.medium,
+  },
+
+  listingFeedbackSuccess: {
+    backgroundColor: appColors.accentSoft,
+    borderColor: appColors.accentBorder,
+  },
+
+  listingFeedbackError: {
+    backgroundColor: appColors.dangerSoft,
+    borderColor: appColors.dangerBorder,
+  },
+
+  listingFeedbackText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  listingFeedbackTextSuccess: {
+    color: appColors.accent,
+  },
+
+  listingFeedbackTextError: {
+    color: appColors.danger,
   },
 
   feedContent: {
@@ -744,6 +844,10 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   modalButtonConfirm: {
     backgroundColor: appColors.accentFill,
     borderColor: appColors.accentDark,
+  },
+
+  modalButtonDisabled: {
+    opacity: 0.6,
   },
 
   modalButtonCancelText: {
