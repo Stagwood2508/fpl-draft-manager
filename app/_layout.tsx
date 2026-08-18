@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import Head from 'expo-router/head';
 import {
+  AppState,
   Platform,
   StyleSheet,
   StatusBar,
@@ -27,6 +28,7 @@ import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { installGlobalErrorReporting } from '@/utils/errorReporting';
 import AppLaunchScreen from '@/components/AppLaunchScreen';
 import { configurePushPresentation, notificationRoute, refreshPushRegistration } from '@/features/notifications/services/pushNotifications';
+import { supabase } from '@/utils/supabase';
 
 configurePushPresentation();
 
@@ -73,6 +75,29 @@ function RootLayoutContent() {
     authInitialized &&
     fontsReady &&
     membershipReady;
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const handleAppStateChange = (nextState: string) => {
+      if (nextState === 'active') {
+        supabase.auth.startAutoRefresh();
+        if (!supabase.realtime.isConnected()) {
+          supabase.realtime.connect();
+        }
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    };
+
+    handleAppStateChange(AppState.currentState);
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+      supabase.auth.stopAutoRefresh();
+    };
+  }, []);
 
   useEffect(() => {
     if (!appReady || !sessionActive || !currentUserId) return;

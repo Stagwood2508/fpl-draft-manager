@@ -13,6 +13,7 @@ import {
   TextInput,
   useWindowDimensions,
   Animated,
+  AppState,
   Vibration,
   Pressable,
 } from 'react-native';
@@ -976,6 +977,7 @@ const isDesktop = width >= 1050;
   const [turnDurationSeconds, setTurnDurationSeconds] = useState<number>(60);
   const [localSyncing, setLocalSyncing] = useState(false);
   const [connectionState, setConnectionState] = useState<RealtimeConnectionState>('CONNECTING');
+  const [isRecoveringConnection, setIsRecoveringConnection] = useState(false);
   const [reconnectNotice, setReconnectNotice] = useState<string | null>(null);
   const [pickSubmissionError, setPickSubmissionError] = useState<string | null>(null);
   const [isDraftTrackerExpanded, setIsDraftTrackerExpanded] =
@@ -990,7 +992,9 @@ const isDesktop = width >= 1050;
   const sessionRef = useRef<DraftSession | null>(null);
   const hasConnectedRef = useRef(false);
   const resyncInFlightRef = useRef(false);
+  const recoveryInFlightRef = useRef(false);
   const submissionInFlightRef = useRef<string | null>(null);
+  const appStateRef = useRef(AppState.currentState);
   const seenDraftPickNumbersRef = useRef<Set<number> | null>(null);
   const watchlistIdsRef = useRef<number[]>([]);
 
@@ -1718,7 +1722,7 @@ const { data: teamsProfiles } = await supabase
     targetUserId = myUserId,
     profiles = managersList
   ) => {
-    if (!targetLeagueId || !targetUserId || resyncInFlightRef.current) return;
+    if (!targetLeagueId || !targetUserId || resyncInFlightRef.current) return false;
 
     resyncInFlightRef.current = true;
     try {
@@ -1736,7 +1740,7 @@ const { data: teamsProfiles } = await supabase
         currentSession &&
         authoritativeSession.current_pick_index < currentSession.current_pick_index
       ) {
-        return;
+        return false;
       }
 
       sessionRef.current = authoritativeSession;
@@ -1748,10 +1752,82 @@ const { data: teamsProfiles } = await supabase
         profiles
       );
       if (!didSync) throw new Error('Draft data could not be refreshed.');
+      return true;
     } finally {
       resyncInFlightRef.current = false;
     }
   };
+
+  const recoverDraftConnection = useCallback(async (forceSocketRestart = false) => {
+    if (!leagueId || !myUserId || recoveryInFlightRef.current) return false;
+
+    recoveryInFlightRef.current = true;
+    setIsRecoveringConnection(true);
+    setConnectionState('RECONNECTING');
+    setSelectedPlayer(null);
+    setPickSubmissionError(null);
+    submissionInFlightRef.current = null;
+
+    try {
+      const { error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+
+      await supabase.realtime.setAuth();
+
+      if (forceSocketRestart) {
+        await supabase.realtime.disconnect(1000, 'draft-room-recovery');
+        supabase.realtime.connect();
+      } else if (!supabase.realtime.isConnected()) {
+        supabase.realtime.connect();
+      }
+
+      const didSync = await resyncDraftRoom(leagueId, myUserId, managersList);
+      if (!didSync) return false;
+
+      setReconnectNotice('Draft state refreshed from server');
+      return true;
+    } catch (error) {
+      console.error('Draft connection recovery failed:', error);
+      setConnectionState('OFFLINE');
+      return false;
+    } finally {
+      recoveryInFlightRef.current = false;
+      setIsRecoveringConnection(false);
+    }
+  }, [leagueId, managersList, myUserId]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const subscription = AppState.addEventListener('change', nextState => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (previousState !== 'active' && nextState === 'active') {
+        void recoverDraftConnection(true);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [recoverDraftConnection]);
+
+  useEffect(() => {
+    if (
+      Platform.OS === 'web' ||
+      (connectionState !== 'RECONNECTING' && connectionState !== 'OFFLINE') ||
+      !leagueId ||
+      !myUserId
+    ) {
+      return;
+    }
+
+    const retryTimer = setInterval(() => {
+      if (AppState.currentState !== 'active') return;
+      void recoverDraftConnection(false);
+    }, 5000);
+
+    return () => clearInterval(retryTimer);
+  }, [connectionState, leagueId, myUserId, recoverDraftConnection]);
 
   const orderedManagers = useMemo(() => {
   return [...managersList].sort((a, b) => {
@@ -2176,7 +2252,14 @@ useEffect(() => {
     const player = selectedPlayer;
     const currentSession = sessionRef.current || session;
 
-    if (!player || !currentSession || !leagueId || !myUserId || localSyncing) return;
+    if (
+      !player ||
+      !currentSession ||
+      !leagueId ||
+      !myUserId ||
+      localSyncing ||
+      connectionState !== 'CONNECTED'
+    ) return;
 
     const turnKey = getDraftTurnKey(currentSession);
     const sessionIsLive =
@@ -2831,6 +2914,20 @@ useEffect(() => {
                     Picks remain server-protected. The room will resync automatically.
                   </Text>
                 </View>
+                <TouchableOpacity
+                  style={styles.reconnectButton}
+                  onPress={() => void recoverDraftConnection(true)}
+                  disabled={localSyncing || isRecoveringConnection}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reconnect draft room now"
+                >
+                  {isRecoveringConnection ? (
+                    <ActivityIndicator size="small" color={colors.accentForeground} />
+                  ) : (
+                    <Ionicons name="refresh" size={14} color={colors.accentForeground} />
+                  )}
+                  <Text style={styles.reconnectButtonText}>RETRY</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -3365,7 +3462,7 @@ useEffect(() => {
               renderItem={({ item }) => (
                 <PlayerPoolRow
                   item={item} isSelected={selectedPlayer?.id === item.id} isOnWatchlist={watchlistIds.includes(item.id)}
-                  isMyTurn={isMyTurn} showPickCheckbox={isLive} onInspect={setInspectingPlayer} onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress}
+                  isMyTurn={isMyTurn && connectionState === 'CONNECTED'} showPickCheckbox={isLive} onInspect={setInspectingPlayer} onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress}
                   sortMetric={sortOrder}
                 />
               )}
@@ -3381,7 +3478,7 @@ useEffect(() => {
               contentContainerStyle={{ paddingBottom: 30 }}
               renderItem={({ item }) => (
                 <PlayerPoolRow
-                  item={item} isSelected={selectedPlayer?.id === item.id} isOnWatchlist={true} isMyTurn={isMyTurn}
+                  item={item} isSelected={selectedPlayer?.id === item.id} isOnWatchlist={true} isMyTurn={isMyTurn && connectionState === 'CONNECTED'}
                   watchlistIndex={watchlistIds.indexOf(item.id) + 1} showPickCheckbox={isLive} onInspect={setInspectingPlayer}
                   rosterBlockedReason={positionEligibility[item.element_type as RosterPosition]?.reason}
                   onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress} onLongPressRow={(p) => setDragMovingPlayer(p)}
@@ -3661,7 +3758,7 @@ useEffect(() => {
           deadline={session?.pick_deadline || ''}
           currentPositionCount={(myRoster[selectedPlayer.element_type] || []).filter(Boolean).length}
           positionLimit={(myRoster[selectedPlayer.element_type] || []).length}
-          syncing={localSyncing}
+          syncing={localSyncing || connectionState !== 'CONNECTED'}
           isCentered={width >= 768}
           submissionError={pickSubmissionError}
           onCancel={() => {
@@ -4429,6 +4526,23 @@ reconnectBanner: {
 reconnectBannerCopy: { flex: 1, minWidth: 0, marginLeft: 8 },
 reconnectBannerTitle: { color: '#FFB340', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
 reconnectBannerText: { color: '#B7A27F', fontSize: 9, fontWeight: '700', marginTop: 2 },
+reconnectButton: {
+  minHeight: 34,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 5,
+  marginLeft: 8,
+  paddingHorizontal: 10,
+  borderRadius: 7,
+  backgroundColor: colors.accentFill,
+},
+reconnectButtonText: {
+  color: colors.accentForeground,
+  fontSize: 8,
+  fontWeight: '900',
+  letterSpacing: 0.5,
+},
 resyncSuccessBanner: {
   flexDirection: 'row',
   alignItems: 'center',
