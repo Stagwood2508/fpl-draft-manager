@@ -134,6 +134,18 @@ export default function SettingsDropdown() {
 
           <TouchableOpacity
             style={styles.menuItem}
+            onPress={() => {
+              setMenuOpen(false);
+              router.push('/notifications?settings=1');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Open notification and push settings"
+          >
+            <Text style={styles.menuItemText}>🔔 Notifications & Push</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
             onPress={() => void toggleMode()}
             accessibilityRole="switch"
             accessibilityState={{ checked: resolvedMode === 'light' }}

@@ -25,7 +25,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A1F14"
       },
-      "package": "com.andy.fpldraftmanager"
+      "package": "com.andy.fpldraftmanager",
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -55,6 +58,12 @@
       "eas": {
         "projectId": "ec14b3b3-8de7-42a9-9e94-8c39ade610ae"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ec14b3b3-8de7-42a9-9e94-8c39ade610ae"
     }
   }
 }

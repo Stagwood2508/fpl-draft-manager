@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
@@ -81,6 +81,7 @@ export default function NotificationCentreScreen() {
     SYSTEM: { icon: 'information-circle-outline', color: appColors.textSecondary, label: 'SYSTEM' },
   }), [appColors]);
   const router = useRouter();
+  const { settings: settingsParam } = useLocalSearchParams<{ settings?: string | string[] }>();
   const { currentUserId } = useAppSession();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<InboxFilter>('ALL');
@@ -91,6 +92,13 @@ export default function NotificationCentreScreen() {
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [pushChanging, setPushChanging] = useState(false);
   const [sendingPushTest, setSendingPushTest] = useState(false);
+
+  useEffect(() => {
+    const shouldOpenSettings = Array.isArray(settingsParam)
+      ? settingsParam.includes('1')
+      : settingsParam === '1';
+    if (shouldOpenSettings) setPreferencesOpen(true);
+  }, [settingsParam]);
 
   const loadNotifications = useCallback(async (asRefresh = false) => {
     if (!currentUserId) {
