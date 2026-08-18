@@ -309,6 +309,8 @@ const getDraftTurnKey = (draftSession: DraftSession | null) =>
 
 // 🔲 CUSTOM COLOR POSITION BADGE COMPONENT
 const PositionBadge = ({ position }: { position: string }) => {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   let backgroundColor = '#333';
   let textColor = '#FFF';
 
@@ -363,6 +365,7 @@ const IsolatedTurnClock = React.memo(({
   onDeadlineReached?: () => void;
 }) => {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const turnPulse = useRef(new Animated.Value(0)).current;
@@ -466,7 +469,7 @@ useEffect(() => {
           </Text>
         </View>
         <View style={styles.pausedTurnBadge}>
-          <Ionicons name="pause" size={18} color="#FFB340" />
+          <Ionicons name="pause" size={18} color={colors.warning} />
         </View>
       </View>
     );
@@ -475,16 +478,16 @@ useEffect(() => {
   let headerStyle: any[] = isMyTurn
     ? [styles.myTurnBg, themeStyles.myTurnBg]
     : [styles.rivalTurnBg, themeStyles.rivalTurnBg];
-  let clockTextColor = '#00ff87';
+  let clockTextColor = colors.accent;
 
   if (secondsLeft <= 5) {
     headerStyle = [styles.criticalRedBg];
-    clockTextColor = '#FF453A';
+    clockTextColor = colors.danger;
   } else if (secondsLeft <= 15) {
     headerStyle = [styles.warningAmberBg];
-    clockTextColor = '#FF9500';
+    clockTextColor = colors.warning;
   } else if (!isMyTurn) {
-    clockTextColor = '#888';
+    clockTextColor = colors.textMuted;
   }
 
   const activeManager = managersList.find(m => m.user_id === currentPickerId);
@@ -587,6 +590,7 @@ const PlayerPoolRow = React.memo(({
   sortMetric?: SortMetric;
 }) => {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const isPickDisabled = showPickCheckbox && !isMyTurn;
   const isRosterBlocked = showPickCheckbox && Boolean(rosterBlockedReason);
@@ -626,7 +630,7 @@ const PlayerPoolRow = React.memo(({
         </Text>
       </View>
       <PositionBadge position={item.element_type} />
-      <Ionicons name="information-circle-outline" size={16} color="#71818E" />
+      <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
     </Pressable>
 
     <View style={styles.playerRowActionBar}>
@@ -685,6 +689,8 @@ const PickReviewPanel = React.memo(({
   onCancel: () => void;
   onConfirm: () => void;
 }) => {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
@@ -715,7 +721,7 @@ const PickReviewPanel = React.memo(({
           </View>
         </View>
         <View style={[styles.pickReviewTimer, isUrgent && styles.pickReviewTimerUrgent]}>
-          <Ionicons name="time-outline" size={13} color={isUrgent ? '#FF6B61' : '#00F27A'} />
+          <Ionicons name="time-outline" size={13} color={isUrgent ? colors.danger : colors.accent} />
           <Text style={[styles.pickReviewTimerText, isUrgent && styles.pickReviewTimerTextUrgent]}>
             {secondsLeft === 0 ? 'PICKING' : `${secondsLeft}s`}
           </Text>
@@ -739,7 +745,7 @@ const PickReviewPanel = React.memo(({
 
       {submissionError && (
         <View style={styles.pickReviewRetryNotice}>
-          <Ionicons name="cloud-offline-outline" size={14} color="#FFB340" />
+          <Ionicons name="cloud-offline-outline" size={14} color={colors.warning} />
           <Text style={styles.pickReviewRetryNoticeText}>{submissionError}</Text>
         </View>
       )}
@@ -758,10 +764,10 @@ const PickReviewPanel = React.memo(({
           disabled={syncing}
         >
           {syncing ? (
-            <ActivityIndicator color="#00150B" size="small" />
+            <ActivityIndicator color={colors.accentForeground} size="small" />
           ) : (
             <>
-              <Ionicons name="checkmark-circle" size={15} color="#00150B" />
+              <Ionicons name="checkmark-circle" size={15} color={colors.accentForeground} />
               <Text style={styles.confirmPickReviewButtonText}>
                 {submissionError ? 'TRY AGAIN' : 'CONFIRM PICK'}
               </Text>
@@ -798,6 +804,8 @@ const PickConfirmationOverlay = ({
   confirmation: PickConfirmation;
   onClose: () => void;
 }) => {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const reveal = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -835,7 +843,7 @@ const PickConfirmationOverlay = ({
           ]}
         >
           <View style={styles.pickConfirmationSuccessIcon}>
-            <Ionicons name="checkmark" size={32} color="#04100A" />
+            <Ionicons name="checkmark" size={32} color={colors.accentForeground} />
           </View>
 
           <Text style={styles.pickConfirmationEyebrow}>PICK CONFIRMED</Text>
@@ -869,7 +877,7 @@ const PickConfirmationOverlay = ({
           </View>
 
           <View style={styles.pickConfirmationManagerRow}>
-            <Ionicons name="shield-checkmark" size={15} color="#00F27A" />
+            <Ionicons name="shield-checkmark" size={15} color={colors.accent} />
             <Text style={styles.pickConfirmationManagerName} numberOfLines={1}>
               Drafted by {confirmation.managerName}
             </Text>
@@ -902,14 +910,16 @@ const PlayerRowAction = React.memo(({
   disabled?: boolean;
   onPress: () => void;
 }) => {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [isHovered, setIsHovered] = useState(false);
   const iconColor = disabled
-    ? '#536473'
+    ? colors.textDisabled
     : danger
-      ? '#FF6B61'
+      ? colors.danger
       : active
-        ? '#00F27A'
-        : '#91A0AC';
+        ? colors.accent
+        : colors.textSecondary;
 
   return (
     <Pressable
@@ -935,6 +945,7 @@ const PlayerRowAction = React.memo(({
 
 export default function LiveDraftRoomScreen() {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const themeStyles = useMemo(() => createDraftThemeStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -2320,7 +2331,7 @@ useEffect(() => {
   );
 
   if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#00ff87" /></View>;
+    return <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>;
   }
 
   const rosterPlayers = Object.values(myRoster).flat().filter(
@@ -2347,7 +2358,7 @@ useEffect(() => {
       <SafeAreaView style={styles.waitingRoomLockedSafeArea} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.waitingRoomLockedCard}>
           <View style={styles.waitingRoomLockedIcon}>
-            <Ionicons name="lock-closed" size={26} color="#00F27A" />
+            <Ionicons name="lock-closed" size={26} color={colors.accent} />
           </View>
           <Text style={styles.waitingRoomLockedEyebrow}>DRAFT WAITING ROOM</Text>
           <Text style={styles.waitingRoomLockedTitle}>
@@ -2362,7 +2373,7 @@ useEffect(() => {
               : 'The commissioner needs to schedule the draft before the waiting room can open.'}
           </Text>
           <TouchableOpacity style={styles.waitingRoomBackButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={15} color="#A9B6C0" />
+            <Ionicons name="arrow-back" size={15} color={colors.textSecondary} />
             <Text style={styles.waitingRoomBackButtonText}>BACK TO LEAGUE</Text>
           </TouchableOpacity>
         </View>
@@ -2401,18 +2412,18 @@ useEffect(() => {
               onPress={() => setCommissionerPlayerMode(null)}
               disabled={Boolean(commissionerAction)}
             >
-              <Ionicons name="close" size={18} color="#A5B1BA" />
+              <Ionicons name="close" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.commissionerPlayerSearchBox}>
-            <Ionicons name="search" size={16} color="#657684" />
+            <Ionicons name="search" size={16} color={colors.textMuted} />
             <TextInput
               style={styles.commissionerPlayerSearchInput}
               value={commissionerPlayerSearch}
               onChangeText={setCommissionerPlayerSearch}
               placeholder="Search available players"
-              placeholderTextColor="#526473"
+              placeholderTextColor={colors.textMuted}
               autoFocus={Platform.OS === 'web'}
             />
           </View>
@@ -2435,9 +2446,9 @@ useEffect(() => {
                 </View>
                 <PositionBadge position={item.element_type} />
                 {commissionerAction === commissionerPlayerMode ? (
-                  <ActivityIndicator size="small" color="#00F27A" />
+                  <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Ionicons name="arrow-forward-circle" size={20} color="#00F27A" />
+                  <Ionicons name="arrow-forward-circle" size={20} color={colors.accent} />
                 )}
               </TouchableOpacity>
             )}
@@ -2482,10 +2493,10 @@ useEffect(() => {
             <View style={styles.completionHero}>
               <View style={styles.completionIconOuter}>
                 <View style={styles.completionIconInner}>
-                  <Ionicons name="trophy" size={42} color="#06100B" />
+                  <Ionicons name="trophy" size={42} color={colors.accentForeground} />
                 </View>
                 <View style={styles.completionCheckBadge}>
-                  <Ionicons name="checkmark" size={15} color="#06100B" />
+                  <Ionicons name="checkmark" size={15} color={colors.accentForeground} />
                 </View>
               </View>
 
@@ -2496,7 +2507,7 @@ useEffect(() => {
               </Text>
 
               <View style={styles.completionTeamPill}>
-                <Ionicons name="shield-checkmark" size={15} color="#00F27A" />
+                  <Ionicons name="shield-checkmark" size={15} color={colors.accent} />
                 <Text style={styles.completionTeamName} numberOfLines={1}>
                   {myManager?.team_name || 'My Team'}
                 </Text>
@@ -2555,7 +2566,7 @@ useEffect(() => {
                       <Ionicons
                         name={count >= item.maximum ? 'checkmark-circle' : 'ellipse-outline'}
                         size={19}
-                        color={count >= item.maximum ? '#00F27A' : '#526474'}
+                        color={count >= item.maximum ? colors.accent : colors.textMuted}
                       />
                     </View>
                   );
@@ -2569,9 +2580,9 @@ useEffect(() => {
                 onPress={() => router.dismissTo('/(tabs)/squad')}
                 activeOpacity={0.85}
               >
-                <Ionicons name="shirt" size={18} color="#06100B" />
+                <Ionicons name="shirt" size={18} color={colors.accentForeground} />
                 <Text style={styles.completionPrimaryButtonText}>VIEW MY SQUAD</Text>
-                <Ionicons name="arrow-forward" size={17} color="#06100B" />
+                <Ionicons name="arrow-forward" size={17} color={colors.accentForeground} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -2579,7 +2590,7 @@ useEffect(() => {
                 onPress={() => router.push('/draft-results')}
                 activeOpacity={0.85}
               >
-                <Ionicons name="grid-outline" size={17} color="#C7D1DA" />
+                <Ionicons name="grid-outline" size={17} color={colors.textSecondary} />
                 <Text style={styles.completionSecondaryButtonText}>VIEW FULL DRAFT RESULTS</Text>
               </TouchableOpacity>
 
@@ -2588,7 +2599,7 @@ useEffect(() => {
                 onPress={() => router.dismissTo('/(tabs)/league')}
                 activeOpacity={0.85}
               >
-                <Ionicons name="trophy-outline" size={17} color="#C7D1DA" />
+                <Ionicons name="trophy-outline" size={17} color={colors.textSecondary} />
                 <Text style={styles.completionSecondaryButtonText}>GO TO LEAGUE HUB</Text>
               </TouchableOpacity>
 
@@ -2596,15 +2607,15 @@ useEffect(() => {
                 <View style={styles.completionCommissionerActions}>
                   <Text style={styles.completionCommissionerLabel}>COMMISSIONER RECOVERY</Text>
                   <TouchableOpacity style={styles.completionSecondaryButton} onPress={() => setCommissionerPlayerMode('CORRECT')} disabled={Boolean(commissionerAction)}>
-                    <Ionicons name="create-outline" size={17} color="#C7D1DA" />
+                    <Ionicons name="create-outline" size={17} color={colors.textSecondary} />
                     <Text style={styles.completionSecondaryButtonText}>CORRECT LAST PICK</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.completionSecondaryButton, styles.completionDangerButton]} onPress={handleUndoLatestPick} disabled={Boolean(commissionerAction)}>
-                    {commissionerAction === 'UNDO' ? <ActivityIndicator size="small" color="#FF8C84" /> : <Ionicons name="arrow-undo" size={17} color="#FF8C84" />}
+                    {commissionerAction === 'UNDO' ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="arrow-undo" size={17} color={colors.danger} />}
                     <Text style={styles.completionDangerButtonText}>UNDO LAST PICK</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.completionSecondaryButton, styles.completionDangerButton]} onPress={handleRestartDraft} disabled={Boolean(commissionerAction)} activeOpacity={0.85}>
-                    {commissionerAction === 'RESTART' ? <ActivityIndicator size="small" color="#FF8C84" /> : <Ionicons name="refresh" size={17} color="#FF8C84" />}
+                    {commissionerAction === 'RESTART' ? <ActivityIndicator size="small" color={colors.danger} /> : <Ionicons name="refresh" size={17} color={colors.danger} />}
                     <Text style={styles.completionDangerButtonText}>RESTART DRAFT</Text>
                   </TouchableOpacity>
                 </View>
@@ -2654,7 +2665,7 @@ useEffect(() => {
                   accessibilityLabel="Toggle commissioner draft controls"
                 >
                   <View style={styles.commissionerControlHeaderIcon}>
-                    <Ionicons name="shield-checkmark" size={16} color="#00F27A" />
+                    <Ionicons name="shield-checkmark" size={16} color={colors.accent} />
                   </View>
                   <View style={styles.commissionerControlHeaderCopy}>
                     <Text style={styles.commissionerControlEyebrow}>COMMISSIONER</Text>
@@ -2668,7 +2679,7 @@ useEffect(() => {
                   <Ionicons
                     name={isCommissionerPanelOpen ? 'chevron-up' : 'chevron-down'}
                     size={16}
-                    color="#82929F"
+                    color={colors.textMuted}
                   />
                 </TouchableOpacity>
 
@@ -2688,12 +2699,12 @@ useEffect(() => {
                         disabled={Boolean(commissionerAction)}
                       >
                         {commissionerAction === 'PAUSE' || commissionerAction === 'RESUME' ? (
-                          <ActivityIndicator size="small" color={isPaused ? '#00150B' : '#FFB340'} />
+                          <ActivityIndicator size="small" color={isPaused ? colors.accentForeground : colors.warning} />
                         ) : (
                           <Ionicons
                             name={isPaused ? 'play' : 'pause'}
                             size={15}
-                            color={isPaused ? '#00150B' : '#FFB340'}
+                            color={isPaused ? colors.accentForeground : colors.warning}
                           />
                         )}
                         <Text style={[
@@ -2713,9 +2724,9 @@ useEffect(() => {
                         disabled={isPaused || Boolean(commissionerAction)}
                       >
                         {commissionerAction === 'EXTEND' ? (
-                          <ActivityIndicator size="small" color="#C6D0D9" />
+                          <ActivityIndicator size="small" color={colors.textSecondary} />
                         ) : (
-                          <Ionicons name="timer-outline" size={15} color="#C6D0D9" />
+                          <Ionicons name="timer-outline" size={15} color={colors.textSecondary} />
                         )}
                         <Text style={styles.commissionerControlButtonText}>+30 SECONDS</Text>
                       </TouchableOpacity>
@@ -2729,7 +2740,7 @@ useEffect(() => {
                         onPress={() => setConfirmCommissionerAutopick(true)}
                         disabled={isPaused || Boolean(commissionerAction)}
                       >
-                        <Ionicons name="flash" size={15} color="#FF7A70" />
+                        <Ionicons name="flash" size={15} color={colors.danger} />
                         <Text style={[styles.commissionerControlButtonText, styles.commissionerAutopickButtonText]}>
                           AUTO-PICK NOW
                         </Text>
@@ -2743,7 +2754,7 @@ useEffect(() => {
                         onPress={() => setCommissionerPlayerMode('ASSIGN')}
                         disabled={isPaused || Boolean(commissionerAction)}
                       >
-                        <Ionicons name="person-add-outline" size={15} color="#C6D0D9" />
+                        <Ionicons name="person-add-outline" size={15} color={colors.textSecondary} />
                         <Text style={styles.commissionerControlButtonText}>ASSIGN PLAYER</Text>
                       </TouchableOpacity>
 
@@ -2755,7 +2766,7 @@ useEffect(() => {
                         onPress={() => setCommissionerPlayerMode('CORRECT')}
                         disabled={Boolean(commissionerAction) || recentPicksFeed.length === 0}
                       >
-                        <Ionicons name="create-outline" size={15} color="#C6D0D9" />
+                        <Ionicons name="create-outline" size={15} color={colors.textSecondary} />
                         <Text style={styles.commissionerControlButtonText}>CORRECT LAST PICK</Text>
                       </TouchableOpacity>
 
@@ -2769,9 +2780,9 @@ useEffect(() => {
                         disabled={Boolean(commissionerAction) || recentPicksFeed.length === 0}
                       >
                         {commissionerAction === 'UNDO' ? (
-                          <ActivityIndicator size="small" color="#FF8C84" />
+                          <ActivityIndicator size="small" color={colors.danger} />
                         ) : (
-                          <Ionicons name="arrow-undo" size={15} color="#FF8C84" />
+                          <Ionicons name="arrow-undo" size={15} color={colors.danger} />
                         )}
                         <Text style={styles.commissionerDangerButtonText}>UNDO LAST PICK</Text>
                       </TouchableOpacity>
@@ -2786,9 +2797,9 @@ useEffect(() => {
                         disabled={Boolean(commissionerAction)}
                       >
                         {commissionerAction === 'RESTART' ? (
-                          <ActivityIndicator size="small" color="#FF8C84" />
+                          <ActivityIndicator size="small" color={colors.danger} />
                         ) : (
-                          <Ionicons name="refresh" size={15} color="#FF8C84" />
+                          <Ionicons name="refresh" size={15} color={colors.danger} />
                         )}
                         <Text style={styles.commissionerDangerButtonText}>RESTART DRAFT</Text>
                       </TouchableOpacity>
@@ -2800,7 +2811,7 @@ useEffect(() => {
 
             {commissionerNotice && (
               <View style={styles.commissionerNoticeBanner}>
-                <Ionicons name="checkmark-circle" size={14} color="#00F27A" />
+                <Ionicons name="checkmark-circle" size={14} color={colors.accent} />
                 <Text style={styles.commissionerNoticeText}>{commissionerNotice}</Text>
               </View>
             )}
@@ -2810,7 +2821,7 @@ useEffect(() => {
                 <Ionicons
                   name={connectionState === 'OFFLINE' ? 'cloud-offline-outline' : 'sync-outline'}
                   size={15}
-                  color="#FFB340"
+                  color={colors.warning}
                 />
                 <View style={styles.reconnectBannerCopy}>
                   <Text style={styles.reconnectBannerTitle}>
@@ -2825,14 +2836,14 @@ useEffect(() => {
 
             {reconnectNotice && (
               <View style={styles.resyncSuccessBanner}>
-                <Ionicons name="checkmark-circle" size={14} color="#00F27A" />
+                <Ionicons name="checkmark-circle" size={14} color={colors.accent} />
                 <Text style={styles.resyncSuccessBannerText}>{reconnectNotice}</Text>
               </View>
             )}
 
             {myAutopickState?.is_away && (
               <View style={styles.awayModeBanner}>
-                <Ionicons name="moon-outline" size={17} color="#FFB340" />
+                <Ionicons name="moon-outline" size={17} color={colors.warning} />
                 <View style={styles.awayModeBannerCopy}>
                   <Text style={styles.awayModeBannerTitle}>YOU'RE IN AWAY MODE</Text>
                   <Text style={styles.awayModeBannerText}>
@@ -2845,7 +2856,7 @@ useEffect(() => {
                   disabled={markingPresent}
                 >
                   {markingPresent ? (
-                    <ActivityIndicator size="small" color="#00150B" />
+                    <ActivityIndicator size="small" color={colors.accentForeground} />
                   ) : (
                     <Text style={styles.markPresentButtonText}>I'M BACK</Text>
                   )}
@@ -2856,7 +2867,7 @@ useEffect(() => {
             {/* Single Latest Pick Announcement Banner */}
             {isLive && latestPickAlert && (
               <View style={[styles.latestPickBanner, themeStyles.accentSurface]}>
-                <Ionicons name="flash" size={14} color="#00ff87" />
+                <Ionicons name="flash" size={14} color={colors.accent} />
                 {latestPickAlert.pickSource !== 'MANUAL' && (
                   <View style={styles.autopickReasonBadge}>
                     <Text style={styles.autopickReasonBadgeText}>
@@ -2865,11 +2876,11 @@ useEffect(() => {
                   </View>
                 )}
                 <Text style={styles.latestPickText} numberOfLines={1}>
-                  <Text style={{ color: '#00ff87', fontWeight: '900' }}>
+                  <Text style={{ color: colors.accent, fontWeight: '900' }}>
                     {latestPickAlert.managerName.toUpperCase()}
                   </Text>
                   {' '}drafted{' '}
-                  <Text style={{ color: '#FFF', fontWeight: '900' }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: '900' }}>
                     {latestPickAlert.playerName}
                   </Text>
                   {' '}({latestPickAlert.position} • {latestPickAlert.team})
@@ -2880,7 +2891,7 @@ useEffect(() => {
             {isLive && watchlistDraftedAlert && (
               <View style={styles.watchlistDraftedBanner}>
                 <View style={styles.watchlistDraftedIcon}>
-                  <Ionicons name="star" size={15} color="#FFB340" />
+                  <Ionicons name="star" size={15} color={colors.warning} />
                 </View>
                 <View style={styles.watchlistDraftedCopy}>
                   <Text style={styles.watchlistDraftedTitle}>WATCHLIST PLAYER DRAFTED</Text>
@@ -2906,7 +2917,7 @@ useEffect(() => {
               <Text style={styles.waitingHeaderMetaSub}>Ready up, review players and build your watchlist.</Text>
             </View>
             <View style={styles.headerClockBadgeContainer}>
-              <Ionicons name="time" size={14} color="#00ff87" />
+              <Ionicons name="time" size={14} color={colors.accent} />
               <Text style={styles.headerClockBadgeStringText}>{waitingRoomCountdown}</Text>
             </View>
           </View>
@@ -2929,9 +2940,9 @@ useEffect(() => {
                 accessibilityState={{ checked: amIReady }}
               >
                 {updatingReadyState ? (
-                  <ActivityIndicator size="small" color={amIReady ? '#06100B' : '#00F27A'} />
+                  <ActivityIndicator size="small" color={amIReady ? colors.accentForeground : colors.accent} />
                 ) : (
-                  <Ionicons name={amIReady ? 'checkmark-circle' : 'radio-button-off'} size={16} color={amIReady ? '#06100B' : '#00F27A'} />
+                  <Ionicons name={amIReady ? 'checkmark-circle' : 'radio-button-off'} size={16} color={amIReady ? colors.accentForeground : colors.accent} />
                 )}
                 <Text style={[styles.waitingRoomReadyButtonText, amIReady && styles.waitingRoomReadyButtonTextActive]}>
                   {amIReady ? 'READY' : "I'M READY"}
@@ -2962,13 +2973,13 @@ useEffect(() => {
               onPress={() => setIsDraftOrderEditorOpen(current => !current)}
             >
               <View style={styles.commissionerControlHeaderIcon}>
-                <Ionicons name="swap-vertical" size={16} color="#00F27A" />
+                <Ionicons name="swap-vertical" size={16} color={colors.accent} />
               </View>
               <View style={styles.commissionerControlHeaderCopy}>
                 <Text style={styles.commissionerControlEyebrow}>COMMISSIONER</Text>
                 <Text style={styles.commissionerControlTitle}>Set manager draft order</Text>
               </View>
-              <Ionicons name={isDraftOrderEditorOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#82929F" />
+              <Ionicons name={isDraftOrderEditorOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
             </TouchableOpacity>
             {isDraftOrderEditorOpen && (
               <View style={styles.draftOrderEditorBody}>
@@ -2978,15 +2989,15 @@ useEffect(() => {
                     <View style={styles.draftOrderEditorNumber}><Text style={styles.draftOrderEditorNumberText}>{index + 1}</Text></View>
                     <Text style={styles.draftOrderEditorName} numberOfLines={1}>{manager.team_name}</Text>
                     <TouchableOpacity style={styles.draftOrderMoveButton} onPress={() => moveDraftManager(index, -1)} disabled={index === 0}>
-                      <Ionicons name="chevron-up" size={16} color={index === 0 ? '#3F505D' : '#A8B4BC'} />
+                      <Ionicons name="chevron-up" size={16} color={index === 0 ? colors.textDisabled : colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.draftOrderMoveButton} onPress={() => moveDraftManager(index, 1)} disabled={index === draftOrderDraft.length - 1}>
-                      <Ionicons name="chevron-down" size={16} color={index === draftOrderDraft.length - 1 ? '#3F505D' : '#A8B4BC'} />
+                      <Ionicons name="chevron-down" size={16} color={index === draftOrderDraft.length - 1 ? colors.textDisabled : colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 ))}
                 <TouchableOpacity style={styles.saveDraftOrderButton} onPress={() => void saveDraftOrder()} disabled={Boolean(commissionerAction)}>
-                  {commissionerAction === 'REORDER' ? <ActivityIndicator size="small" color="#00150B" /> : <Ionicons name="save-outline" size={15} color="#00150B" />}
+                  {commissionerAction === 'REORDER' ? <ActivityIndicator size="small" color={colors.accentForeground} /> : <Ionicons name="save-outline" size={15} color={colors.accentForeground} />}
                   <Text style={styles.saveDraftOrderButtonText}>SAVE DRAFT ORDER</Text>
                 </TouchableOpacity>
               </View>
@@ -3042,7 +3053,7 @@ useEffect(() => {
                         accessibilityState={{ checked: isHapticsEnabled }}
                         accessibilityLabel={`Turn vibration ${isHapticsEnabled ? 'off' : 'on'}`}
                       >
-                        <Ionicons name={isHapticsEnabled ? 'phone-portrait' : 'phone-portrait-outline'} size={13} color={isHapticsEnabled ? '#00F27A' : '#687887'} />
+                        <Ionicons name={isHapticsEnabled ? 'phone-portrait' : 'phone-portrait-outline'} size={13} color={isHapticsEnabled ? colors.accent : colors.textMuted} />
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
@@ -3052,14 +3063,14 @@ useEffect(() => {
                       accessibilityState={{ checked: isDraftSoundEnabled }}
                       accessibilityLabel={`Turn draft sounds ${isDraftSoundEnabled ? 'off' : 'on'}`}
                     >
-                      <Ionicons name={isDraftSoundEnabled ? 'volume-high' : 'volume-mute-outline'} size={13} color={isDraftSoundEnabled ? '#00F27A' : '#687887'} />
+                      <Ionicons name={isDraftSoundEnabled ? 'volume-high' : 'volume-mute-outline'} size={13} color={isDraftSoundEnabled ? colors.accent : colors.textMuted} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.compactDraftUtilityButton}
                       onPress={() => router.push('/draft-results')}
                       accessibilityLabel="Open full draft board"
                     >
-                      <Ionicons name="grid-outline" size={13} color="#00F27A" />
+                      <Ionicons name="grid-outline" size={13} color={colors.accent} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.snakeDirectionBadge}>
@@ -3070,7 +3081,7 @@ useEffect(() => {
                           : 'arrow-forward'
                       }
                       size={13}
-                      color="#00F27A"
+                      color={colors.accent}
                     />
 
                     <Text style={styles.snakeDirectionText}>
@@ -3088,7 +3099,7 @@ useEffect(() => {
                           : 'chevron-down'
                       }
                       size={15}
-                      color="#8B9AA8"
+                      color={colors.textMuted}
                     />
                   </View>
                 </View>
@@ -3278,13 +3289,13 @@ useEffect(() => {
               ListHeaderComponent={
                 <View style={styles.poolFiltersContainer}>
                   <View style={[styles.playerSearchBox, themeStyles.surface]}>
-                    <Ionicons name="search" size={16} color="#607180" />
+                    <Ionicons name="search" size={16} color={colors.textMuted} />
                     <TextInput
                       style={[styles.playerSearchInput, themeStyles.textPrimary]}
                       value={playerSearch}
                       onChangeText={setPlayerSearch}
                       placeholder="Search players by name"
-                      placeholderTextColor="#607180"
+                      placeholderTextColor={colors.textMuted}
                       autoCapitalize="none"
                       autoCorrect={false}
                       returnKeyType="search"
@@ -3295,7 +3306,7 @@ useEffect(() => {
                         onPress={() => setPlayerSearch('')}
                         accessibilityLabel="Clear player search"
                       >
-                        <Ionicons name="close-circle" size={17} color="#607180" />
+                        <Ionicons name="close-circle" size={17} color={colors.textMuted} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -3308,22 +3319,22 @@ useEffect(() => {
                           style={[styles.miniPosBadge, activeFilter === pos && styles.miniPosBadgeActive, pos !== 'ALL' && filledPositions[pos as RosterPosition] && styles.disabledPositionTab]}
                           onPress={() => setActiveFilter(pos)}
                         >
-                          <Text style={[styles.miniPosText, activeFilter === pos && styles.miniPosTextActive, pos !== 'ALL' && filledPositions[pos as RosterPosition] && { color: '#222', textDecorationLine: 'line-through' }]}>{pos}</Text>
+                          <Text style={[styles.miniPosText, activeFilter === pos && styles.miniPosTextActive, pos !== 'ALL' && filledPositions[pos as RosterPosition] && { color: colors.textDisabled, textDecorationLine: 'line-through' }]}>{pos}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                     <TouchableOpacity style={[styles.sortToggleBtn, themeStyles.surface]} onPress={() => setIsSortMenuOpen(true)}>
-                      <Ionicons name="swap-vertical" size={12} color="#00ff87" />
+                      <Ionicons name="swap-vertical" size={12} color={colors.accent} />
                       <Text style={styles.sortToggleText} numberOfLines={1}>
                         {SORT_OPTIONS.find(option => option.key === sortOrder)?.shortLabel || sortOrder}
                       </Text>
-                      <Ionicons name="chevron-down" size={11} color="#607180" />
+                      <Ionicons name="chevron-down" size={11} color={colors.textMuted} />
                     </TouchableOpacity>
                   </View>
 
                   {rosterConstraintNotice && (
                     <View style={styles.rosterConstraintNotice}>
-                      <Ionicons name="shield-checkmark-outline" size={13} color="#FFB340" />
+                      <Ionicons name="shield-checkmark-outline" size={13} color={colors.warning} />
                       <Text style={styles.rosterConstraintNoticeText}>{rosterConstraintNotice}</Text>
                     </View>
                   )}
@@ -3393,7 +3404,7 @@ useEffect(() => {
                     <View style={styles.pitchPlayersHorizontalRowInline}>
                       {myRoster.FWD.map((player, idx) => (
                         <TouchableOpacity key={`fwd-${idx}`} style={[styles.pitchPlayerCardNode, player ? styles.pitchNodeFilled : styles.pitchNodeEmpty]} onPress={() => player && setInspectingPlayer(player)}>
-                          <Ionicons name="shirt" size={20} color={player ? '#FF0055' : "#222"} />
+                          <Ionicons name="shirt" size={20} color={player ? '#FF0055' : colors.textDisabled} />
                           <Text style={styles.pitchPlayerNameLabelText} numberOfLines={1}>{player ? player.web_name : 'Open Slot'}</Text>
                         </TouchableOpacity>
                       ))}
@@ -3406,7 +3417,7 @@ useEffect(() => {
                     <View style={styles.pitchPlayersHorizontalRowInline}>
                       {myRoster.MID.map((player, idx) => (
                         <TouchableOpacity key={`mid-${idx}`} style={[styles.pitchPlayerCardNode, player ? styles.pitchNodeFilled : styles.pitchNodeEmpty]} onPress={() => player && setInspectingPlayer(player)}>
-                          <Ionicons name="shirt" size={20} color={player ? "#30D158" : "#222"} />
+                          <Ionicons name="shirt" size={20} color={player ? '#30D158' : colors.textDisabled} />
                           <Text style={styles.pitchPlayerNameLabelText} numberOfLines={1}>{player ? player.web_name : 'Open'}</Text>
                         </TouchableOpacity>
                       ))}
@@ -3419,7 +3430,7 @@ useEffect(() => {
                     <View style={styles.pitchPlayersHorizontalRowInline}>
                       {myRoster.DEF.map((player, idx) => (
                         <TouchableOpacity key={`def-${idx}`} style={[styles.pitchPlayerCardNode, player ? styles.pitchNodeFilled : styles.pitchNodeEmpty]} onPress={() => player && setInspectingPlayer(player)}>
-                          <Ionicons name="shirt" size={20} color={player ? "#0A84FF" : "#222"} />
+                          <Ionicons name="shirt" size={20} color={player ? '#0A84FF' : colors.textDisabled} />
                           <Text style={styles.pitchPlayerNameLabelText} numberOfLines={1}>{player ? player.web_name : 'Open'}</Text>
                         </TouchableOpacity>
                       ))}
@@ -3432,7 +3443,7 @@ useEffect(() => {
                     <View style={styles.pitchPlayersHorizontalRowInline}>
                       {myRoster.GKP.map((player, idx) => (
                         <TouchableOpacity key={`gkp-${idx}`} style={[styles.pitchPlayerCardNode, player ? styles.pitchNodeFilled : styles.pitchNodeEmpty]} onPress={() => player && setInspectingPlayer(player)}>
-                          <Ionicons name="shirt" size={20} color={player ? "#FFD60A" : "#222"} />
+                          <Ionicons name="shirt" size={20} color={player ? '#FFD60A' : colors.textDisabled} />
                           <Text style={styles.pitchPlayerNameLabelText} numberOfLines={1}>{player ? player.web_name : 'Open'}</Text>
                         </TouchableOpacity>
                       ))}
@@ -3569,7 +3580,7 @@ useEffect(() => {
               <Ionicons
                 name="checkmark-circle"
                 size={17}
-                color="#00F27A"
+                color={colors.accent}
               />
             )}
           </View>
@@ -3584,7 +3595,7 @@ useEffect(() => {
         <Ionicons
           name={isMyTurn ? 'flash' : 'hourglass-outline'}
           size={18}
-          color={isMyTurn ? '#00F27A' : '#8B9AA8'}
+          color={isMyTurn ? colors.accent : colors.textMuted}
         />
       </View>
 
@@ -3627,7 +3638,7 @@ useEffect(() => {
         : 'shirt-outline'
     }
     size={16}
-    color="#00F27A"
+    color={colors.accent}
   />
 
   <Text style={styles.sidebarSquadButtonText}>
@@ -3683,7 +3694,7 @@ useEffect(() => {
                 <Text style={styles.sortMenuSubtitle}>{getPreviousSeasonLabel()} statistics</Text>
               </View>
               <TouchableOpacity style={styles.sortMenuClose} onPress={() => setIsSortMenuOpen(false)}>
-                <Ionicons name="close" size={18} color="#82929F" />
+                <Ionicons name="close" size={18} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.sortMenuList} showsVerticalScrollIndicator={false}>
@@ -3701,7 +3712,7 @@ useEffect(() => {
                     <Text style={[styles.sortMenuOptionText, themeStyles.textPrimary, isActive && styles.sortMenuOptionTextActive]}>
                       {option.label}
                     </Text>
-                    {isActive && <Ionicons name="checkmark" size={16} color="#00F27A" />}
+                    {isActive && <Ionicons name="checkmark" size={16} color={colors.accent} />}
                   </TouchableOpacity>
                 );
               })}
@@ -3723,7 +3734,7 @@ useEffect(() => {
                   onPress={() => dragMovingPlayer && executeDirectPriorityReindex(dragMovingPlayer.id, index)}
                 >
                   <Text style={styles.prioritySelectorRowLabelText}>Move to Priority Rank Position #{index + 1}</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#00ff87" />
+                  <Ionicons name="arrow-forward" size={14} color={colors.accent} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -3742,7 +3753,7 @@ useEffect(() => {
         <View style={styles.commissionerConfirmOverlay}>
           <View style={styles.commissionerConfirmCard}>
             <View style={styles.commissionerConfirmIcon}>
-              <Ionicons name="flash" size={22} color="#FF7A70" />
+              <Ionicons name="flash" size={22} color={colors.danger} />
             </View>
             <Text style={styles.commissionerConfirmEyebrow}>COMMISSIONER ACTION</Text>
             <Text style={styles.commissionerConfirmTitle}>Auto-pick now?</Text>
@@ -3769,9 +3780,9 @@ useEffect(() => {
                 disabled={Boolean(commissionerAction)}
               >
                 {commissionerAction === 'AUTOPICK' ? (
-                  <ActivityIndicator size="small" color="#2A0705" />
+                  <ActivityIndicator size="small" color={colors.accentForeground} />
                 ) : (
-                  <Ionicons name="flash" size={15} color="#2A0705" />
+                  <Ionicons name="flash" size={15} color={colors.accentForeground} />
                 )}
                 <Text style={styles.commissionerConfirmSubmitText}>AUTO-PICK</Text>
               </TouchableOpacity>
@@ -3807,7 +3818,13 @@ const createDraftThemeStyles = (colors: AppColors) => StyleSheet.create({
   textSecondary: { color: colors.textSecondary },
 });
 
-const styles = StyleSheet.create({
+const draftStyleCache = new Map<string, ReturnType<typeof StyleSheet.create>>();
+
+const createStyles = (colors: AppColors) => {
+const cachedStyles = draftStyleCache.get(colors.background);
+if (cachedStyles) return cachedStyles;
+
+const rawStyles = {
 completionSafeArea: {
   flex: 1,
   backgroundColor: '#050A0F',
@@ -4489,18 +4506,18 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
   sectionHeading: { color: '#00ff87', fontSize: 10, fontWeight: '900', paddingHorizontal: 14, marginVertical: 12, letterSpacing: 0.3 },
   emptyNoticeText: { color: '#444', fontSize: 11, textAlign: 'center', padding: 20, fontWeight: '600' },
   pitchScrollBounds: { paddingBottom: 20 },
-  footballPitchFieldContainer: { backgroundColor: '#14381B', margin: 12, borderRadius: 8, padding: 12, borderWidth: 2, borderColor: '#5F8566', elevation: 4 },
-  fieldOuterBorderLine: { borderWidth: 1.5, borderColor: '#A2C4A6', borderRadius: 4, paddingVertical: 16, alignItems: 'center', position: 'relative' },
-  penaltyBoxTopArcArea: { position: 'absolute', top: -1, width: 100, height: 40, borderBottomWidth: 1.5, borderColor: '#A2C4A6', borderLeftWidth: 1.5, borderRightWidth: 1.5 },
-  centerFieldCircleDivider: { position: 'absolute', top: '52%', width: '100%', height: 1.5, backgroundColor: '#A2C4A6' },
-  bottomGoalBoxContainerLine: { position: 'absolute', bottom: -1, width: 100, height: 40, borderTopWidth: 1.5, borderColor: '#A2C4A6', borderLeftWidth: 1.5, borderRightWidth: 1.5 },
+  footballPitchFieldContainer: { backgroundColor: colors.pitch, margin: 12, borderRadius: 8, padding: 12, borderWidth: 2, borderColor: colors.pitchBorder, elevation: 4 },
+  fieldOuterBorderLine: { borderWidth: 1.5, borderColor: colors.pitchLine, borderRadius: 4, paddingVertical: 16, alignItems: 'center', position: 'relative' },
+  penaltyBoxTopArcArea: { position: 'absolute', top: -1, width: 100, height: 40, borderBottomWidth: 1.5, borderColor: colors.pitchLine, borderLeftWidth: 1.5, borderRightWidth: 1.5 },
+  centerFieldCircleDivider: { position: 'absolute', top: '52%', width: '100%', height: 1.5, backgroundColor: colors.pitchLine },
+  bottomGoalBoxContainerLine: { position: 'absolute', bottom: -1, width: 100, height: 40, borderTopWidth: 1.5, borderColor: colors.pitchLine, borderLeftWidth: 1.5, borderRightWidth: 1.5 },
   pitchTacticalRowZone: { width: '100%', alignItems: 'center', marginVertical: 10, zIndex: 10 },
-  pitchZoneIndicatorLabelText: { color: '#A2C4A6', fontSize: 8, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
+  pitchZoneIndicatorLabelText: { color: colors.pitchPlayerNameText, fontSize: 8, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
   pitchPlayersHorizontalRowInline: { flexDirection: 'row', justifyContent: 'center', width: '100%', gap: 8, paddingHorizontal: 4 },
-  pitchPlayerCardNode: { flex: 1, maxWidth: 80, minWidth: 60, height: 64, backgroundColor: '#0B1E11', borderWidth: 1, borderRadius: 4, borderColor: '#1E4627', alignItems: 'center', justifyContent: 'center', padding: 4 },
-  pitchNodeFilled: { backgroundColor: '#08170C', borderColor: '#00ff8744' },
-  pitchNodeEmpty: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: '#4E6A54' },
-  pitchPlayerNameLabelText: { color: '#FFF', fontSize: 10, fontWeight: '800', marginTop: 4, textAlign: 'center' },
+  pitchPlayerCardNode: { flex: 1, maxWidth: 80, minWidth: 60, height: 64, backgroundColor: colors.pitchPlayerSurface, borderWidth: 1, borderRadius: 4, borderColor: colors.pitchBorder, alignItems: 'center', justifyContent: 'center', padding: 4 },
+  pitchNodeFilled: { backgroundColor: colors.pitchPlayerSurface, borderColor: colors.accentBorder },
+  pitchNodeEmpty: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: colors.pitchBorder },
+  pitchPlayerNameLabelText: { color: colors.pitchPlayerNameText, fontSize: 10, fontWeight: '800', marginTop: 4, textAlign: 'center' },
   prioritySelectorChipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A1A', padding: 14, borderRadius: 4, marginVertical: 4, borderWidth: 1, borderColor: '#222' },
   prioritySelectorRowLabelText: { color: '#DDD', fontSize: 12, fontWeight: '700' },
   pickReviewPanel: {
@@ -5545,4 +5562,105 @@ commissionerPlayerName: { color: '#EDF2F5', fontSize: 11, fontWeight: '900' },
 commissionerPlayerClub: { color: '#657684', fontSize: 8, fontWeight: '700', marginTop: 2 },
 commissionerPlayerEmpty: { alignItems: 'center', paddingVertical: 28 },
 commissionerPlayerEmptyText: { color: '#657684', fontSize: 9, fontWeight: '700' },
-});
+};
+
+  // The draft room predates the shared appearance system and still contains a
+  // large number of carefully tuned dark-mode colour values. Preserve those
+  // values in dark mode, but translate them to the shared Cool Stadium palette
+  // when light mode is active. Geometry and position colours remain unchanged.
+  if (colors.background !== '#EEF4F7') {
+    const darkStyles = StyleSheet.create(rawStyles as any);
+    draftStyleCache.set(colors.background, darkStyles);
+    return darkStyles;
+  }
+
+  const backgroundColors = new Set([
+    '#030a11', '#050a0f', '#06101a', '#070f18', '#071019', '#081018',
+  ]);
+  const surfaceColors = new Set([
+    '#080f16', '#08111a', '#091119', '#09141c', '#0a1219', '#0a141c',
+    '#0a151d', '#0b141d', '#0b151e', '#0b1822', '#0c141d', '#0c171f',
+    '#0d1821', '#0d1924', '#0d1b24', '#101922', '#101a23', '#101b24',
+    '#101d26', '#101e27', '#101e28', '#111', '#111e28', '#13202b',
+    '#13212c', '#14232e', '#161616', '#1a1a1a', '#1c1c1e', '#1c1c1c',
+  ]);
+  const raisedSurfaceColors = new Set([
+    '#0d1c18', '#0d1e18', '#0d2a1c', '#10231a', '#10251b', '#10261b',
+    '#13231c', '#172a24', '#234034', '#234337',
+  ]);
+  const borderColors = new Set([
+    '#172530', '#172733', '#182833', '#192733', '#1a2a34', '#1b2a36',
+    '#1d2d38', '#1e3340', '#21313d', '#213440', '#22313d', '#223443',
+    '#233645', '#243441', '#25313a', '#253744', '#293a47', '#293b49',
+    '#294034', '#294252', '#365063', '#3b5363', '#222',
+  ]);
+  const primaryTextColors = new Set([
+    '#fff', '#ffffff', '#f7fafc', '#f4f7f9', '#f2f6f8', '#edf2f5',
+    '#e9eff3', '#e8edf2', '#e7edf1', '#e4ebef', '#ddd',
+  ]);
+  const secondaryTextColors = new Set([
+    '#c7d1da', '#c6d0d9', '#c3cdd4', '#a9b6c0', '#a9b4bd', '#a8b4bd',
+    '#a7b4c2', '#aaa', '#9aa8b3', '#93a2ae', '#92a3af', '#91a0ac',
+    '#8b9aa8', '#82929f', '#71818e',
+  ]);
+  const mutedTextColors = new Set([
+    '#687887', '#657684', '#607180', '#555', '#526473', '#444', '#333', '#888',
+  ]);
+
+  const adaptDraftColor = (property: string, value: unknown) => {
+    if (typeof value !== 'string') return value;
+    const normalized = value.toLowerCase();
+
+    if (normalized === '#00f27a' || normalized === '#00ff87' || normalized === '#00a956') {
+      return property.toLowerCase().includes('background') ? colors.accentFill : colors.accent;
+    }
+    if (normalized.startsWith('rgba(0,242,122') || normalized === '#00ff8744') {
+      return property.toLowerCase().includes('border') ? colors.accentBorder : colors.accentSoft;
+    }
+    if (backgroundColors.has(normalized)) return colors.background;
+    if (raisedSurfaceColors.has(normalized)) return colors.accentSoft;
+    if (surfaceColors.has(normalized)) return colors.surface;
+    if (borderColors.has(normalized)) return colors.border;
+    if (primaryTextColors.has(normalized)) return colors.textPrimary;
+    if (secondaryTextColors.has(normalized)) return colors.textSecondary;
+    if (mutedTextColors.has(normalized)) return colors.textMuted;
+
+    if (normalized === '#00150b' || normalized === '#06100b' || normalized === '#241500') {
+      return colors.accentForeground;
+    }
+    if (normalized === '#ffb340' || normalized === '#ff9f0a') return colors.warning;
+    if (normalized === '#ff6b61' || normalized === '#ff7a70' || normalized === '#ff8c84' || normalized === '#ff453a') {
+      return colors.danger;
+    }
+    if (normalized === '#251b0d' || normalized === '#2a1d08' || normalized === '#35240d' || normalized === '#35270f') {
+      return colors.warningSoft;
+    }
+    if (normalized === '#624719' || normalized === '#72511a' || normalized === '#8a6424') {
+      return colors.warning;
+    }
+    if (normalized === '#211313' || normalized === '#24110f' || normalized === '#241313' || normalized === '#281313' || normalized === '#2b1111') {
+      return colors.dangerSoft;
+    }
+    if (normalized === '#51211d' || normalized === '#62302d' || normalized === '#63312d' || normalized === '#7a2b25') {
+      return colors.dangerBorder;
+    }
+
+    return value;
+  };
+
+  const lightStyles = Object.fromEntries(
+    Object.entries(rawStyles).map(([styleName, styleValue]) => [
+      styleName,
+      Object.fromEntries(
+        Object.entries(styleValue as Record<string, unknown>).map(([property, value]) => [
+          property,
+          adaptDraftColor(property, value),
+        ])
+      ),
+    ])
+  );
+
+  const themedStyles = StyleSheet.create(lightStyles as any);
+  draftStyleCache.set(colors.background, themedStyles);
+  return themedStyles;
+};

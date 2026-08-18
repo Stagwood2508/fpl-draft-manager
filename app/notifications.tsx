@@ -297,7 +297,7 @@ export default function NotificationCentreScreen() {
                 <Switch value={preferences[key]} onValueChange={value => setPreferences(current => ({ ...current, [key]: value }))} trackColor={{ false: appColors.surfaceMuted, true: appColors.accentDark }} thumbColor={preferences[key] ? appColors.accent : appColors.textMuted} />
               </View>
             ))}
-            <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => setPreferencesOpen(false)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity><TouchableOpacity style={styles.saveButton} disabled={savingPreferences} onPress={() => void savePreferences()}>{savingPreferences ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Text style={styles.saveText}>SAVE</Text>}</TouchableOpacity></View>
+            <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => setPreferencesOpen(false)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity><TouchableOpacity style={styles.saveButton} disabled={savingPreferences} onPress={() => void savePreferences()}>{savingPreferences ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Text style={styles.saveText}>SAVE</Text>}</TouchableOpacity></View>
           </View>
         </View>
       </Modal>
@@ -336,7 +336,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   notificationTitle: { color: appColors.textPrimary, fontSize: 12, fontWeight: '900', marginTop: 2 },
   notificationBody: { ...appTypography.metadata, color: appColors.textSecondary, marginTop: 3 },
   notificationTime: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 4 },
-  unreadDot: { width: 8, height: 8, backgroundColor: appColors.accent, borderRadius: 4 },
+  unreadDot: { width: 8, height: 8, backgroundColor: appColors.accentFill, borderRadius: 4 },
   clearButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: appSpacing.sm },
   clearText: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
   modalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: appSpacing.lg, backgroundColor: 'rgba(0,0,0,0.82)' },
@@ -354,6 +354,6 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: appSpacing.sm, marginTop: appSpacing.md },
   cancelButton: { minHeight: 40, flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   cancelText: { ...appTypography.label, color: appColors.textSecondary },
-  saveButton: { minHeight: 40, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accent, borderRadius: appRadius.small },
-  saveText: { ...appTypography.label, color: appColors.backgroundDeep },
+  saveButton: { minHeight: 40, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
+  saveText: { ...appTypography.label, color: appColors.accentForeground },
 });

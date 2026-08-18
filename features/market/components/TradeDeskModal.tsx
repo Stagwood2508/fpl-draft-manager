@@ -804,7 +804,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   modalButtonConfirm: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentFill,
     borderColor: colors.accentDark,
   },
 
@@ -815,7 +815,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   modalButtonConfirmText: {
-    color: colors.black,
+    color: colors.accentForeground,
     fontWeight: '900',
     fontSize: 13,
   },

@@ -228,7 +228,7 @@ export default function CupsScreen() {
               style={styles.createButton}
               onPress={() => router.push({ pathname: '/(admin)/cup-wizard', params: { leagueId: activeLeagueId || '' } })}
             >
-              <Ionicons name="add" size={18} color={colors.backgroundDeep} />
+              <Ionicons name="add" size={18} color={colors.accentForeground} />
               <Text style={styles.createButtonText}>CREATE CUP</Text>
             </TouchableOpacity>
           )}
@@ -416,20 +416,20 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   eyebrow: { ...appTypography.label, color: colors.accent, fontSize: 8 },
   title: { color: colors.textPrimary, fontSize: 20, fontWeight: '900', marginTop: 2 },
   subtitle: { color: colors.textMuted, fontSize: 10, fontWeight: '600', marginTop: 2 },
-  createButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, backgroundColor: colors.accent, borderRadius: appRadius.small },
-  createButtonText: { ...appTypography.label, color: colors.backgroundDeep, fontSize: 8 },
+  createButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, backgroundColor: colors.accentFill, borderRadius: appRadius.small },
+  createButtonText: { ...appTypography.label, color: colors.accentForeground, fontSize: 8 },
   errorBanner: { maxWidth: 1100, width: '100%', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: appSpacing.md, padding: appSpacing.sm, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.dangerBorder, borderRadius: appRadius.small },
   errorText: { flex: 1, color: colors.danger, fontSize: 10, fontWeight: '700' },
   emptyCard: { maxWidth: 620, width: '100%', alignSelf: 'center', alignItems: 'center', marginTop: 60, padding: 30, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: appRadius.large },
   emptyTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', marginTop: 10 },
   emptyText: { maxWidth: 420, color: colors.textMuted, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
-  emptyAction: { minHeight: 40, justifyContent: 'center', marginTop: appSpacing.md, paddingHorizontal: 16, backgroundColor: colors.accent, borderRadius: appRadius.small },
-  emptyActionText: { ...appTypography.label, color: colors.backgroundDeep, fontSize: 8 },
+  emptyAction: { minHeight: 40, justifyContent: 'center', marginTop: appSpacing.md, paddingHorizontal: 16, backgroundColor: colors.accentFill, borderRadius: appRadius.small },
+  emptyActionText: { ...appTypography.label, color: colors.accentForeground, fontSize: 8 },
   cupPicker: { maxWidth: 1100, width: '100%', alignSelf: 'center', gap: 7, paddingVertical: appSpacing.md },
   cupPill: { maxWidth: 210, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: appRadius.pill },
-  cupPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  cupPillActive: { backgroundColor: colors.accentFill, borderColor: colors.accent },
   cupPillText: { flexShrink: 1, color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
-  cupPillTextActive: { color: colors.backgroundDeep },
+  cupPillTextActive: { color: colors.accentForeground },
   cupHero: { maxWidth: 1100, width: '100%', alignSelf: 'center', overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: appRadius.large },
   cupHeroTop: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: appSpacing.md },
   trophyIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft, borderRadius: appRadius.medium },

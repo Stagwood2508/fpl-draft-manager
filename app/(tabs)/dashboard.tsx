@@ -316,7 +316,7 @@ export default function HomeDashboardScreen() {
       </Text>
       <TouchableOpacity style={styles.inlineAction} onPress={() => router.push('/(tabs)/squad')}>
         <Text style={styles.inlineActionText}>{deadlinePassed ? 'VIEW LOCKED LINEUP' : 'EDIT LINEUP'}</Text>
-        <Ionicons name="arrow-forward" size={13} color={appColors.backgroundDeep} />
+        <Ionicons name="arrow-forward" size={13} color={appColors.accentForeground} />
       </TouchableOpacity>
     </View>
   );
@@ -730,7 +730,7 @@ export default function HomeDashboardScreen() {
                 router.push('/(auth)/create-league');
               }}
             >
-              <Ionicons name="trophy-outline" size={18} color={appColors.backgroundDeep} />
+              <Ionicons name="trophy-outline" size={18} color={appColors.accentForeground} />
               <Text style={styles.createAnotherLeagueText}>Create another league</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -841,7 +841,7 @@ export default function HomeDashboardScreen() {
                 disabled={draftShortcutIds.length !== 4 || shortcutsSaving}
                 onPress={() => void persistShortcuts()}
               >
-                {shortcutsSaving ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Text style={styles.shortcutSaveText}>SAVE</Text>}
+                {shortcutsSaving ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Text style={styles.shortcutSaveText}>SAVE</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -925,8 +925,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   deadlineCountdown: { color: appColors.accent, fontSize: 25, fontWeight: '900', marginTop: 3 },
   deadlineCountdownLocked: { color: appColors.warning },
   deadlineDate: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 3 },
-  inlineAction: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 'auto', paddingHorizontal: 12, backgroundColor: appColors.accent, borderRadius: appRadius.small },
-  inlineActionText: { ...appTypography.label, color: appColors.backgroundDeep },
+  inlineAction: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 'auto', paddingHorizontal: 12, backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
+  inlineActionText: { ...appTypography.label, color: appColors.accentForeground },
   sectionHeadingRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 2 },
   sectionEyebrow: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
   sectionHeading: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 15, letterSpacing: 0, marginTop: 2 },
@@ -983,8 +983,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   mobileDeadlineCopy: { flex: 1 },
   mobileDeadlineLabel: { ...appTypography.label, color: appColors.textMuted, fontSize: 7 },
   mobileDeadlineValue: { color: appColors.accent, fontSize: 12, fontWeight: '900', marginTop: 1 },
-  mobileEditButton: { minHeight: 28, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, backgroundColor: appColors.accent, borderRadius: appRadius.small },
-  mobileEditButtonText: { ...appTypography.label, color: appColors.backgroundDeep, fontSize: 8 },
+  mobileEditButton: { minHeight: 28, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
+  mobileEditButtonText: { ...appTypography.label, color: appColors.accentForeground, fontSize: 8 },
   mobileStatusStrip: { flexDirection: 'row', overflow: 'hidden', backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
   mobileStatusItem: { minHeight: 51, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: appColors.borderSubtle },
   mobileStatusItemLast: { borderRightWidth: 0 },
@@ -1023,8 +1023,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   leagueOptionMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 2 },
   modalClose: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: appSpacing.sm, backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   modalCloseText: { ...appTypography.label, color: appColors.textSecondary },
-  createAnotherLeagueButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: appSpacing.sm, backgroundColor: appColors.accent, borderWidth: 1, borderColor: appColors.accent, borderRadius: appRadius.small },
-  createAnotherLeagueText: { ...appTypography.label, color: appColors.backgroundDeep },
+  createAnotherLeagueButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: appSpacing.sm, backgroundColor: appColors.accentFill, borderWidth: 1, borderColor: appColors.accent, borderRadius: appRadius.small },
+  createAnotherLeagueText: { ...appTypography.label, color: appColors.accentForeground },
   joinAnotherLeagueButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: appSpacing.sm, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.small },
   joinAnotherLeagueText: { ...appTypography.label, color: appColors.accent },
   shortcutModalCard: { width: '100%', maxWidth: 520, maxHeight: '88%', padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
@@ -1046,9 +1046,9 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   shortcutResetText: { ...appTypography.label, color: appColors.textMuted },
   shortcutCancelButton: { minHeight: 38, flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   shortcutCancelText: { ...appTypography.label, color: appColors.textSecondary },
-  shortcutSaveButton: { minHeight: 38, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accent, borderRadius: appRadius.small },
+  shortcutSaveButton: { minHeight: 38, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
   shortcutSaveButtonDisabled: { opacity: 0.45 },
-  shortcutSaveText: { ...appTypography.label, color: appColors.backgroundDeep },
+  shortcutSaveText: { ...appTypography.label, color: appColors.accentForeground },
   announcementModalCard: { width: '100%', maxWidth: 520, padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.large },
   announcementModalCardUrgent: { borderColor: appColors.dangerBorder },
   announcementModalHeading: { flexDirection: 'row', alignItems: 'center', gap: appSpacing.md },
@@ -1062,6 +1062,6 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   announcementModalActions: { flexDirection: 'row', gap: appSpacing.sm, marginTop: appSpacing.lg },
   announcementManageButton: { minHeight: 40, flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderRadius: appRadius.small },
   announcementManageText: { ...appTypography.label, color: appColors.accent },
-  announcementCloseButton: { minHeight: 40, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accent, borderRadius: appRadius.small },
-  announcementCloseText: { ...appTypography.label, color: appColors.backgroundDeep },
+  announcementCloseButton: { minHeight: 40, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
+  announcementCloseText: { ...appTypography.label, color: appColors.accentForeground },
 });

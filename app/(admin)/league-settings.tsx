@@ -609,7 +609,7 @@ export default function UnifiedLeagueSettingsScreen() {
                   <Text style={styles.copyLinkBtnText}>{copiedToken ? 'COPIED' : Platform.OS === 'web' ? 'COPY LINK' : 'OPEN SHARE'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.shareLinkBtn} onPress={() => void shareInviteLink()}>
-                  <Ionicons name="share-social-outline" size={16} color={colors.backgroundDeep} />
+                  <Ionicons name="share-social-outline" size={16} color={colors.accentForeground} />
                   <Text style={styles.shareLinkBtnText}>SHARE INVITE</Text>
                 </TouchableOpacity>
               </View>
@@ -1044,8 +1044,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   inviteActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
   copyLinkBtn: { minHeight: 40, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: 6 },
   copyLinkBtnText: { color: colors.accent, fontWeight: '900', fontSize: 9 },
-  shareLinkBtn: { minHeight: 40, flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 6 },
-  shareLinkBtnText: { color: colors.backgroundDeep, fontWeight: '900', fontSize: 9 },
+  shareLinkBtn: { minHeight: 40, flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.accentFill, borderRadius: 6 },
+  shareLinkBtnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 9 },
 
   lockedGlobalBadge: { backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
   lockedGlobalBadgeText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
@@ -1076,16 +1076,16 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   accordionContentBlock: { backgroundColor: colors.backgroundElevated, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderBottomLeftRadius: 4, borderBottomRightRadius: 4, marginBottom: 12, paddingBottom: 4 },
   segmentedControlGroup: { flexDirection: 'row', backgroundColor: colors.surfaceMuted, padding: 4, borderRadius: 2, borderWidth: 1, borderColor: colors.border },
   segmentBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 2 },
-  segmentBtnActive: { backgroundColor: colors.accent },
+  segmentBtnActive: { backgroundColor: colors.accentFill },
   segmentText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
-  segmentTextActive: { color: colors.black, fontWeight: '900' },
+  segmentTextActive: { color: colors.accentForeground, fontWeight: '900' },
   inputRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
   inputLabel: { color: colors.textPrimary, fontSize: 12, fontWeight: '700' },
   numberInput: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.textPrimary, width: 56, padding: 6, borderRadius: 2, textAlign: 'center', fontWeight: '800', fontSize: 13 },
   disabledInput: { color: colors.textDisabled, borderColor: colors.borderSubtle, backgroundColor: colors.surfaceMuted },
 
-  saveBtn: { backgroundColor: colors.accent, borderWidth: 1, borderColor: colors.accent, padding: 14, borderRadius: 2, alignItems: 'center', marginTop: 16 },
-  saveBtnText: { color: colors.black, fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
+  saveBtn: { backgroundColor: colors.accentFill, borderWidth: 1, borderColor: colors.accent, padding: 14, borderRadius: 2, alignItems: 'center', marginTop: 16 },
+  saveBtnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
   saveFeedback: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginTop: 10, borderWidth: 1, borderRadius: 6 },
   saveFeedbackSuccess: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
   saveFeedbackError: { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder },

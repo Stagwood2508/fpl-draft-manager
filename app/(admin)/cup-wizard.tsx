@@ -343,9 +343,9 @@ export default function CupWizardScreen() {
                 onPress={() => void createCup()}
                 disabled={processing || selectedCount < 2 || finalGameweek > 38}
               >
-                {processing ? <ActivityIndicator size="small" color={colors.backgroundDeep} /> : (
+                {processing ? <ActivityIndicator size="small" color={colors.accentForeground} /> : (
                   <>
-                    <Ionicons name="trophy" size={18} color={colors.backgroundDeep} />
+                    <Ionicons name="trophy" size={18} color={colors.accentForeground} />
                     <Text style={styles.createButtonText}>CREATE AND DRAW CUP</Text>
                   </>
                 )}
@@ -393,7 +393,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   roundTimeline: { marginTop: appSpacing.md, borderLeftWidth: 1, borderLeftColor: colors.borderStrong, marginLeft: 6 },
   roundTimelineItem: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14 },
   timelineDot: { position: 'absolute', left: -4, width: 7, height: 7, borderRadius: 4, backgroundColor: colors.borderStrong },
-  timelineDotFinal: { backgroundColor: colors.accent },
+  timelineDotFinal: { backgroundColor: colors.accentFill },
   roundTimelineName: { flex: 1, color: colors.textPrimary, fontSize: 11, fontWeight: '800' },
   roundTimelineGameweek: { color: colors.accent, fontSize: 10, fontWeight: '900' },
   validationText: { color: colors.danger, fontSize: 10, fontWeight: '800', marginTop: 8 },
@@ -405,7 +405,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   reviewTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', marginTop: 5 },
   reviewMeta: { color: colors.accent, fontSize: 11, fontWeight: '800', marginTop: 4 },
   reviewNote: { color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 7 },
-  createButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: appSpacing.md, backgroundColor: colors.accent, borderRadius: appRadius.small },
+  createButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: appSpacing.md, backgroundColor: colors.accentFill, borderRadius: appRadius.small },
   createButtonDisabled: { opacity: 0.45 },
-  createButtonText: { ...appTypography.label, color: colors.backgroundDeep, fontSize: 10 },
+  createButtonText: { ...appTypography.label, color: colors.accentForeground, fontSize: 10 },
 });

@@ -173,6 +173,6 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   waitingRoomClock: { color: appColors.textPrimary, fontSize: 15, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', textAlign: 'center', marginTop: 8 },
   subtext: { ...appTypography.body, color: appColors.textMuted, lineHeight: 18 },
   subtextCenter: { ...appTypography.body, color: appColors.textSecondary, textAlign: 'center', marginTop: 5, marginBottom: 14 },
-  enterRoomButton: { minHeight: 42, backgroundColor: appColors.accent, borderRadius: appRadius.small, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
-  buttonText: { ...appTypography.label, color: appColors.backgroundDeep }
+  enterRoomButton: { minHeight: 42, backgroundColor: appColors.accentFill, borderRadius: appRadius.small, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' },
+  buttonText: { ...appTypography.label, color: appColors.accentForeground }
 });

@@ -175,8 +175,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   input: { backgroundColor: colors.surface, color: colors.textPrimary, padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
-  btnPrimary: { backgroundColor: colors.accent, padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
-  btnText: { color: colors.black, fontWeight: '900', fontSize: 14 },
+  btnPrimary: { backgroundColor: colors.accentFill, padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
+  btnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 14 },
   switchLink: { marginTop: 20, alignItems: 'center' },
   switchText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
   resetLink: { marginTop: 14, alignItems: 'center' },

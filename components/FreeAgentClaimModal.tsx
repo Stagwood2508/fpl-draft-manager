@@ -513,7 +513,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
   btnConfirm: {
     flex: 1,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentFill,
     paddingVertical: 12,
     borderRadius: 6,
     alignItems: 'center',
@@ -522,7 +522,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     opacity: 0.4,
   },
   btnConfirmText: {
-    color: colors.black,
+    color: colors.accentForeground,
     fontSize: 12,
     fontWeight: '900',
   },

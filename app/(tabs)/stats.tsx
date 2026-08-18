@@ -113,15 +113,15 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   filterContainer: { marginBottom: 10 },
   filterScroll: { paddingHorizontal: 12, gap: 8 },
   filterPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
-  filterPillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  filterPillActive: { backgroundColor: colors.accentFill, borderColor: colors.accent },
   filterText: { color: colors.textSecondary, fontSize: 11, fontWeight: '800' },
-  filterTextActive: { color: colors.black },
+  filterTextActive: { color: colors.accentForeground },
 
   // Segment Styles
   segmentedControl: { flexDirection: 'row', backgroundColor: colors.surface, marginHorizontal: 12, borderRadius: 8, padding: 3, borderWidth: 1, borderColor: colors.border },
   segmentBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
-  segmentActive: { backgroundColor: colors.accent },
+  segmentActive: { backgroundColor: colors.accentFill },
   segmentText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
-  segmentTextActive: { color: colors.black },
+  segmentTextActive: { color: colors.accentForeground },
   contentContainer: { flex: 1, marginTop: 12 },
 });

@@ -321,10 +321,10 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
-  filterButtonActive: { backgroundColor: appColors.accent, borderColor: appColors.accent },
+  filterButtonActive: { backgroundColor: appColors.accentFill, borderColor: appColors.accent },
   filterButtonText: { ...appTypography.label, color: appColors.textMuted },
   categoryButtonText: { ...appTypography.label, color: appColors.textMuted, fontSize: 9 },
-  filterButtonTextActive: { color: appColors.backgroundDeep },
+  filterButtonTextActive: { color: appColors.accentForeground },
   resultSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -391,6 +391,6 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   emptyIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   emptyTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 15 },
   emptyText: { ...appTypography.body, color: appColors.textMuted, textAlign: 'center', marginTop: 5, maxWidth: 420 },
-  retryButton: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 9, borderRadius: appRadius.small, backgroundColor: appColors.accent },
-  retryButtonText: { ...appTypography.label, color: appColors.backgroundDeep },
+  retryButton: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 9, borderRadius: appRadius.small, backgroundColor: appColors.accentFill },
+  retryButtonText: { ...appTypography.label, color: appColors.accentForeground },
 });

@@ -23,7 +23,7 @@ export default function MarketLayout() {
         },
 
         tabBarIndicatorStyle: {
-          backgroundColor: colors.accent,
+          backgroundColor: colors.accentFill,
           height: 2,
         },
 

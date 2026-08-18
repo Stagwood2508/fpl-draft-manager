@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +17,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { supabase } from '@/utils/supabase';
 
 type AnnouncementPriority = 'NORMAL' | 'URGENT';
@@ -48,6 +49,8 @@ const formatDate = (value: string | null) => {
 };
 
 export default function LeagueAnnouncementsScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
   const safeArea = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ leagueId?: string | string[] }>();
@@ -186,7 +189,7 @@ export default function LeagueAnnouncementsScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={appColors.textPrimary} /></TouchableOpacity>
         <View style={styles.headerCopy}><Text style={styles.headerEyebrow}>COMMISSIONER TOOLS</Text><Text style={styles.headerTitle}>Announcements</Text><Text style={styles.headerMeta}>{leagueName}</Text></View>
-        {isCommissioner ? <TouchableOpacity style={styles.createButton} onPress={openCreate}><Ionicons name="add" size={18} color={appColors.backgroundDeep} /><Text style={styles.createButtonText}>NEW</Text></TouchableOpacity> : null}
+        {isCommissioner ? <TouchableOpacity style={styles.createButton} onPress={openCreate}><Ionicons name="add" size={18} color={appColors.accentForeground} /><Text style={styles.createButtonText}>NEW</Text></TouchableOpacity> : null}
       </View>
 
       <ScrollView
@@ -226,7 +229,7 @@ export default function LeagueAnnouncementsScreen() {
             </View>
             <Text style={styles.expiryLabel}>EXPIRY</Text>
             <View style={styles.expiryOptions}>{EXPIRY_OPTIONS.map(option => <TouchableOpacity key={option.id} style={[styles.expiryOption, expiryChoice === option.id && styles.expiryOptionSelected]} onPress={() => setExpiryChoice(option.id)}><Text style={[styles.expiryOptionText, expiryChoice === option.id && styles.expiryOptionTextSelected]}>{option.label}</Text></TouchableOpacity>)}</View>
-            <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => setEditorOpen(false)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity><TouchableOpacity style={styles.saveButton} disabled={saving} onPress={() => void saveAnnouncement()}>{saving ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Text style={styles.saveText}>{editingId ? 'UPDATE' : 'PUBLISH'}</Text>}</TouchableOpacity></View>
+            <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => setEditorOpen(false)}><Text style={styles.cancelText}>CANCEL</Text></TouchableOpacity><TouchableOpacity style={styles.saveButton} disabled={saving} onPress={() => void saveAnnouncement()}>{saving ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Text style={styles.saveText}>{editingId ? 'UPDATE' : 'PUBLISH'}</Text>}</TouchableOpacity></View>
           </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -235,7 +238,7 @@ export default function LeagueAnnouncementsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: appColors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.background },
   header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: appSpacing.sm, paddingHorizontal: appSpacing.md, backgroundColor: appColors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: appColors.border },
@@ -244,8 +247,8 @@ const styles = StyleSheet.create({
   headerEyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
   headerTitle: { ...appTypography.screenTitle, color: appColors.textPrimary, fontSize: 17 },
   headerMeta: { ...appTypography.metadata, color: appColors.textMuted },
-  createButton: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 11, backgroundColor: appColors.accent, borderRadius: appRadius.small },
-  createButtonText: { ...appTypography.label, color: appColors.backgroundDeep },
+  createButton: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 11, backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
+  createButtonText: { ...appTypography.label, color: appColors.accentForeground },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: appSpacing.sm, padding: appSpacing.md, paddingBottom: 40 },
   emptyState: { alignItems: 'center', gap: appSpacing.sm, padding: 40, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
   emptyTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary },
@@ -290,6 +293,6 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: appSpacing.sm, marginTop: appSpacing.lg },
   cancelButton: { minHeight: 40, flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   cancelText: { ...appTypography.label, color: appColors.textSecondary },
-  saveButton: { minHeight: 40, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accent, borderRadius: appRadius.small },
-  saveText: { ...appTypography.label, color: appColors.backgroundDeep },
+  saveButton: { minHeight: 40, flex: 1.4, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accentFill, borderRadius: appRadius.small },
+  saveText: { ...appTypography.label, color: appColors.accentForeground },
 });

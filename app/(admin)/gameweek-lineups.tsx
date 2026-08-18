@@ -14,8 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { appColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
+import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
+import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { supabase } from '@/utils/supabase';
 
 interface SnapshotRow {
@@ -56,6 +57,8 @@ const POSITION_COLORS: Record<string, string> = {
 };
 
 export default function GameweekLineupsScreen() {
+  const { colors: appColors } = useAppTheme();
+  const styles = useMemo(() => createStyles(appColors), [appColors]);
   const safeArea = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ leagueId?: string }>();
@@ -250,7 +253,7 @@ export default function GameweekLineupsScreen() {
                   <Text style={styles.managerMeta}>GW{snapshot.gameweek} · {snapshot.status} · {events.length} audit {events.length === 1 ? 'entry' : 'entries'}</Text>
                 </View>
                 <TouchableOpacity style={styles.correctButton} onPress={() => openCorrection(snapshot)}>
-                  <Ionicons name="construct-outline" size={14} color={appColors.backgroundDeep} />
+                  <Ionicons name="construct-outline" size={14} color={appColors.accentForeground} />
                   <Text style={styles.correctButtonText}>CORRECT</Text>
                 </TouchableOpacity>
               </View>
@@ -330,7 +333,7 @@ export default function GameweekLineupsScreen() {
                 <Text style={styles.cancelButtonText}>CANCEL</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={() => void saveCorrection()} disabled={saving}>
-                {saving ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Ionicons name="checkmark" size={16} color={appColors.backgroundDeep} />}
+                {saving ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Ionicons name="checkmark" size={16} color={appColors.accentForeground} />}
                 <Text style={styles.saveButtonText}>SAVE CORRECTION</Text>
               </TouchableOpacity>
             </View>
@@ -341,7 +344,7 @@ export default function GameweekLineupsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (appColors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: appColors.background },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.background },
   page: { width: '100%', maxWidth: 980, alignSelf: 'center', padding: appSpacing.md, paddingBottom: 40 },
@@ -358,8 +361,8 @@ const styles = StyleSheet.create({
   managerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   managerName: { color: appColors.textPrimary, fontSize: 13, fontWeight: '900' },
   managerMeta: { color: appColors.textMuted, fontSize: 8, fontWeight: '700', marginTop: 3 },
-  correctButton: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, backgroundColor: appColors.accent, borderRadius: appRadius.medium },
-  correctButtonText: { color: appColors.backgroundDeep, fontSize: 8, fontWeight: '900' },
+  correctButton: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, backgroundColor: appColors.accentFill, borderRadius: appRadius.medium },
+  correctButtonText: { color: appColors.accentForeground, fontSize: 8, fontWeight: '900' },
   playerChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 10 },
   playerChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: 7, backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.pill },
   positionDot: { width: 6, height: 6, borderRadius: 3 },
@@ -385,6 +388,6 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 7, marginTop: 9 },
   cancelButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 13, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
   cancelButtonText: { color: appColors.textSecondary, fontSize: 8, fontWeight: '900' },
-  saveButton: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 13, backgroundColor: appColors.accent, borderRadius: appRadius.medium },
-  saveButtonText: { color: appColors.backgroundDeep, fontSize: 8, fontWeight: '900' },
+  saveButton: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 13, backgroundColor: appColors.accentFill, borderRadius: appRadius.medium },
+  saveButtonText: { color: appColors.accentForeground, fontSize: 8, fontWeight: '900' },
 });

@@ -529,10 +529,7 @@ export default function SquadScreen() {
     const selected = selectedRosterId === item.id;
     const availability = getAvailability(item.players, appColors);
     const isBenchOutfield = !item.is_starting && item.players.element_type !== 'GKP';
-    const roleLabel = benchPriority
-      ? `SUB ${benchPriority} · ${item.players.element_type}`
-      : item.players.element_type;
-    const fixtureLabel = item.players.next_fixture ? ` (${item.players.next_fixture})` : '';
+    const fixtureLabel = item.players.next_fixture || 'NO FIXTURE';
 
     return (
       <View key={item.id} style={[styles.playerSlot, isCompact && styles.playerSlotCompact]}>
@@ -569,8 +566,7 @@ export default function SquadScreen() {
             {item.players.web_name}
           </Text>
           <Text numberOfLines={1} style={[styles.playerMeta, { color: POSITION_COLORS[item.players.element_type as SquadPosition] || appColors.textMuted }]}>
-            {roleLabel}{fixtureLabel}
-            {!isCompact && ` · ${item.players.event_points ?? item.players.total_points ?? 0} PTS`}
+            {fixtureLabel}
           </Text>
         </Pressable>
 
@@ -616,7 +612,7 @@ export default function SquadScreen() {
           onPress={enterEditMode}
           disabled={lineupLocked}
         >
-          <Ionicons name={lineupLocked ? 'lock-closed' : 'create-outline'} size={16} color={appColors.backgroundDeep} />
+          <Ionicons name={lineupLocked ? 'lock-closed' : 'create-outline'} size={16} color={appColors.accentForeground} />
           <Text style={styles.editButtonText}>{lineupLocked ? 'LINEUP LOCKED' : 'EDIT LINEUP'}</Text>
         </TouchableOpacity>
       ) : (
@@ -625,7 +621,7 @@ export default function SquadScreen() {
             <Text style={styles.cancelButtonText}>CANCEL</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.saveButton, sidebar && styles.sidebarActionButton]} onPress={() => void saveLineup()} disabled={saving}>
-            {saving ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Ionicons name="checkmark" size={16} color={appColors.backgroundDeep} />}
+            {saving ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Ionicons name="checkmark" size={16} color={appColors.accentForeground} />}
             <Text style={styles.saveButtonText}>SAVE</Text>
           </TouchableOpacity>
         </View>
@@ -802,7 +798,7 @@ export default function SquadScreen() {
             disabled={lineupLocked}
             accessibilityLabel={lineupLocked ? 'Lineup locked' : 'Edit lineup'}
           >
-            <Ionicons name={lineupLocked ? 'lock-closed' : 'create-outline'} size={17} color={appColors.backgroundDeep} />
+            <Ionicons name={lineupLocked ? 'lock-closed' : 'create-outline'} size={17} color={appColors.accentForeground} />
           </TouchableOpacity>
         ) : (
           <>
@@ -810,7 +806,7 @@ export default function SquadScreen() {
               <Ionicons name="close" size={19} color={appColors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.mobileEditButton} onPress={() => void saveLineup()} disabled={saving} accessibilityLabel="Save lineup">
-              {saving ? <ActivityIndicator size="small" color={appColors.backgroundDeep} /> : <Ionicons name="checkmark" size={19} color={appColors.backgroundDeep} />}
+              {saving ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Ionicons name="checkmark" size={19} color={appColors.accentForeground} />}
             </TouchableOpacity>
           </>
         )}
@@ -974,21 +970,21 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   mobileCommandTitle: { color: appColors.textPrimary, fontSize: 14, fontWeight: '900', marginTop: 2 },
   mobileCommandActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   mobileIconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: 10 },
-  mobileEditButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accent, borderRadius: 10 },
+  mobileEditButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accentFill, borderRadius: 10 },
   heroCopy: { flex: 1, minWidth: 0 },
   eyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
   title: { ...appTypography.screenTitle, color: appColors.textPrimary, marginTop: 3 },
   subtitle: { ...appTypography.metadata, color: appColors.textSecondary, marginTop: 5, lineHeight: 15 },
-  editButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 13, backgroundColor: appColors.accent, borderRadius: appRadius.medium },
+  editButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 13, backgroundColor: appColors.accentFill, borderRadius: appRadius.medium },
   editButtonDisabled: { backgroundColor: appColors.warning, opacity: 0.86 },
-  editButtonText: { ...appTypography.label, color: appColors.backgroundDeep },
+  editButtonText: { ...appTypography.label, color: appColors.accentForeground },
   editActions: { flexDirection: 'row', gap: 7 },
   sidebarAction: { width: '100%' },
   sidebarActionButton: { flex: 1 },
   cancelButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 11, backgroundColor: appColors.surfaceMuted, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
   cancelButtonText: { ...appTypography.label, color: appColors.textSecondary },
-  saveButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, backgroundColor: appColors.accent, borderRadius: appRadius.medium },
-  saveButtonText: { ...appTypography.label, color: appColors.backgroundDeep },
+  saveButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, backgroundColor: appColors.accentFill, borderRadius: appRadius.medium },
+  saveButtonText: { ...appTypography.label, color: appColors.accentForeground },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: appSpacing.sm },
   summaryGridSidebar: { alignItems: 'stretch' },
   summaryCard: { flexGrow: 1, flexBasis: 140, minHeight: 78, justifyContent: 'center', padding: appSpacing.md, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
@@ -1038,17 +1034,17 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   modeBadgeEditing: { backgroundColor: appColors.warningSoft, borderColor: '#69501F' },
   modeBadgeText: { color: appColors.accent, fontSize: 7, fontWeight: '900' },
   modeBadgeTextEditing: { color: appColors.warning },
-  pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 13, backgroundColor: '#0D3C25', borderWidth: 1, borderColor: '#316248', borderRadius: appRadius.large, overflow: 'hidden' },
+  pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 13, backgroundColor: appColors.pitch, borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
   pitchCompact: { height: 480, paddingVertical: 9 },
   pitchLines: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', opacity: 0.2 },
-  penaltyArea: { position: 'absolute', top: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: '#B8D5C3' },
-  centerLine: { position: 'absolute', width: '100%', height: 1.5, backgroundColor: '#B8D5C3' },
-  centerCircle: { width: 105, height: 105, borderRadius: 53, borderWidth: 1.5, borderColor: '#B8D5C3' },
+  penaltyArea: { position: 'absolute', top: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: appColors.pitchLine },
+  centerLine: { position: 'absolute', width: '100%', height: 1.5, backgroundColor: appColors.pitchLine },
+  centerCircle: { width: 105, height: 105, borderRadius: 53, borderWidth: 1.5, borderColor: appColors.pitchLine },
   pitchRow: { minHeight: 98, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 5, zIndex: 2 },
   pitchRowCompact: { minHeight: 76, paddingHorizontal: 2 },
   playerSlot: { flex: 1, maxWidth: 155, minWidth: 0, alignItems: 'center', marginHorizontal: 3 },
   playerSlotCompact: { marginHorizontal: 1 },
-  playerCard: { width: '100%', minHeight: 76, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 3, backgroundColor: 'rgba(2,10,7,0.18)', borderWidth: 1, borderColor: 'transparent', borderRadius: appRadius.small },
+  playerCard: { width: '100%', minHeight: 76, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 3, backgroundColor: appColors.pitchPlayerSurface, borderWidth: 1, borderColor: 'transparent', borderRadius: appRadius.small },
   playerCardCompact: { minHeight: 70, paddingHorizontal: 1 },
   playerCardSelected: { backgroundColor: 'rgba(0,242,122,0.16)', borderColor: appColors.accent },
   playerCardPressed: { opacity: 0.78 },
@@ -1059,7 +1055,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   avatarCompact: { width: 31, height: 30 },
   headshot: { width: 38, height: 38 },
   headshotCompact: { width: 31, height: 31 },
-  playerName: { width: '100%', color: appColors.textPrimary, fontSize: 9, fontWeight: '900', textAlign: 'center', backgroundColor: 'rgba(1,7,5,0.84)', paddingVertical: 2, paddingHorizontal: 3, borderRadius: 3 },
+  playerName: { width: '100%', color: appColors.pitchPlayerNameText, fontSize: 9, fontWeight: '900', textAlign: 'center', backgroundColor: appColors.pitchPlayerNameSurface, paddingVertical: 2, paddingHorizontal: 3, borderRadius: 3 },
   playerNameCompact: { fontSize: 7.5 },
   playerMeta: { fontSize: 7, fontWeight: '900', marginTop: 2 },
   priorityControls: { flexDirection: 'row', alignItems: 'center', marginTop: 3, backgroundColor: appColors.backgroundDeep, borderRadius: appRadius.small },

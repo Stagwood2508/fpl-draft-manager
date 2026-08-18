@@ -292,7 +292,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
 
   modeSwitchThumbLight: {
     alignSelf: 'flex-end',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentFill,
   },
 
   commissionerText: {

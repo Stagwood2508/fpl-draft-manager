@@ -14,7 +14,7 @@ export default function PlayersLayout() {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
-        tabBarIndicatorStyle: { backgroundColor: colors.accent, height: 2 },
+        tabBarIndicatorStyle: { backgroundColor: colors.accentFill, height: 2 },
         tabBarStyle: { backgroundColor: colors.backgroundDeep, borderBottomColor: colors.border, borderBottomWidth: 1 },
         animationEnabled: Platform.OS !== 'web',
       }}

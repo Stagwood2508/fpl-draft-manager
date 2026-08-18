@@ -283,9 +283,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   
   pillsContainerRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16 },
   pillBtn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, marginRight: 6 },
-  pillBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pillBtnActive: { backgroundColor: colors.accentFill, borderColor: colors.accent },
   pillText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
-  pillTextActive: { color: colors.black, fontWeight: '900' },
+  pillTextActive: { color: colors.accentForeground, fontWeight: '900' },
 
   playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingRight: 8, borderRadius: 4, marginBottom: 4 },
   playerCardMainTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },

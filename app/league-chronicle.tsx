@@ -219,7 +219,7 @@ export default function LeagueChronicleScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.shareButton} onPress={() => void shareEdition()}><Ionicons name="share-social-outline" size={17} color={colors.backgroundDeep} /><Text style={styles.shareButtonText}>SHARE THIS EDITION</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.shareButton} onPress={() => void shareEdition()}><Ionicons name="share-social-outline" size={17} color={colors.accentForeground} /><Text style={styles.shareButtonText}>SHARE THIS EDITION</Text></TouchableOpacity>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -287,7 +287,6 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   movementTeam: { flex: 1, color: colors.textPrimary, fontSize: 11, fontWeight: '800' },
   movementRank: { color: colors.textSecondary, fontSize: 11, fontWeight: '900' },
   noMovement: { ...appTypography.body, color: colors.textMuted, paddingVertical: appSpacing.md },
-  shareButton: { minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: appSpacing.lg, backgroundColor: colors.accent, borderRadius: appRadius.medium },
-  shareButtonText: { ...appTypography.label, color: colors.backgroundDeep },
+  shareButton: { minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: appSpacing.lg, backgroundColor: colors.accentFill, borderRadius: appRadius.medium },
+  shareButtonText: { ...appTypography.label, color: colors.accentForeground },
 });
-

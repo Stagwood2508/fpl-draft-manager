@@ -790,10 +790,10 @@ export default function PlayerCardModal({
                         activeOpacity={0.8}
                       >
                         {transferListing.saving ? (
-                          <ActivityIndicator size="small" color={colors.black} />
+                          <ActivityIndicator size="small" color={colors.accentForeground} />
                         ) : (
                           <>
-                            <Ionicons name="megaphone" size={14} color={colors.black} />
+                            <Ionicons name="megaphone" size={14} color={colors.accentForeground} />
                             <Text style={styles.saveListingButtonText}>
                               {transferListing.isListed ? 'UPDATE LISTING' : 'LIST PLAYER'}
                             </Text>
@@ -928,9 +928,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     borderRadius: 2,
   },
-  tabBtnActive: { backgroundColor: colors.accent },
+  tabBtnActive: { backgroundColor: colors.accentFill },
   tabText: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  tabTextActive: { color: colors.black },
+  tabTextActive: { color: colors.accentForeground },
   seasonBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -990,10 +990,10 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentFill,
     borderRadius: 6,
   },
-  saveListingButtonText: { color: colors.black, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  saveListingButtonText: { color: colors.accentForeground, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
   listingButtonDisabled: { opacity: 0.55 },
   seasonBannerText: {
     color: colors.accent,

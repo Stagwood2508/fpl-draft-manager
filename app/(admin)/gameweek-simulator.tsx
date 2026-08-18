@@ -339,7 +339,7 @@ export default function GameweekSimulatorScreen() {
             </ScrollView>
             <Text style={styles.hint}>Starting requires all managers to have a valid 15-player roster and an existing fixture for the selected Gameweek.</Text>
             <TouchableOpacity style={styles.primaryButton} onPress={start} disabled={working || !selectedGameweek}>
-              {working ? <ActivityIndicator color={colors.black} /> : <><Ionicons name="play" size={16} color={colors.black} /><Text style={styles.primaryButtonText}>Start controlled rehearsal</Text></>}
+              {working ? <ActivityIndicator color={colors.accentForeground} /> : <><Ionicons name="play" size={16} color={colors.accentForeground} /><Text style={styles.primaryButtonText}>Start controlled rehearsal</Text></>}
             </TouchableOpacity>
           </View>
         ) : (
@@ -356,7 +356,7 @@ export default function GameweekSimulatorScreen() {
               </View>
               {PHASE_ACTIONS[run.phase] ? (
                 <TouchableOpacity style={styles.primaryButton} onPress={advance} disabled={working}>
-                  {working ? <ActivityIndicator color={colors.black} /> : <><Ionicons name={PHASE_ACTIONS[run.phase]!.icon} size={16} color={colors.black} /><Text style={styles.primaryButtonText}>{PHASE_ACTIONS[run.phase]!.label}</Text></>}
+                  {working ? <ActivityIndicator color={colors.accentForeground} /> : <><Ionicons name={PHASE_ACTIONS[run.phase]!.icon} size={16} color={colors.accentForeground} /><Text style={styles.primaryButtonText}>{PHASE_ACTIONS[run.phase]!.label}</Text></>}
                 </TouchableOpacity>
               ) : <Text style={styles.successText}>The lifecycle rehearsal is complete. Review the checks, then restore the snapshot.</Text>}
             </View>
@@ -456,14 +456,14 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   chips: { gap: 8 }, chip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: appRadius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
   chipSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, chipText: { ...appTypography.body, color: colors.textSecondary }, chipTextSelected: { color: colors.accent },
   hint: { ...appTypography.metadata, color: colors.textMuted, lineHeight: 15 },
-  primaryButton: { minHeight: 44, borderRadius: appRadius.medium, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
-  primaryButtonText: { ...appTypography.label, color: colors.black, fontSize: 11 },
+  primaryButton: { minHeight: 44, borderRadius: appRadius.medium, backgroundColor: colors.accentFill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
+  primaryButtonText: { ...appTypography.label, color: colors.accentForeground, fontSize: 11 },
   secondaryButton: { minHeight: 40, borderRadius: appRadius.medium, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   secondaryButtonText: { ...appTypography.body, color: colors.accent },
   phaseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   eyebrow: { ...appTypography.label, color: colors.accent }, phaseTitle: { fontSize: 22, fontWeight: '900', color: colors.textPrimary },
   refreshButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
-  phaseTrack: { flexDirection: 'row', gap: 6 }, phaseDot: { flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.surfacePressed }, phaseDotActive: { backgroundColor: colors.accent },
+  phaseTrack: { flexDirection: 'row', gap: 6 }, phaseDot: { flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.surfacePressed }, phaseDotActive: { backgroundColor: colors.accentFill },
   successText: { ...appTypography.body, color: colors.accent },
   searchInput: { minHeight: 42, borderRadius: appRadius.medium, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.backgroundElevated, paddingHorizontal: 12, color: colors.textPrimary },
   playerList: { maxHeight: 260, borderWidth: 1, borderColor: colors.border, borderRadius: appRadius.medium },

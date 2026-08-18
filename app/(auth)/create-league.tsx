@@ -192,7 +192,7 @@ const handleEnterDashboard = async () => {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={colors.black} size="small" />
+              <ActivityIndicator color={colors.accentForeground} size="small" />
             ) : (
               <Text style={styles.btnText}>GENERATE LEAGUE</Text>
             )}
@@ -215,7 +215,7 @@ const handleEnterDashboard = async () => {
   disabled={loading}
 >
   {loading ? (
-    <ActivityIndicator color={colors.black} size="small" />
+    <ActivityIndicator color={colors.accentForeground} size="small" />
   ) : (
     <Text style={styles.btnText}>
       ENTER MY SQUAD DASHBOARD
@@ -238,9 +238,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   rosterTypeBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   rosterTypeText: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
   rosterTypeTextActive: { color: colors.accent },
-  btn: { backgroundColor: colors.accent, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
+  btn: { backgroundColor: colors.accentFill, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: colors.black, fontWeight: '900', fontSize: 13 },
+  btnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 13 },
   codeContainer: { alignItems: 'center', backgroundColor: colors.surface, padding: 24, borderWidth: 1, borderColor: colors.accent },
   successText: { color: colors.textPrimary, fontWeight: '800', fontSize: 16, marginBottom: 16 },
   codeLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },

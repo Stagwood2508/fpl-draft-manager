@@ -1437,7 +1437,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   tradeImpactTitle: { color: appColors.textPrimary, fontSize: 20, fontWeight: '900' }, tradeImpactSubtitle: { color: appColors.textSecondary, fontSize: 12, marginTop: 3 },
   tradeImpactClose: { width: 34, height: 34, borderRadius: 17, backgroundColor: appColors.surface, alignItems: 'center', justifyContent: 'center' }, tradeImpactCloseText: { color: appColors.textPrimary, fontSize: 24, lineHeight: 26 },
   tradeImpactToggle: { flexDirection: 'row', alignSelf: 'center', backgroundColor: appColors.surface, borderRadius: appRadius.pill, padding: 3, marginVertical: 12, borderWidth: 1, borderColor: appColors.border },
-  tradeImpactToggleButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: appRadius.pill }, tradeImpactToggleButtonActive: { backgroundColor: appColors.accent }, tradeImpactToggleText: { color: appColors.textMuted, fontSize: 11, fontWeight: '800' }, tradeImpactToggleTextActive: { color: appColors.black },
+  tradeImpactToggleButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: appRadius.pill }, tradeImpactToggleButtonActive: { backgroundColor: appColors.accentFill }, tradeImpactToggleText: { color: appColors.textMuted, fontSize: 11, fontWeight: '800' }, tradeImpactToggleTextActive: { color: appColors.accentForeground },
   tradeImpactLoading: { minHeight: 300, justifyContent: 'center' }, tradeImpactContent: { padding: 14, paddingBottom: 24 }, tradeImpactColumns: { flexDirection: 'row', gap: 10 },
   tradeImpactColumn: { flex: 1, minWidth: 0 }, tradeImpactColumnTitle: { color: appColors.accent, fontSize: 11, fontWeight: '900', borderBottomWidth: 1, borderBottomColor: appColors.accentBorder, paddingBottom: 7, marginBottom: 6 },
   tradeImpactPlayer: { backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium, padding: 9, marginBottom: 6 }, tradeImpactPlayerTop: { flexDirection: 'row', gap: 5, alignItems: 'center' }, tradeImpactPlayerName: { flex: 1, color: appColors.textPrimary, fontSize: 12, fontWeight: '900' }, tradeImpactPlayerPoints: { color: appColors.textPrimary, fontSize: 16, fontWeight: '900' }, tradeImpactPlayerMeta: { color: appColors.textMuted, fontSize: 9, marginTop: 2 }, tradeImpactPlayerDetail: { color: appColors.textSecondary, fontSize: 9, marginTop: 5 },
@@ -1822,7 +1822,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   },
 
   bgBtnAccept: {
-    backgroundColor: appColors.accent,
+    backgroundColor: appColors.accentFill,
     borderColor: appColors.accentDark,
   },
 
@@ -1844,7 +1844,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   },
 
   lblTextAccept: {
-    color: appColors.backgroundDeep,
+    color: appColors.accentForeground,
     fontSize: 10,
     fontWeight: '900',
   },
@@ -2013,7 +2013,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   },
 
   miniPosTextMobile: {
-    color: appColors.backgroundDeep,
+    color: appColors.accentForeground,
     fontSize: 6,
     lineHeight: 7,
     fontWeight: '900',
@@ -2092,7 +2092,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   },
 
   modalButtonConfirm: {
-    backgroundColor: appColors.accent,
+    backgroundColor: appColors.accentFill,
     borderColor: appColors.accentDark,
   },
 
@@ -2103,7 +2103,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   },
 
   modalButtonConfirmText: {
-    color: appColors.backgroundDeep,
+    color: appColors.accentForeground,
     fontWeight: '900',
     fontSize: 13,
   },

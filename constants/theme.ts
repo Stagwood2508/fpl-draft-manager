@@ -24,8 +24,17 @@ export const darkAppColors = {
   // Brand and states
   accent: '#00F27A',
   accentDark: '#00A956',
+  accentFill: '#00F27A',
+  accentForeground: '#06100B',
   accentSoft: 'rgba(0, 242, 122, 0.12)',
   accentBorder: 'rgba(0, 242, 122, 0.38)',
+
+  pitch: '#0D3C25',
+  pitchLine: '#B8D5C3',
+  pitchBorder: '#316248',
+  pitchPlayerSurface: 'rgba(2, 10, 7, 0.18)',
+  pitchPlayerNameSurface: 'rgba(1, 7, 5, 0.84)',
+  pitchPlayerNameText: '#F7FAFC',
 
   danger: '#FF4D5E',
   dangerSoft: 'rgba(255, 77, 94, 0.12)',
@@ -109,10 +118,19 @@ export const lightAppColors: AppColors = {
   textMuted: '#647986',
   textDisabled: '#9BAAB3',
 
-  accent: '#087A52',
-  accentDark: '#05633F',
-  accentSoft: 'rgba(8, 122, 82, 0.10)',
-  accentBorder: 'rgba(8, 122, 82, 0.32)',
+  accent: '#258565',
+  accentDark: '#1B6E53',
+  accentFill: '#65B99A',
+  accentForeground: '#103C30',
+  accentSoft: 'rgba(37, 133, 101, 0.11)',
+  accentBorder: 'rgba(37, 133, 101, 0.34)',
+
+  pitch: '#A7D9BC',
+  pitchLine: '#77B693',
+  pitchBorder: '#77B693',
+  pitchPlayerSurface: 'rgba(255, 255, 255, 0.58)',
+  pitchPlayerNameSurface: 'rgba(255, 255, 255, 0.84)',
+  pitchPlayerNameText: '#103C30',
 
   danger: '#C73545',
   dangerSoft: 'rgba(199, 53, 69, 0.10)',

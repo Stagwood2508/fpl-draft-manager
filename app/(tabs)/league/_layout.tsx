@@ -25,7 +25,7 @@ export default function LeagueLayout() {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarIndicatorStyle: { 
-          backgroundColor: colors.accent,
+          backgroundColor: colors.accentFill,
           height: 3, 
           borderRadius: 2 
         },
