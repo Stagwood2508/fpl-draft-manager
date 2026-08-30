@@ -35,6 +35,10 @@ interface PlayerAsset {
   team_short_name?: string;
   element_type: string;
   draft_rank: number;
+  status?: string | null;
+  news?: string | null;
+  chance_of_playing_this_round?: number | null;
+  chance_of_playing_next_round?: number | null;
   current_stats: PlayerStatLine;
   last_season_stats: PlayerStatLine | null;
 }
@@ -105,6 +109,20 @@ const EMPTY_STAT_LINE: PlayerStatLine = {
 };
 
 const numeric = (value: unknown) => Number(value || 0);
+
+const getAvailabilityMarker = (player: PlayerAsset) => {
+  const status = String(player.status || 'a').toLowerCase();
+  const chance = player.chance_of_playing_this_round ?? player.chance_of_playing_next_round;
+
+  if (status === 'a' && (chance === null || chance === undefined || chance >= 100)) return null;
+  if (status === 's') return { label: 'SUSP', tone: 'danger' as const };
+  if (['i', 'u', 'n'].includes(status) || chance === 0) return { label: 'OUT', tone: 'danger' as const };
+  if (chance !== null && chance !== undefined && chance < 100) {
+    return { label: `${Math.max(0, Math.round(chance))}%`, tone: 'warning' as const };
+  }
+  if (status === 'd') return { label: 'DOUBT', tone: 'warning' as const };
+  return { label: 'UNAV', tone: 'danger' as const };
+};
 
 const toStatLine = (row: any): PlayerStatLine => ({
   total_points: numeric(row?.total_points),
@@ -325,7 +343,7 @@ export default function PlayerPoolScreen() {
       const [playersResponse, currentStatsResponse, previousStatsResponse] = await Promise.all([
         supabase
           .from('players')
-          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type, draft_rank')
+          .select('id, code, web_name, first_name, second_name, team_name, team_short_name, element_type, draft_rank, status, news, chance_of_playing_this_round, chance_of_playing_next_round')
           .eq('is_active', true)
           .order('web_name', { ascending: true }),
         supabase.rpc('get_player_pool_current_stats', { p_through_gameweek: resolvedGameweek }),
@@ -576,6 +594,7 @@ export default function PlayerPoolScreen() {
     const isOwnedByMe = owner?.userId === currentUserId;
     const isWaiverLocked = !owner && marketStatus === 'FREE_AGENCY' && waiverLockedPlayerIds.has(item.id);
     const mappedPositionColor = POSITION_COLORS[item.element_type] || '#222';
+    const availabilityMarker = getAvailabilityMarker(item);
     const metricValue = getMetricValue(item, statsPeriod, sortKey);
     const metricDisplay = sortKey === 'DRAFT_RANK'
       ? (metricValue >= 999 ? 'N/A' : `#${Math.round(metricValue)}`)
@@ -591,6 +610,24 @@ export default function PlayerPoolScreen() {
               <View style={[styles.positionBadgeChip, { backgroundColor: mappedPositionColor }]}>
                 <Text style={styles.positionChipText}>{item.element_type}</Text>
               </View>
+              {availabilityMarker && (
+                <View
+                  style={[
+                    styles.availabilityBadge,
+                    availabilityMarker.tone === 'danger'
+                      ? styles.availabilityBadgeDanger
+                      : styles.availabilityBadgeWarning,
+                  ]}
+                  accessibilityLabel={`Player availability ${availabilityMarker.label}`}
+                >
+                  <Ionicons
+                    name={availabilityMarker.tone === 'danger' ? 'alert-circle' : 'warning'}
+                    size={9}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.availabilityBadgeText}>{availabilityMarker.label}</Text>
+                </View>
+              )}
             </View>
           </View>
           <View style={styles.pointsColumn}>
@@ -882,6 +919,10 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   playerClubShort: { color: colors.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
   positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
+  availabilityBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 6, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, minWidth: 30, justifyContent: 'center' },
+  availabilityBadgeDanger: { backgroundColor: '#C62828' },
+  availabilityBadgeWarning: { backgroundColor: '#8A5A00' },
+  availabilityBadgeText: { color: '#FFFFFF', fontSize: 8, lineHeight: 10, fontWeight: '900', letterSpacing: 0.2 },
   pointsColumn: { alignItems: 'center', justifyContent: 'center', marginRight: 8, minWidth: 42 },
   pointsValueText: { color: colors.accent, fontSize: 14, fontWeight: '900' },
   pointsLabelText: { color: colors.textDisabled, fontSize: 7, fontWeight: '900', marginTop: -3 },

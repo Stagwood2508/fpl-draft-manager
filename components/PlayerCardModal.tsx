@@ -141,6 +141,7 @@ export default function PlayerCardModal({
   const [loading, setLoading] = useState<boolean>(true);
   const [player, setPlayer] = useState<PlayerDetails | null>(null);
   const [history, setHistory] = useState<GameweekStat[]>([]);
+  const [historyLoadError, setHistoryLoadError] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<UpcomingFixture[]>([]);
   const [lastSeasonAvailable, setLastSeasonAvailable] = useState<boolean>(true);
   const [tradeNoteText, setTradeNoteText] = useState('');
@@ -152,6 +153,7 @@ export default function PlayerCardModal({
       setActiveTab('OVERVIEW');
       setPlayer(null);
       setHistory([]);
+      setHistoryLoadError(null);
       setSchedule([]);
       setLastSeasonAvailable(true);
     }
@@ -168,6 +170,7 @@ export default function PlayerCardModal({
     try {
       setLoading(true);
       setLastSeasonAvailable(true);
+      setHistoryLoadError(null);
 
       // Resolve Active League ID from prop > AsyncStorage fallback
       let activeLid = leagueId;
@@ -316,15 +319,27 @@ export default function PlayerCardModal({
       }
 
       if (statsMode === 'CURRENT') {
-        // 2. Fetch Completed Gameweek Stats History
-        const { data: statsData, error: historyError } = await supabase
-          .rpc('get_player_gameweek_history', {
-            p_league_id: leagueId,
-            p_player_id: playerId,
-            p_through_gameweek: currentGameweek,
-          });
+        // 2. Fetch scoring history using the resolved league. On native the
+        // prop can briefly be empty while the persisted active league is
+        // restored, even though activeLid has already resolved successfully.
+        let statsData: any[] | null = null;
+        if (!activeLid) {
+          setHistoryLoadError('Select an active league to view scoring history.');
+        } else {
+          const { data, error: historyError } = await supabase
+            .rpc('get_player_gameweek_history', {
+              p_league_id: activeLid,
+              p_player_id: playerId,
+              p_through_gameweek: currentGameweek > 0 ? currentGameweek : 38,
+            });
 
-        if (historyError) throw historyError;
+          if (historyError) {
+            console.warn('Player scoring history unavailable:', historyError.message);
+            setHistoryLoadError('Scoring history could not be loaded. Please try again.');
+          } else {
+            statsData = data || [];
+          }
+        }
 
         if (statsData) {
           const historyGameweeks = [...new Set(statsData.map((row: any) => Number(row.gameweek)))];
@@ -337,10 +352,14 @@ export default function PlayerCardModal({
                 .order('kickoff_time', { ascending: true })
             : { data: [], error: null };
 
-          if (fixturesHistoryError) throw fixturesHistoryError;
+          if (fixturesHistoryError) {
+            // The scoring rows remain useful even if the opponent/result
+            // enrichment is temporarily unavailable.
+            console.warn('Fixture labels unavailable for player scoring history:', fixturesHistoryError.message);
+          }
 
           const fixturesByGameweek = new Map<number, any[]>();
-          (playedFixtures || []).forEach((fixture: any) => {
+          (fixturesHistoryError ? [] : (playedFixtures || [])).forEach((fixture: any) => {
             const rows = fixturesByGameweek.get(Number(fixture.gameweek)) || [];
             rows.push(fixture);
             fixturesByGameweek.set(Number(fixture.gameweek), rows);
@@ -472,7 +491,12 @@ export default function PlayerCardModal({
               style={[styles.tabBtn, activeTab === 'HISTORY' && styles.tabBtnActive]}
               onPress={() => setActiveTab('HISTORY')}
             >
-              <Text style={[styles.tabText, activeTab === 'HISTORY' && styles.tabTextActive]}>LOG</Text>
+              <Text
+                style={[styles.tabText, styles.scoringHistoryTabText, activeTab === 'HISTORY' && styles.tabTextActive]}
+                numberOfLines={1}
+              >
+                SCORING HISTORY
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -678,11 +702,19 @@ export default function PlayerCardModal({
                 </ScrollView>
               )}
 
-              {/* TAB 2: GAMEWEEK HISTORY LOG */}
+              {/* TAB 2: GAMEWEEK SCORING HISTORY */}
               {activeTab === 'HISTORY' && (
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  {history.length === 0 ? (
-                    <Text style={styles.emptyText}>No fixture stats recorded for this season yet.</Text>
+                <ScrollView style={styles.tabScrollView} contentContainerStyle={styles.historyScrollContent} showsVerticalScrollIndicator={false}>
+                  {historyLoadError ? (
+                    <View style={styles.historyMessageBox}>
+                      <Ionicons name="alert-circle-outline" size={22} color={colors.danger} />
+                      <Text style={styles.historyErrorText}>{historyLoadError}</Text>
+                    </View>
+                  ) : history.length === 0 ? (
+                    <View style={styles.historyMessageBox}>
+                      <Ionicons name="stats-chart-outline" size={22} color={colors.textMuted} />
+                      <Text style={[styles.emptyText, styles.historyEmptyText]}>No scoring history has been recorded for this season yet.</Text>
+                    </View>
                   ) : (
                     <View>
                       <View style={styles.tableHeaderRow}>
@@ -948,6 +980,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
   tabBtnActive: { backgroundColor: colors.accentFill },
   tabText: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  scoringHistoryTabText: { fontSize: 8, letterSpacing: 0.1 },
   tabTextActive: { color: colors.accentForeground },
   seasonBanner: {
     flexDirection: 'row',
@@ -1024,6 +1057,11 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   loaderBox: { height: 260, justifyContent: 'center', alignItems: 'center' },
   bodyContainer: { minHeight: 280, maxHeight: 380 },
   bodyContainerMobile: { minHeight: 0, maxHeight: undefined, flex: 1 },
+  tabScrollView: { flex: 1 },
+  historyScrollContent: { flexGrow: 1 },
+  historyMessageBox: { flex: 1, minHeight: 220, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  historyEmptyText: { marginTop: 10 },
+  historyErrorText: { color: colors.danger, textAlign: 'center', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 10 },
   historyUnavailable: {
     minHeight: 260,
     alignItems: 'center',
