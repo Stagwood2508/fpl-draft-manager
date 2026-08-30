@@ -43,6 +43,8 @@ interface NotificationPreferences {
   trades_enabled: boolean;
   waivers_enabled: boolean;
   match_updates_enabled: boolean;
+  own_player_events_enabled: boolean;
+  opponent_player_events_enabled: boolean;
   draft_enabled: boolean;
 }
 
@@ -52,6 +54,8 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   trades_enabled: true,
   waivers_enabled: true,
   match_updates_enabled: true,
+  own_player_events_enabled: true,
+  opponent_player_events_enabled: true,
   draft_enabled: true,
 };
 
@@ -117,7 +121,7 @@ export default function NotificationCentreScreen() {
           .limit(100),
         supabase
           .from('notification_preferences')
-          .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, draft_enabled')
+          .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, own_player_events_enabled, opponent_player_events_enabled, draft_enabled')
           .eq('user_id', currentUserId)
           .maybeSingle(),
       ]);
@@ -289,6 +293,8 @@ export default function NotificationCentreScreen() {
               ['trades_enabled', 'Trades', 'New offers and offer outcomes', 'people-outline'],
               ['waivers_enabled', 'Waivers', 'Successful and unsuccessful claims', 'swap-vertical-outline'],
               ['match_updates_enabled', 'Match updates', 'Live and final match alerts when enabled', 'football-outline'],
+              ['own_player_events_enabled', 'My squad scoring events', 'Goals, assists, save points and custom DEFCON thresholds', 'shirt-outline'],
+              ['opponent_player_events_enabled', 'Opponent scoring events', 'Alerts when your head-to-head opponent scores', 'people-circle-outline'],
               ['draft_enabled', 'Draft reminders', 'Waiting-room and draft-start alerts', 'timer-outline'],
             ] as const).map(([key, label, description, icon]) => (
               <View key={key} style={styles.preferenceRow}>

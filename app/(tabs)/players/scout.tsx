@@ -205,9 +205,9 @@ export default function PlayerPoolScreen() {
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL');
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>('CURRENT');
-  const [sortKey, setSortKey] = useState<SortKey>('DRAFT_RANK');
-  const [selectedClub, setSelectedClub] = useState('ALL');
-  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('ALL');
+  const [sortKey, setSortKey] = useState<SortKey>('TOTAL_POINTS');
+  const [selectedClubs, setSelectedClubs] = useState<string[]>([]);
+  const [ownershipFilters, setOwnershipFilters] = useState<OwnershipFilter[]>([]);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [minimumMinutes, setMinimumMinutes] = useState(0);
 
@@ -244,27 +244,30 @@ export default function PlayerPoolScreen() {
   }), [selectedPosition, statsPeriod]);
 
   useEffect(() => {
-    if (!availableSortOptions.some(option => option.key === sortKey)) setSortKey('DRAFT_RANK');
+    if (!availableSortOptions.some(option => option.key === sortKey)) setSortKey('TOTAL_POINTS');
   }, [availableSortOptions, sortKey]);
 
   const clubs = useMemo(() => Array.from(new Set(allPlayers.map(player => player.team_name).filter(Boolean))).sort(), [allPlayers]);
   const selectedSort = SORT_OPTIONS.find(option => option.key === sortKey) || SORT_OPTIONS[0];
-  const activeFilterCount = (statsPeriod === 'LAST_SEASON' ? 1 : 0) + (selectedClub !== 'ALL' ? 1 : 0) +
-    (ownershipFilter !== 'ALL' ? 1 : 0) + (watchlistOnly ? 1 : 0) + (minimumMinutes > 0 ? 1 : 0);
+  const activeFilterCount = (statsPeriod === 'LAST_SEASON' ? 1 : 0) + (selectedClubs.length > 0 ? 1 : 0) +
+    (ownershipFilters.length > 0 ? 1 : 0) + (watchlistOnly ? 1 : 0) + (minimumMinutes > 0 ? 1 : 0);
 
   const filteredPlayers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     return allPlayers
       .filter(player => selectedPosition === 'ALL' || player.element_type === selectedPosition)
-      .filter(player => selectedClub === 'ALL' || player.team_name === selectedClub)
+      .filter(player => selectedClubs.length === 0 || selectedClubs.includes(player.team_name))
       .filter(player => !normalizedQuery || `${player.web_name} ${player.first_name} ${player.second_name} ${player.team_name}`.toLowerCase().includes(normalizedQuery))
       .filter(player => !watchlistOnly || watchlistIds.has(player.id))
       .filter(player => {
         const owner = ownershipMap[player.id];
-        if (ownershipFilter === 'AVAILABLE') return !owner;
-        if (ownershipFilter === 'MINE') return owner?.userId === currentUserId;
-        if (ownershipFilter === 'OTHERS') return Boolean(owner && owner.userId !== currentUserId);
-        return true;
+        if (ownershipFilters.length === 0) return true;
+        return ownershipFilters.some(filter => {
+          if (filter === 'AVAILABLE') return !owner;
+          if (filter === 'MINE') return owner?.userId === currentUserId;
+          if (filter === 'OTHERS') return Boolean(owner && owner.userId !== currentUserId);
+          return true;
+        });
       })
       .filter(player => {
         const stats = statsPeriod === 'CURRENT' ? player.current_stats : player.last_season_stats;
@@ -275,7 +278,7 @@ export default function PlayerPoolScreen() {
         const bValue = getMetricValue(b, statsPeriod, sortKey);
         return (selectedSort.ascending ? aValue - bValue : bValue - aValue) || a.web_name.localeCompare(b.web_name);
       });
-  }, [allPlayers, selectedPosition, selectedClub, searchQuery, watchlistOnly, watchlistIds, ownershipMap, ownershipFilter, currentUserId, minimumMinutes, statsPeriod, sortKey, selectedSort.ascending]);
+  }, [allPlayers, selectedPosition, selectedClubs, searchQuery, watchlistOnly, watchlistIds, ownershipMap, ownershipFilters, currentUserId, minimumMinutes, statsPeriod, sortKey, selectedSort.ascending]);
 
   const loadScoutEngineContext = async () => {
     try {
@@ -701,8 +704,12 @@ export default function PlayerPoolScreen() {
                 {([
                   ['ALL', 'All players'], ['AVAILABLE', 'Available'], ['MINE', 'My squad'], ['OTHERS', 'Other squads'],
                 ] as [OwnershipFilter, string][]).map(([value, label]) => (
-                  <TouchableOpacity key={value} style={[styles.optionButton, ownershipFilter === value && styles.optionButtonActive]} onPress={() => setOwnershipFilter(value)}>
-                    <Text style={[styles.optionButtonText, ownershipFilter === value && styles.optionButtonTextActive]}>{label}</Text>
+                  <TouchableOpacity
+                    key={value}
+                    style={[styles.optionButton, (value === 'ALL' ? ownershipFilters.length === 0 : ownershipFilters.includes(value)) && styles.optionButtonActive]}
+                    onPress={() => setOwnershipFilters(current => value === 'ALL' ? [] : current.includes(value) ? current.filter(item => item !== value) : [...current, value])}
+                  >
+                    <Text style={[styles.optionButtonText, (value === 'ALL' ? ownershipFilters.length === 0 : ownershipFilters.includes(value)) && styles.optionButtonTextActive]}>{label}</Text>
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity style={[styles.optionButton, watchlistOnly && styles.optionButtonActive]} onPress={() => setWatchlistOnly(value => !value)}>
@@ -722,8 +729,12 @@ export default function PlayerPoolScreen() {
               <Text style={styles.filterSectionLabel}>Club</Text>
               <View style={styles.clubGrid}>
                 {['ALL', ...clubs].map(club => (
-                  <TouchableOpacity key={club} style={[styles.clubButton, selectedClub === club && styles.optionButtonActive]} onPress={() => setSelectedClub(club)}>
-                    <Text style={[styles.clubButtonText, selectedClub === club && styles.optionButtonTextActive]} numberOfLines={1}>{club === 'ALL' ? 'All clubs' : club}</Text>
+                  <TouchableOpacity
+                    key={club}
+                    style={[styles.clubButton, (club === 'ALL' ? selectedClubs.length === 0 : selectedClubs.includes(club)) && styles.optionButtonActive]}
+                    onPress={() => setSelectedClubs(current => club === 'ALL' ? [] : current.includes(club) ? current.filter(item => item !== club) : [...current, club])}
+                  >
+                    <Text style={[styles.clubButtonText, (club === 'ALL' ? selectedClubs.length === 0 : selectedClubs.includes(club)) && styles.optionButtonTextActive]} numberOfLines={1}>{club === 'ALL' ? 'All clubs' : club}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -731,8 +742,8 @@ export default function PlayerPoolScreen() {
 
             <View style={styles.filterFooter}>
               <TouchableOpacity style={styles.resetButton} onPress={() => {
-                setStatsPeriod('CURRENT'); setSortKey('DRAFT_RANK'); setSelectedClub('ALL');
-                setOwnershipFilter('ALL'); setWatchlistOnly(false); setMinimumMinutes(0);
+                setStatsPeriod('CURRENT'); setSortKey('TOTAL_POINTS'); setSelectedClubs([]);
+                setOwnershipFilters([]); setWatchlistOnly(false); setMinimumMinutes(0);
               }}>
                 <Text style={styles.resetButtonText}>Reset</Text>
               </TouchableOpacity>

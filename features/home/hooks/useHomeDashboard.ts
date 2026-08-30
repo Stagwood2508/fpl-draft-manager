@@ -140,15 +140,15 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const loadDashboard = useCallback(async (background = false) => {
+  const loadDashboard = useCallback(async (background: boolean | 'silent' = false) => {
     if (!currentUserId || !activeLeagueId) {
       setState(EMPTY_STATE);
       setLoading(false);
       return;
     }
 
-    if (background) setRefreshing(true);
-    else setLoading(true);
+    if (background === true) setRefreshing(true);
+    else if (background === false) setLoading(true);
     setErrorMessage(null);
 
     try {
@@ -392,7 +392,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
       setErrorMessage(error?.message || 'The league summary could not be loaded.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      if (background === true) setRefreshing(false);
     }
   }, [activeLeagueId, currentUserId]);
 

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
@@ -58,6 +59,7 @@ interface MatchupItem {
 }
 
 export default function MatchesScreen() {
+  const { fixtureId: fixtureIdParam } = useLocalSearchParams<{ fixtureId?: string | string[] }>();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
@@ -122,6 +124,14 @@ export default function MatchesScreen() {
       if (interval) clearInterval(interval);
     };
   }, [contextReady, viewMode, selectedGameweek, selectedTeamUserId, gameweekIsLive]);
+
+  useEffect(() => {
+    const requestedFixtureId = Array.isArray(fixtureIdParam) ? fixtureIdParam[0] : fixtureIdParam;
+    if (requestedFixtureId && matchups.some(match => match.id === requestedFixtureId)) {
+      setExpandedMatchupId(requestedFixtureId);
+      setActiveRosterSides(current => current[requestedFixtureId] ? current : { ...current, [requestedFixtureId]: 'HOME' });
+    }
+  }, [fixtureIdParam, matchups]);
 
   async function initMatchdayContext() {
     try {

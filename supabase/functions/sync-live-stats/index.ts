@@ -248,26 +248,36 @@ serve(async (req) => {
       throw new Error("Invalid gameweek");
     }
 
-    // 2. Fetch live data from official FPL Draft API
-    const draftApiUrl = `https://draft.premierleague.com/api/event/${gwNumber}/live`;
-    console.log(`Fetching live stats from: ${draftApiUrl}`);
+    // 2. The standard FPL event feed updates in play and becomes the
+    // authoritative final record once its Gameweek is marked finished. Draft
+    // player ids are resolved by the stable player code. Keep the Draft live
+    // endpoint only as a continuity fallback if the standard endpoint fails.
+    const standardLiveUrl = `https://fantasy.premierleague.com/api/event/${gwNumber}/live/`;
+    const draftLiveUrl = `https://draft.premierleague.com/api/event/${gwNumber}/live`;
 
-    const [fplResponse, bootstrapResponse] = await Promise.all([
-      fetch(draftApiUrl, { headers: requestHeaders }),
-      fetch("https://draft.premierleague.com/api/bootstrap-static", { headers: requestHeaders }),
+    const [bootstrapData, standardBootstrapData] = await Promise.all([
+      fetchJsonWithRetry("https://draft.premierleague.com/api/bootstrap-static"),
+      fetchJsonWithRetry("https://fantasy.premierleague.com/api/bootstrap-static/"),
     ]);
 
-    if (!fplResponse.ok) {
-      throw new Error(`Draft API responded with status: ${fplResponse.status}`);
+    let liveData: any;
+    let liveStatsSource: "standard_fpl" | "draft_fallback" = "standard_fpl";
+    try {
+      console.log(`Fetching in-play stats from: ${standardLiveUrl}`);
+      liveData = await fetchJsonWithRetry(standardLiveUrl);
+      if (!Array.isArray(liveData?.elements) || liveData.elements.length < 300) {
+        throw new Error("Standard FPL live response was incomplete");
+      }
+    } catch (standardLiveError) {
+      console.warn(
+        "Standard FPL live feed unavailable; using Draft fallback:",
+        standardLiveError instanceof Error ? standardLiveError.message : String(standardLiveError),
+      );
+      liveData = await fetchJsonWithRetry(draftLiveUrl);
+      liveStatsSource = "draft_fallback";
     }
 
-    const liveData = await fplResponse.json();
-    const elements = liveData.elements;
-
-    if (!bootstrapResponse.ok) {
-      throw new Error(`Bootstrap API responded with status: ${bootstrapResponse.status}`);
-    }
-    const bootstrapData = await bootstrapResponse.json();
+    const elements = liveData?.elements;
 
     // The Draft API can add players after the separate player-pool import has
     // run. Reconcile identities first so one new player cannot violate the
@@ -332,6 +342,21 @@ serve(async (req) => {
     const currentDraftPlayerIds = new Set<number>(
       mappedBootstrapPlayers.map((player: any) => Number(player.id)),
     );
+    const draftPlayerIdByCode = new Map<number, number>(
+      mappedBootstrapPlayers.map((player: any) => [Number(player.code), Number(player.id)]),
+    );
+    const standardPlayers = Array.isArray(standardBootstrapData?.elements)
+      ? standardBootstrapData.elements
+      : [];
+    const standardPlayerById = new Map<number, any>(
+      standardPlayers.map((player: any) => [Number(player.id), player]),
+    );
+
+    if (liveStatsSource === "standard_fpl" && standardPlayers.length < 300) {
+      throw new Error(
+        `Standard FPL bootstrap returned only ${standardPlayers.length} players; live sync aborted safely.`,
+      );
+    }
 
     if (!elements || Object.keys(elements).length === 0) {
       console.log(`No live player data is available for GW${gwNumber}; schedule sync will continue.`);
@@ -348,7 +373,15 @@ serve(async (req) => {
       : Object.entries(elements || {});
 
     for (const [playerIdStr, playerObj] of livePlayerEntries) {
-      const playerId = parseInt(playerIdStr, 10);
+      const sourcePlayerId = parseInt(playerIdStr, 10);
+      const playerId = liveStatsSource === "standard_fpl"
+        ? draftPlayerIdByCode.get(Number(standardPlayerById.get(sourcePlayerId)?.code))
+        : sourcePlayerId;
+
+      if (!playerId) {
+        unmappedLivePlayers += 1;
+        continue;
+      }
       if (!currentDraftPlayerIds.has(playerId)) {
         unmappedLivePlayers += 1;
         continue;
@@ -422,21 +455,20 @@ serve(async (req) => {
       });
     }
 
-    const eventEnvelope = bootstrapData.events || {};
-    const eventRows = Array.isArray(eventEnvelope)
-      ? eventEnvelope
-      : Array.isArray(eventEnvelope.data)
-        ? eventEnvelope.data
-        : [];
-    const currentEventId = Number(eventEnvelope.current || 0);
-    const nextEventId = Number(eventEnvelope.next || 0);
+    // The standard bootstrap is the finalization authority. Its `finished`
+    // state is what permits autosubs and immutable fixture settlement below.
+    const eventRows = Array.isArray(standardBootstrapData?.events)
+      ? standardBootstrapData.events
+      : [];
+    const hasCurrentEvent = eventRows.some((event: any) => Boolean(event?.is_current));
+    const targetEvent = eventRows.find((event: any) => Number(event?.id) === gwNumber);
 
     const gameweekRows = eventRows
       .filter((event: any) => event?.id && event?.deadline_time)
       .map((event: any) => ({
         gameweek_number: Number(event.id),
         fpl_deadline_time: event.deadline_time,
-        is_current: Number(event.id) === (currentEventId || nextEventId),
+        is_current: Boolean(event.is_current || (!hasCurrentEvent && event.is_next)),
         is_finished: Boolean(event.finished),
       }));
 
@@ -523,6 +555,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         gameweek: gwNumber,
+        live_stats_source: liveStatsSource,
+        gameweek_finished: Boolean(targetEvent?.finished),
+        scoring_state: targetEvent?.finished ? "FINAL" : "PROVISIONAL",
         records_processed: rowsToUpsert.length,
         players_reconciled: mappedBootstrapPlayers.length,
         unmapped_live_players: unmappedLivePlayers,

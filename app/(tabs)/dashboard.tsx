@@ -177,6 +177,17 @@ export default function HomeDashboardScreen() {
   );
   const isDraftLive = String(activeLeague?.draftStatus || '').toUpperCase() === 'LIVE';
   const fixtureIsLive = Boolean(fixture && gameweek && deadlinePassed && !fixture.isFinished);
+
+  useEffect(() => {
+    if (!fixtureIsLive) return;
+
+    const liveRefreshTimer = setInterval(() => {
+      void refresh('silent');
+    }, 30_000);
+
+    return () => clearInterval(liveRefreshTimer);
+  }, [fixtureIsLive, refresh]);
+
   const opponentName = fixture
     ? fixture.homeUserId === currentUserId
       ? fixture.awayTeamName

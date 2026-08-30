@@ -1,6 +1,15 @@
 # Change Backlog
 
-_Last reconciled with the codebase: 15 August 2026._
+_Last reconciled with the codebase: 30 August 2026._
+
+## High priority — live scoring follow-up
+
+- [x] Add live scoring-event push notifications for a manager's own locked Gameweek XI and their head-to-head opponent.
+  - Goals, assists, save-point thresholds and league-specific custom DEFCON tier crossings are detected and deduplicated from the standard FPL in-play feed.
+  - Recipients are resolved from immutable Gameweek lineup snapshots, including opponent-only alerts and league-average exclusions.
+  - Managers have separate preferences for own-player and opponent events.
+  - Alerts deep-link to the relevant live matchup, with delivery records and correction safeguards.
+- [ ] Consider provisional bonus-change alerts after the in-play BPS ranking behaviour has been verified during a live fixture.
 
 ## Current beta-readiness snapshot
 
@@ -35,7 +44,7 @@ not major missing feature screens.
 - [x] Separate current-season and previous-season player statistics.
   - Current points come only from Gameweek stat rows and never fall back to the Draft bootstrap total.
   - Previous-season history remains available as an explicit scouting period.
-  - Player-pool sorting includes Draft Rank (the current default), current/previous points,
+  - Player-pool sorting includes Draft Rank and current/previous points (current total points are the post-draft default),
     form, starts, minutes, goals, assists, clean sheets, saves, bonus, DEFCON, ICT and expected returns.
   - The player card uses the same selected/current season rather than displaying last season as current.
 - [x] Complete the latest trade-workspace refinements.
@@ -359,6 +368,8 @@ The implementation is complete in the working tree. It shares the fixture-genera
 - [x] Use the authoritative league Gameweek schedule instead of inferring the active Gameweek from player-stat rows.
 - [x] Poll Match Centre and live standings every 30 seconds while a Gameweek is in play.
 - [x] Trigger the server live-stat refresh every minute during an unfinished in-play Gameweek.
+- [x] Use standard FPL as the in-play and final scoring authority, mapping to Draft players by stable code and retaining the Draft live endpoint as a fallback.
+  - Scores remain provisional while the Gameweek is in play; after FPL marks it finished, the final sync replaces provisional values before autosubs and fixture/cup settlement.
 - [x] Show data freshness, stale-data warnings, retry states and provisional autosub messaging.
 - [x] Show each manager's current-Gameweek score in the live standings table, with rank movement from the official table.
 - [x] Preserve league-average fixture handling without creating a synthetic player lineup.

@@ -102,7 +102,7 @@ Deno.serve(async (request) => {
 
     const [{ data: preferences }, { data: tokens, error: tokenError }] = await Promise.all([
       admin.from('notification_preferences')
-        .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, draft_enabled')
+        .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, own_player_events_enabled, opponent_player_events_enabled, draft_enabled')
         .eq('user_id', notification.user_id).maybeSingle(),
       admin.from('push_device_tokens')
         .select('id, expo_push_token')
@@ -118,7 +118,12 @@ Deno.serve(async (request) => {
           ? preferences?.waivers_enabled !== false
           : notification.dedupe_key?.startsWith('draft-')
             ? preferences?.draft_enabled !== false
-            : preferences?.match_updates_enabled !== false;
+            : notification.dedupe_key?.startsWith('live-event:')
+              ? preferences?.match_updates_enabled !== false
+                && (notification.dedupe_key.endsWith(':opponent')
+                  ? preferences?.opponent_player_events_enabled !== false
+                  : preferences?.own_player_events_enabled !== false)
+              : preferences?.match_updates_enabled !== false;
 
     if (!preferences?.push_enabled || !categoryEnabled) {
       return Response.json({ success: true, skipped: 'USER_PREFERENCE' });
@@ -190,4 +195,3 @@ Deno.serve(async (request) => {
     return Response.json({ success: false, error: error instanceof Error ? error.message : 'UNKNOWN_ERROR' }, { status: 500 });
   }
 });
-
