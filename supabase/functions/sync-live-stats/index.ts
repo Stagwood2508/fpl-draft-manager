@@ -193,6 +193,73 @@ const syncSeasonHistory = async (
   };
 };
 
+const syncPlayerAvailability = async (
+  supabase: ReturnType<typeof createClient>,
+) => {
+  const bootstrapData = await fetchJsonWithRetry(
+    "https://draft.premierleague.com/api/bootstrap-static",
+  );
+  const players = Array.isArray(bootstrapData?.elements) ? bootstrapData.elements : [];
+  const teams = Array.isArray(bootstrapData?.teams) ? bootstrapData.teams : [];
+
+  if (players.length < 300) {
+    throw new Error(
+      `Draft bootstrap returned only ${players.length} players; availability sync aborted safely.`,
+    );
+  }
+
+  const teamById = new Map<number, any>(
+    teams.map((team: any) => [Number(team.id), team]),
+  );
+  const updatedAt = new Date().toISOString();
+  const rows = players.map((player: any) => {
+    const team = teamById.get(Number(player.team));
+    return {
+      id: Number(player.id),
+      code: Number(player.code),
+      first_name: player.first_name || "",
+      second_name: player.second_name || "",
+      web_name: player.web_name || player.second_name || `Player ${player.id}`,
+      photo_code: Number(player.code),
+      team_id: Number(player.team),
+      team_name: team?.name || "Unknown Club",
+      team_short_name: team?.short_name || "UNK",
+      element_type: positionByElementType[Number(player.element_type)] || "MID",
+      total_points: Number(player.total_points || 0),
+      draft_rank: Number(player.draft_rank || 999),
+      status: String(player.status || "a").toLowerCase(),
+      news: String(player.news || ""),
+      chance_of_playing_this_round: player.chance_of_playing_this_round == null
+        ? null
+        : Number(player.chance_of_playing_this_round),
+      chance_of_playing_next_round: player.chance_of_playing_next_round == null
+        ? null
+        : Number(player.chance_of_playing_next_round),
+      news_added: player.news_added || null,
+      is_active: true,
+      updated_at: updatedAt,
+    };
+  });
+
+  for (let offset = 0; offset < rows.length; offset += 200) {
+    const { error } = await supabase
+      .from("players")
+      .upsert(rows.slice(offset, offset + 200), { onConflict: "id" });
+    if (error) throw error;
+  }
+
+  return {
+    success: true,
+    mode: "players",
+    players_updated: rows.length,
+    flagged_players: rows.filter((player: any) =>
+      player.status !== "a" ||
+      (player.chance_of_playing_this_round != null && player.chance_of_playing_this_round < 100)
+    ).length,
+    updated_at: updatedAt,
+  };
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -231,6 +298,14 @@ serve(async (req) => {
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: result.failed === 0 ? 200 : 207,
+      });
+    }
+
+    if (url.searchParams.get("mode") === "players") {
+      const result = await syncPlayerAvailability(supabase);
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
       });
     }
 
