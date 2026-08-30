@@ -605,11 +605,6 @@ export default function PlayerPoolScreen() {
         <TouchableOpacity style={styles.playerCardMainTrigger} onPress={() => { setSelectedModalPlayerId(item.id); setDetailsVisible(true); }} activeOpacity={0.7}>
           <View style={styles.playerMeta}>
             <View style={styles.playerRowFlow}>
-              <Text style={styles.playerName} numberOfLines={1}>{item.web_name}</Text>
-              <Text style={styles.playerClubShort}>{getShortTeamCode(item)}</Text>
-              <View style={[styles.positionBadgeChip, { backgroundColor: mappedPositionColor }]}>
-                <Text style={styles.positionChipText}>{item.element_type}</Text>
-              </View>
               {availabilityMarker && (
                 <View
                   style={[
@@ -628,6 +623,11 @@ export default function PlayerPoolScreen() {
                   <Text style={styles.availabilityBadgeText}>{availabilityMarker.label}</Text>
                 </View>
               )}
+              <Text style={styles.playerName} numberOfLines={1}>{item.web_name}</Text>
+              <Text style={styles.playerClubShort}>{getShortTeamCode(item)}</Text>
+              <View style={[styles.positionBadgeChip, { backgroundColor: mappedPositionColor }]}>
+                <Text style={styles.positionChipText}>{item.element_type}</Text>
+              </View>
             </View>
           </View>
           <View style={styles.pointsColumn}>
@@ -919,7 +919,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   playerClubShort: { color: colors.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
   positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
-  availabilityBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 6, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, minWidth: 30, justifyContent: 'center' },
+  availabilityBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, marginRight: 6, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, minWidth: 30, justifyContent: 'center' },
   availabilityBadgeDanger: { backgroundColor: '#C62828' },
   availabilityBadgeWarning: { backgroundColor: '#8A5A00' },
   availabilityBadgeText: { color: '#FFFFFF', fontSize: 8, lineHeight: 10, fontWeight: '900', letterSpacing: 0.2 },
