@@ -115,13 +115,21 @@ const getAvailabilityMarker = (player: PlayerAsset) => {
   const chance = player.chance_of_playing_this_round ?? player.chance_of_playing_next_round;
 
   if (status === 'a' && (chance === null || chance === undefined || chance >= 100)) return null;
-  if (status === 's') return { label: 'SUSP', tone: 'danger' as const };
-  if (['i', 'u', 'n'].includes(status) || chance === 0) return { label: 'OUT', tone: 'danger' as const };
+  if (status === 's') return { label: 'SUSP', tone: 'suspended' as const, backgroundColor: '#6D28D9', foregroundColor: '#FFFFFF' };
+  if (chance === 0) return { label: 'OUT', tone: 'out' as const, backgroundColor: '#7F1D1D', foregroundColor: '#FFFFFF' };
   if (chance !== null && chance !== undefined && chance < 100) {
-    return { label: `${Math.max(0, Math.round(chance))}%`, tone: 'warning' as const };
+    const roundedChance = Math.max(0, Math.round(chance));
+    if (roundedChance <= 25) {
+      return { label: `${roundedChance}%`, tone: 'critical' as const, backgroundColor: '#D32F2F', foregroundColor: '#FFFFFF' };
+    }
+    if (roundedChance <= 50) {
+      return { label: `${roundedChance}%`, tone: 'serious' as const, backgroundColor: '#F57C00', foregroundColor: '#FFFFFF' };
+    }
+    return { label: `${roundedChance}%`, tone: 'caution' as const, backgroundColor: '#F4C430', foregroundColor: '#171717' };
   }
-  if (status === 'd') return { label: 'DOUBT', tone: 'warning' as const };
-  return { label: 'UNAV', tone: 'danger' as const };
+  if (status === 'd') return { label: 'DOUBT', tone: 'caution' as const, backgroundColor: '#F4C430', foregroundColor: '#171717' };
+  if (['i', 'u', 'n'].includes(status)) return { label: 'OUT', tone: 'out' as const, backgroundColor: '#7F1D1D', foregroundColor: '#FFFFFF' };
+  return { label: 'UNAV', tone: 'out' as const, backgroundColor: '#7F1D1D', foregroundColor: '#FFFFFF' };
 };
 
 const toStatLine = (row: any): PlayerStatLine => ({
@@ -609,18 +617,16 @@ export default function PlayerPoolScreen() {
                 <View
                   style={[
                     styles.availabilityBadge,
-                    availabilityMarker.tone === 'danger'
-                      ? styles.availabilityBadgeDanger
-                      : styles.availabilityBadgeWarning,
+                    { backgroundColor: availabilityMarker.backgroundColor },
                   ]}
                   accessibilityLabel={`Player availability ${availabilityMarker.label}`}
                 >
                   <Ionicons
-                    name={availabilityMarker.tone === 'danger' ? 'alert-circle' : 'warning'}
+                    name={['out', 'critical', 'suspended'].includes(availabilityMarker.tone) ? 'alert-circle' : 'warning'}
                     size={9}
-                    color="#FFFFFF"
+                    color={availabilityMarker.foregroundColor}
                   />
-                  <Text style={styles.availabilityBadgeText}>{availabilityMarker.label}</Text>
+                  <Text style={[styles.availabilityBadgeText, { color: availabilityMarker.foregroundColor }]}>{availabilityMarker.label}</Text>
                 </View>
               )}
               <Text style={styles.playerName} numberOfLines={1}>{item.web_name}</Text>
@@ -920,8 +926,6 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
   positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
   availabilityBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, marginRight: 6, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, minWidth: 30, justifyContent: 'center' },
-  availabilityBadgeDanger: { backgroundColor: '#C62828' },
-  availabilityBadgeWarning: { backgroundColor: '#8A5A00' },
   availabilityBadgeText: { color: '#FFFFFF', fontSize: 8, lineHeight: 10, fontWeight: '900', letterSpacing: 0.2 },
   pointsColumn: { alignItems: 'center', justifyContent: 'center', marginRight: 8, minWidth: 42 },
   pointsValueText: { color: colors.accent, fontSize: 14, fontWeight: '900' },
