@@ -24,6 +24,22 @@ const POSITION_MAP: Record<number, string> = {
   4: 'FWD',
 };
 
+const flattenExplanationStats = (value: unknown): any[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => flattenExplanationStats(entry));
+  }
+
+  if (!value || typeof value !== 'object') return [];
+
+  const entry = value as Record<string, unknown>;
+  const isScoringEntry = typeof entry.stat === 'string' || typeof entry.identifier === 'string';
+
+  return [
+    ...(isScoringEntry ? [entry] : []),
+    ...Object.values(entry).flatMap((child) => flattenExplanationStats(child)),
+  ];
+};
+
 // Fallback only — used only if the live API response is somehow missing a team.
 // The live API's own team list always takes priority over this.
 const PL_TEAMS_STATIC: Record<number, { id: number; name: string; short: string }> = {
@@ -140,6 +156,15 @@ Deno.serve(async (req) => {
         element_type: POSITION_MAP[player.element_type] || 'MID',
         total_points: player.total_points || 0,
         draft_rank: player.draft_rank || 999,
+        status: String(player.status || 'a').toLowerCase(),
+        news: String(player.news || ''),
+        chance_of_playing_this_round: player.chance_of_playing_this_round == null
+          ? null
+          : Number(player.chance_of_playing_this_round),
+        chance_of_playing_next_round: player.chance_of_playing_next_round == null
+          ? null
+          : Number(player.chance_of_playing_next_round),
+        news_added: player.news_added || null,
         is_active: true,
         updated_at: new Date().toISOString(),
       };
@@ -233,6 +258,7 @@ Deno.serve(async (req) => {
 
               const stats = livePlayerRecord.stats || {};
               const explainArray = livePlayerRecord.explain || [];
+              const explanationStats = flattenExplanationStats(explainArray);
 
               let clearances = stats.clearances || 0;
               let blocks = stats.blocks || 0;
@@ -240,19 +266,21 @@ Deno.serve(async (req) => {
               let tackles = stats.tackles || 0;
               let ballRecoveries = stats.ball_recoveries || 0;
 
-              if (Array.isArray(explainArray)) {
-                explainArray.forEach((match: any) => {
-                  if (match && Array.isArray(match.stats)) {
-                    match.stats.forEach((s: any) => {
-                      if (s.identifier === 'clearances') clearances = Math.max(clearances, s.value || 0);
-                      if (s.identifier === 'blocks') blocks = Math.max(blocks, s.value || 0);
-                      if (s.identifier === 'interceptions') interceptions = Math.max(interceptions, s.value || 0);
-                      if (s.identifier === 'tackles') tackles = Math.max(tackles, s.value || 0);
-                      if (s.identifier === 'ball_recoveries') ballRecoveries = Math.max(ballRecoveries, s.value || 0);
-                    });
-                  }
-                });
-              }
+              explanationStats.forEach((entry: any) => {
+                const identifier = entry?.identifier || entry?.stat;
+                if (identifier === 'clearances') clearances = Math.max(clearances, entry.value || 0);
+                if (identifier === 'blocks') blocks = Math.max(blocks, entry.value || 0);
+                if (identifier === 'interceptions') interceptions = Math.max(interceptions, entry.value || 0);
+                if (identifier === 'tackles') tackles = Math.max(tackles, entry.value || 0);
+                if (identifier === 'ball_recoveries' || identifier === 'recoveries') {
+                  ballRecoveries = Math.max(ballRecoveries, entry.value || 0);
+                }
+              });
+
+              const officialTotalPoints = Number(stats.total_points || 0);
+              const officialDefconPoints = explanationStats
+                .filter((entry: any) => (entry?.identifier || entry?.stat) === 'defensive_contribution')
+                .reduce((total: number, entry: any) => total + Number(entry?.points || 0), 0);
 
               if ((stats.minutes || 0) > 0 || (stats.total_points || 0) !== 0 || clearances > 0 || tackles > 0 || ballRecoveries > 0) {
                 mappedStats.push({
@@ -277,7 +305,9 @@ Deno.serve(async (req) => {
                   interceptions,
                   tackles,
                   ball_recoveries: ballRecoveries,
-                  total_points: stats.total_points ?? 0,
+                  total_points: officialTotalPoints - officialDefconPoints,
+                  official_total_points: officialTotalPoints,
+                  official_defcon_points: officialDefconPoints,
                   bonus: stats.bonus ?? 0,
                 });
               }

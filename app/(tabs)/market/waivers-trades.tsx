@@ -36,7 +36,7 @@ interface PlayerAsset {
 interface TransactionRecord {
   id: string;
   type: 'WAIVER' | 'TRADE';
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'CANCELLED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'CANCELLED' | 'VOIDED';
   created_at: string;
   sender_id: string;
   receiver_id: string | null;
@@ -47,11 +47,14 @@ interface TransactionRecord {
   sender_profile?: { display_name: string };
   receiver_profile?: { display_name: string };
   parent_transaction_id: string | null;
+  valid_gameweek: number | null;
+  expires_at: string | null;
+  void_reason: string | null;
 }
 
 interface GroupedTradePackage {
   batchKey: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'CANCELLED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'CANCELLED' | 'VOIDED';
   created_at: string;
   sender_id: string;
   receiver_id: string;
@@ -61,6 +64,9 @@ interface GroupedTradePackage {
   playersOut: PlayerAsset[];  // Stacked array of all players YOU give away (Offered)
   originalRowIds: string[];   // Underlying database entry record keys
   rawTransactionObject: TransactionRecord; // Context mirror reference
+  valid_gameweek: number | null;
+  expires_at: string | null;
+  void_reason: string | null;
 }
 
 interface WaiverClaim {
@@ -293,6 +299,7 @@ const currentLeagueId = leagueId;
         .from('transactions')
         .select(`
           id, type, status, created_at, sender_id, receiver_id, player_in_id, player_out_id,
+          valid_gameweek, expires_at, void_reason,
           parent_transaction_id,
           player_in:players!transactions_player_in_id_fkey(*),
           player_out:players!transactions_player_out_id_fkey(*),
@@ -365,7 +372,10 @@ const currentLeagueId = leagueId;
           playersIn: [],
           playersOut: [],
           originalRowIds: [],
-          rawTransactionObject: item
+          rawTransactionObject: item,
+          valid_gameweek: item.valid_gameweek,
+          expires_at: item.expires_at,
+          void_reason: item.void_reason,
         };
       }
 
@@ -1118,7 +1128,9 @@ if (!userId || !leagueId) {
                   <View key={pkg.batchKey} style={styles.ledgerCardSlim}>
                     <View style={styles.ledgerRowMetaSlim}>
                       <Text style={styles.ledgerTypeTextSlim} numberOfLines={1}>{displayTitle}</Text>
-                      <Text style={styles.ledgerTimeTextSlim}>{new Date(pkg.created_at).toLocaleDateString()}</Text>
+                      <Text style={styles.ledgerTimeTextSlim}>
+                        {pkg.valid_gameweek ? `GW${pkg.valid_gameweek} · ` : ''}{new Date(pkg.created_at).toLocaleDateString()}
+                      </Text>
                       <View style={[styles.statusBadgeSlim, styles.badgePending]}>
                         <Text style={styles.statusTextSlim}>{pkg.status}</Text>
                       </View>
@@ -1181,6 +1193,13 @@ if (!userId || !leagueId) {
                     
                     {/* Render Side-by-Side 2-Column Asset Grid */}
                     {renderSideBySideTradePackage(pkg)}
+                    {pkg.status === 'VOIDED' && (
+                      <Text style={styles.emptyLedgerText}>
+                        {pkg.void_reason === 'PLAYER_OWNERSHIP_CHANGED'
+                          ? 'Voided because an included player changed club through waivers, a free-agent move or another trade.'
+                          : 'Voided when this Gameweek’s trade deadline passed.'}
+                      </Text>
+                    )}
                     {pkg.status === 'ACCEPTED' && (
                       <TouchableOpacity style={styles.tradeAnalysisButton} onPress={() => void openTradeImpact(pkg)}>
                         <Text style={styles.tradeAnalysisButtonText}>VIEW TRADE IMPACT</Text>

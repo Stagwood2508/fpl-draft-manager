@@ -10,6 +10,30 @@ const requestHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
 };
 
+const positionByElementType: Record<number, string> = {
+  1: "GKP",
+  2: "DEF",
+  3: "MID",
+  4: "FWD",
+};
+
+const flattenExplanationStats = (value: unknown): any[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => flattenExplanationStats(entry));
+  }
+
+  if (!value || typeof value !== "object") return [];
+
+  const entry = value as Record<string, unknown>;
+  const isScoringEntry = typeof entry.stat === "string" ||
+    typeof entry.identifier === "string";
+
+  return [
+    ...(isScoringEntry ? [entry] : []),
+    ...Object.values(entry).flatMap((child) => flattenExplanationStats(child)),
+  ];
+};
+
 const previousSeasonLabel = () => {
   const now = new Date();
   const endingYear = now.getUTCMonth() >= 6
@@ -245,12 +269,77 @@ serve(async (req) => {
     }
     const bootstrapData = await bootstrapResponse.json();
 
+    // The Draft API can add players after the separate player-pool import has
+    // run. Reconcile identities first so one new player cannot violate the
+    // player_gameweek_stats foreign key and roll back every live score.
+    const bootstrapPlayers = Array.isArray(bootstrapData?.elements)
+      ? bootstrapData.elements
+      : [];
+    const bootstrapTeams = Array.isArray(bootstrapData?.teams)
+      ? bootstrapData.teams
+      : [];
+
+    if (bootstrapPlayers.length < 300) {
+      throw new Error(
+        `Draft bootstrap returned only ${bootstrapPlayers.length} players; live sync aborted safely.`,
+      );
+    }
+
+    const teamById = new Map<number, any>(
+      bootstrapTeams.map((team: any) => [Number(team.id), team]),
+    );
+    const playerSyncTimestamp = new Date().toISOString();
+    const mappedBootstrapPlayers = bootstrapPlayers.map((player: any) => {
+      const team = teamById.get(Number(player.team));
+      return {
+        id: Number(player.id),
+        code: Number(player.code),
+        first_name: player.first_name || "",
+        second_name: player.second_name || "",
+        web_name: player.web_name || player.second_name || `Player ${player.id}`,
+        photo_code: Number(player.code),
+        team_id: Number(player.team),
+        team_name: team?.name || "Unknown Club",
+        team_short_name: team?.short_name || "UNK",
+        element_type: positionByElementType[Number(player.element_type)] || "MID",
+        total_points: Number(player.total_points || 0),
+        draft_rank: Number(player.draft_rank || 999),
+        status: String(player.status || "a").toLowerCase(),
+        news: String(player.news || ""),
+        chance_of_playing_this_round: player.chance_of_playing_this_round == null
+          ? null
+          : Number(player.chance_of_playing_this_round),
+        chance_of_playing_next_round: player.chance_of_playing_next_round == null
+          ? null
+          : Number(player.chance_of_playing_next_round),
+        news_added: player.news_added || null,
+        is_active: true,
+        updated_at: playerSyncTimestamp,
+      };
+    });
+
+    const playerBatchSize = 200;
+    for (let offset = 0; offset < mappedBootstrapPlayers.length; offset += playerBatchSize) {
+      const { error: playerSyncError } = await supabase
+        .from("players")
+        .upsert(
+          mappedBootstrapPlayers.slice(offset, offset + playerBatchSize),
+          { onConflict: "id" },
+        );
+      if (playerSyncError) throw playerSyncError;
+    }
+
+    const currentDraftPlayerIds = new Set<number>(
+      mappedBootstrapPlayers.map((player: any) => Number(player.id)),
+    );
+
     if (!elements || Object.keys(elements).length === 0) {
       console.log(`No live player data is available for GW${gwNumber}; schedule sync will continue.`);
     }
 
     // 3. Transform API response into database rows
     const rowsToUpsert = [];
+    let unmappedLivePlayers = 0;
 
     const livePlayerEntries: Array<[string, any]> = Array.isArray(elements)
       ? elements
@@ -259,9 +348,16 @@ serve(async (req) => {
       : Object.entries(elements || {});
 
     for (const [playerIdStr, playerObj] of livePlayerEntries) {
+      const playerId = parseInt(playerIdStr, 10);
+      if (!currentDraftPlayerIds.has(playerId)) {
+        unmappedLivePlayers += 1;
+        continue;
+      }
+
       const livePlayer = playerObj as any;
       const stats = livePlayer.stats || {};
       const explain = Array.isArray(livePlayer.explain) ? livePlayer.explain : [];
+      const explanationStats = flattenExplanationStats(explain);
 
       let clearances = Number(stats.clearances || 0);
       let blocks = Number(stats.blocks || 0);
@@ -269,27 +365,34 @@ serve(async (req) => {
       let tackles = Number(stats.tackles || 0);
       let recoveries = Number(stats.recoveries ?? stats.ball_recoveries ?? 0);
 
-      explain.forEach((match: any) => {
-        if (!Array.isArray(match?.stats)) return;
-        match.stats.forEach((entry: any) => {
-          const value = Number(entry?.value || 0);
-          if (entry?.identifier === "clearances") clearances = Math.max(clearances, value);
-          if (entry?.identifier === "blocks") blocks = Math.max(blocks, value);
-          if (entry?.identifier === "interceptions") interceptions = Math.max(interceptions, value);
-          if (entry?.identifier === "tackles") tackles = Math.max(tackles, value);
-          if (entry?.identifier === "ball_recoveries" || entry?.identifier === "recoveries") {
-            recoveries = Math.max(recoveries, value);
-          }
-        });
+      explanationStats.forEach((entry: any) => {
+        const identifier = entry?.identifier || entry?.stat;
+        const value = Number(entry?.value || 0);
+        if (identifier === "clearances") clearances = Math.max(clearances, value);
+        if (identifier === "blocks") blocks = Math.max(blocks, value);
+        if (identifier === "interceptions") interceptions = Math.max(interceptions, value);
+        if (identifier === "tackles") tackles = Math.max(tackles, value);
+        if (identifier === "ball_recoveries" || identifier === "recoveries") {
+          recoveries = Math.max(recoveries, value);
+        }
       });
 
       const cbi = Number(stats.clearances_blocks_interceptions ?? (clearances + blocks + interceptions));
       const defContribution = stats.defensive_contribution ?? (cbi + recoveries + tackles);
+      const officialTotalPoints = Number(stats.total_points || 0);
+      const officialDefconPoints = explanationStats
+        .filter((entry: any) => (entry?.identifier || entry?.stat) === "defensive_contribution")
+        .reduce((total: number, entry: any) => total + Number(entry?.points || 0), 0);
 
       rowsToUpsert.push({
-        player_id: parseInt(playerIdStr, 10),
+        player_id: playerId,
         gameweek: gwNumber,
-        total_points: stats.total_points ?? 0,
+        // Official FPL now includes its own defensive-contribution award in
+        // total_points. Custom leagues replace that award with their configured
+        // DEFCON tiers, so persist the base score with the official award removed.
+        total_points: officialTotalPoints - officialDefconPoints,
+        official_total_points: officialTotalPoints,
+        official_defcon_points: officialDefconPoints,
         minutes: stats.minutes ?? 0,
         starts: stats.starts ?? 0,
         goals_scored: stats.goals_scored ?? 0,
@@ -356,13 +459,19 @@ serve(async (req) => {
 
 // 5. Perform bulk UPSERT into player_gameweek_stats
     if (rowsToUpsert.length > 0) {
-      const { error } = await supabase
-        .from("player_gameweek_stats")
-        .upsert(rowsToUpsert, { onConflict: "player_id,gameweek" });
+      const statsBatchSize = 200;
+      for (let offset = 0; offset < rowsToUpsert.length; offset += statsBatchSize) {
+        const { error } = await supabase
+          .from("player_gameweek_stats")
+          .upsert(
+            rowsToUpsert.slice(offset, offset + statsBatchSize),
+            { onConflict: "player_id,gameweek" },
+          );
 
-      if (error) {
-        console.error("Supabase upsert error:", error);
-        throw error;
+        if (error) {
+          console.error("Supabase upsert error:", error);
+          throw error;
+        }
       }
     }
 
@@ -415,6 +524,8 @@ serve(async (req) => {
         success: true,
         gameweek: gwNumber,
         records_processed: rowsToUpsert.length,
+        players_reconciled: mappedBootstrapPlayers.length,
+        unmapped_live_players: unmappedLivePlayers,
         schedule_records: gameweekRows.length,
         fixture_finalization: fixtureFinalizationData,
         cup_finalization: cupFinalizationData,
