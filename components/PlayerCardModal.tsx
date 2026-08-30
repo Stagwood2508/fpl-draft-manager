@@ -18,6 +18,7 @@ import { supabase } from '@/utils/supabase';
 import PlayerHeadshot from '@/components/PlayerHeadshot';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import { getPlayerAvailabilityMarker } from '@/utils/playerAvailability';
 
 interface PlayerDetails {
   id: number;
@@ -56,6 +57,10 @@ interface PlayerDetails {
   defensive_contribution?: number;
   season_name?: string;
   owner_name?: string | null;
+  status?: string | null;
+  news?: string | null;
+  chance_of_playing_this_round?: number | null;
+  chance_of_playing_next_round?: number | null;
 }
 
 interface GameweekStat {
@@ -145,6 +150,7 @@ export default function PlayerCardModal({
   const [schedule, setSchedule] = useState<UpcomingFixture[]>([]);
   const [lastSeasonAvailable, setLastSeasonAvailable] = useState<boolean>(true);
   const [tradeNoteText, setTradeNoteText] = useState('');
+  const availabilityMarker = player ? getPlayerAvailabilityMarker(player) : null;
 
   useEffect(() => {
     if (visible && playerId) {
@@ -475,6 +481,27 @@ export default function PlayerCardModal({
               >
                 <Text style={styles.positionBadgeText}>{player.element_type}</Text>
               </View>
+            </View>
+          )}
+
+          {player && availabilityMarker && (
+            <View style={[styles.availabilityPanel, { borderLeftColor: availabilityMarker.backgroundColor }]}>
+              <View style={styles.availabilityPanelHeader}>
+                <View style={[styles.availabilityPanelBadge, { backgroundColor: availabilityMarker.backgroundColor }]}>
+                  <Ionicons
+                    name={['out', 'critical', 'suspended'].includes(availabilityMarker.tone) ? 'alert-circle' : 'warning'}
+                    size={11}
+                    color={availabilityMarker.foregroundColor}
+                  />
+                  <Text style={[styles.availabilityPanelBadgeText, { color: availabilityMarker.foregroundColor }]}>
+                    {availabilityMarker.label}
+                  </Text>
+                </View>
+                <Text style={styles.availabilityPanelTitle}>AVAILABILITY UPDATE</Text>
+              </View>
+              <Text style={styles.availabilityPanelNews}>
+                {player.news?.trim() || 'This player is currently flagged as unavailable by Fantasy Premier League.'}
+              </Text>
             </View>
           )}
 
@@ -962,6 +989,22 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     borderRadius: 4,
   },
   positionBadgeText: { color: colors.black, fontSize: 10, fontWeight: '900' },
+  availabilityPanel: {
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  availabilityPanelHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  availabilityPanelBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 3 },
+  availabilityPanelBadgeText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.2 },
+  availabilityPanelTitle: { color: colors.textSecondary, fontSize: 9, fontWeight: '900', letterSpacing: 0.6, marginLeft: 8 },
+  availabilityPanelNews: { color: colors.textPrimary, fontSize: 11, lineHeight: 15, fontWeight: '700' },
 
   tabBar: {
     flexDirection: 'row',

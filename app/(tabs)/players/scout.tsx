@@ -24,6 +24,7 @@ import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import FreeAgentClaimModal from '@/components/FreeAgentClaimModal';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import { getPlayerAvailabilityMarker } from '@/utils/playerAvailability';
 
 interface PlayerAsset {
   id: number;
@@ -109,28 +110,6 @@ const EMPTY_STAT_LINE: PlayerStatLine = {
 };
 
 const numeric = (value: unknown) => Number(value || 0);
-
-const getAvailabilityMarker = (player: PlayerAsset) => {
-  const status = String(player.status || 'a').toLowerCase();
-  const chance = player.chance_of_playing_this_round ?? player.chance_of_playing_next_round;
-
-  if (status === 'a' && (chance === null || chance === undefined || chance >= 100)) return null;
-  if (status === 's') return { label: 'SUSP', tone: 'suspended' as const, backgroundColor: '#6D28D9', foregroundColor: '#FFFFFF' };
-  if (chance === 0) return { label: 'OUT', tone: 'out' as const, backgroundColor: '#7F1D1D', foregroundColor: '#FFFFFF' };
-  if (chance !== null && chance !== undefined && chance < 100) {
-    const roundedChance = Math.max(0, Math.round(chance));
-    if (roundedChance <= 25) {
-      return { label: `${roundedChance}%`, tone: 'critical' as const, backgroundColor: '#D32F2F', foregroundColor: '#FFFFFF' };
-    }
-    if (roundedChance <= 50) {
-      return { label: `${roundedChance}%`, tone: 'serious' as const, backgroundColor: '#F57C00', foregroundColor: '#FFFFFF' };
-    }
-    return { label: `${roundedChance}%`, tone: 'caution' as const, backgroundColor: '#F4C430', foregroundColor: '#171717' };
-  }
-  if (status === 'd') return { label: 'DOUBT', tone: 'caution' as const, backgroundColor: '#F4C430', foregroundColor: '#171717' };
-  if (['i', 'u', 'n'].includes(status)) return { label: 'OUT', tone: 'out' as const, backgroundColor: '#7F1D1D', foregroundColor: '#FFFFFF' };
-  return { label: 'UNAV', tone: 'out' as const, backgroundColor: '#7F1D1D', foregroundColor: '#FFFFFF' };
-};
 
 const toStatLine = (row: any): PlayerStatLine => ({
   total_points: numeric(row?.total_points),
@@ -602,7 +581,7 @@ export default function PlayerPoolScreen() {
     const isOwnedByMe = owner?.userId === currentUserId;
     const isWaiverLocked = !owner && marketStatus === 'FREE_AGENCY' && waiverLockedPlayerIds.has(item.id);
     const mappedPositionColor = POSITION_COLORS[item.element_type] || '#222';
-    const availabilityMarker = getAvailabilityMarker(item);
+    const availabilityMarker = getPlayerAvailabilityMarker(item);
     const metricValue = getMetricValue(item, statsPeriod, sortKey);
     const metricDisplay = sortKey === 'DRAFT_RANK'
       ? (metricValue >= 999 ? 'N/A' : `#${Math.round(metricValue)}`)
