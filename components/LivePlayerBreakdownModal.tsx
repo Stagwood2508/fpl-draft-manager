@@ -47,6 +47,8 @@ export interface LivePlayerScore {
   red_card_count: number;
   red_card_points: number;
   bonus_points: number;
+  bonus_rank?: number | null;
+  provisional_bonus_points?: number;
   other_fpl_points: number;
   bps: number;
   defensive_contribution: number;
@@ -109,7 +111,13 @@ export default function LivePlayerBreakdownModal({ visible, player, gameweek, on
     { label: 'Own goals', detail: `${player.own_goal_count}`, points: player.own_goal_points },
     { label: 'Yellow cards', detail: `${player.yellow_card_count}`, points: player.yellow_card_points },
     { label: 'Red cards', detail: `${player.red_card_count}`, points: player.red_card_points },
-    { label: 'Bonus', detail: `${player.bps} BPS`, points: player.bonus_points },
+    {
+      label: 'Bonus',
+      detail: player.provisional_bonus_points
+        ? `${player.bps} BPS · live rank #${player.bonus_rank} · ${player.provisional_bonus_points} projected`
+        : `${player.bps} BPS`,
+      points: player.bonus_points,
+    },
     ...(player.other_fpl_points !== 0 ? [{
       label: 'Live FPL adjustment', detail: 'Official total reconciliation', points: player.other_fpl_points,
     }] : []),
@@ -146,6 +154,17 @@ export default function LivePlayerBreakdownModal({ visible, player, gameweek, on
                 <Text style={styles.totalPartLabel}>DEFCON</Text>
               </View>
             </View>
+          </View>
+
+          <View style={styles.eventStrip}>
+            {player.goal_count > 0 && <View style={styles.eventChip}><Ionicons name="football-outline" size={13} color={colors.accent} /><Text style={styles.eventChipText}>{player.goal_count} goal{player.goal_count === 1 ? '' : 's'}</Text></View>}
+            {player.assist_count > 0 && <View style={styles.eventChip}><Ionicons name="arrow-redo-outline" size={13} color={colors.info} /><Text style={styles.eventChipText}>{player.assist_count} assist{player.assist_count === 1 ? '' : 's'}</Text></View>}
+            {player.save_count > 0 && <View style={styles.eventChip}><Ionicons name="hand-left-outline" size={13} color={colors.warning} /><Text style={styles.eventChipText}>{player.save_count} saves</Text></View>}
+            {player.defcon_points > 0 && <View style={styles.eventChip}><Ionicons name="shield-checkmark-outline" size={13} color={colors.accent} /><Text style={styles.eventChipText}>DEFCON +{player.defcon_points}</Text></View>}
+            {(player.provisional_bonus_points || 0) > 0 && <View style={[styles.eventChip, styles.bonusEventChip]}><Ionicons name="star" size={12} color={colors.warning} /><Text style={styles.eventChipText}>Projected bonus +{player.provisional_bonus_points}</Text></View>}
+            {player.goal_count === 0 && player.assist_count === 0 && player.save_count === 0 && player.defcon_points === 0 && !player.provisional_bonus_points && (
+              <Text style={styles.noEventsText}>No scoring events recorded yet</Text>
+            )}
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -218,6 +237,11 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   totalPartValue: { color: colors.textPrimary, fontSize: 19, fontWeight: '900' },
   totalPartLabel: { color: colors.textMuted, fontSize: 8, fontWeight: '900', marginTop: 1 },
   totalPlus: { color: colors.textMuted, fontSize: 17, fontWeight: '900' },
+  eventStrip: { minHeight: 40, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: colors.border },
+  eventChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
+  bonusEventChip: { borderColor: colors.warning },
+  eventChipText: { color: colors.textSecondary, fontSize: 9, fontWeight: '900' },
+  noEventsText: { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
   scrollContent: { padding: 16, paddingBottom: 22 },
   sectionTitle: { color: colors.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 0.7, marginBottom: 7, marginTop: 4 },
   breakdownTable: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden', marginBottom: 15 },

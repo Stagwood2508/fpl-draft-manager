@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
@@ -261,14 +262,32 @@ export default function MatchesScreen() {
       if (liveScoresResult.error) throw liveScoresResult.error;
       if (playerScoresResult.error) throw playerScoresResult.error;
 
+      const provisionalBonusResult = viewMode === 'LIVE'
+        ? await supabase.rpc('get_gameweek_provisional_bonus_rankings', {
+            p_gameweek: selectedGameweek,
+          })
+        : { data: [], error: null };
+
+      if (provisionalBonusResult.error) {
+        console.warn('Provisional live bonus rankings unavailable:', provisionalBonusResult.error.message);
+      }
+
       const fixturesData = fixturesResult.data || [];
       const liveScoreMap = new Map<string, any>(
         (liveScoresResult.data || []).map((score: any) => [String(score.fixture_id), score])
       );
       const fixturePlayers = new Map<string, { home: PlayerScoreRow[]; away: PlayerScoreRow[] }>();
+      const provisionalBonusMap = new Map<number, any>(
+        (provisionalBonusResult.data || []).map((ranking: any) => [Number(ranking.player_id), ranking])
+      );
 
       (playerScoresResult.data || []).forEach((rawPlayer: any) => {
-        const player = rawPlayer as PlayerScoreRow;
+        const bonusRanking = provisionalBonusMap.get(Number(rawPlayer.player_id));
+        const player = {
+          ...rawPlayer,
+          bonus_rank: bonusRanking ? Number(bonusRanking.bonus_rank) : null,
+          provisional_bonus_points: bonusRanking ? Number(bonusRanking.provisional_bonus_points) : 0,
+        } as PlayerScoreRow;
         const fixture = fixturePlayers.get(player.fixture_id) || { home: [], away: [] };
         if (player.fixture_side === 'HOME') fixture.home.push(player);
         else fixture.away.push(player);
@@ -324,10 +343,16 @@ export default function MatchesScreen() {
       setMatchups(processedMatchups);
       setSelectedPlayer((current) => {
         if (!current) return null;
-        const refreshedPlayer = (playerScoresResult.data || []).find((player: any) =>
+        const refreshedRawPlayer = (playerScoresResult.data || []).find((player: any) =>
           player.fixture_id === current.fixture_id && Number(player.player_id) === Number(current.player_id)
-        ) as LivePlayerScore | undefined;
-        return refreshedPlayer || current;
+        ) as any;
+        if (!refreshedRawPlayer) return current;
+        const refreshedBonus = provisionalBonusMap.get(Number(refreshedRawPlayer.player_id));
+        return {
+          ...refreshedRawPlayer,
+          bonus_rank: refreshedBonus ? Number(refreshedBonus.bonus_rank) : null,
+          provisional_bonus_points: refreshedBonus ? Number(refreshedBonus.provisional_bonus_points) : 0,
+        } as LivePlayerScore;
       });
     } catch (err: any) {
       console.error('Error loading matches:', err.message);
@@ -351,6 +376,29 @@ export default function MatchesScreen() {
         animated: true,
       });
     }
+  };
+
+  const renderPlayerEvents = (player: PlayerScoreRow, alignRight = false) => {
+    const events = [
+      player.goal_count > 0 ? { icon: 'football-outline' as const, label: String(player.goal_count), color: colors.accent } : null,
+      player.assist_count > 0 ? { icon: 'arrow-redo-outline' as const, label: String(player.assist_count), color: colors.info } : null,
+      player.save_count > 0 ? { icon: 'hand-left-outline' as const, label: String(player.save_count), color: colors.warning } : null,
+      player.defcon_points > 0 ? { icon: 'shield-checkmark-outline' as const, label: `+${player.defcon_points}`, color: colors.accent } : null,
+      (player.provisional_bonus_points || 0) > 0 ? { icon: 'star' as const, label: `+${player.provisional_bonus_points}`, color: colors.warning } : null,
+    ].filter(Boolean) as { icon: 'football-outline' | 'arrow-redo-outline' | 'hand-left-outline' | 'shield-checkmark-outline' | 'star'; label: string; color: string }[];
+
+    if (events.length === 0) return null;
+
+    return (
+      <View style={[styles.playerEventRow, alignRight && styles.playerEventRowRight]}>
+        {events.map((event, index) => (
+          <View key={`${event.icon}-${index}`} style={styles.playerEventChip}>
+            <Ionicons name={event.icon} size={10} color={event.color} />
+            <Text style={[styles.playerEventText, { color: event.color }]}>{event.label}</Text>
+          </View>
+        ))}
+      </View>
+    );
   };
 
   const getAvailableGameweeks = () => {
@@ -589,6 +637,7 @@ export default function MatchesScreen() {
                                     <View style={{ width: '70%' }}>
                                       <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
                                       <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
+                                      {renderPlayerEvents(p)}
                                     </View>
                                     <Text style={styles.pPoints}>{p.combined_points} pts</Text>
                                   </TouchableOpacity>
@@ -610,6 +659,7 @@ export default function MatchesScreen() {
                                     <View style={{ width: '70%' }}>
                                       <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
                                       <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
+                                      {renderPlayerEvents(p)}
                                     </View>
                                     <Text style={styles.pPoints}>{p.combined_points} pts</Text>
                                   </TouchableOpacity>
@@ -633,6 +683,7 @@ export default function MatchesScreen() {
                                 <View style={{ width: '70%' }}>
                                   <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
                                   <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
+                                  {renderPlayerEvents(p)}
                                 </View>
                                 <Text style={styles.pPoints}>{p.combined_points} pts</Text>
                               </TouchableOpacity>
@@ -654,6 +705,7 @@ export default function MatchesScreen() {
                                 <View style={{ width: '70%', alignItems: 'flex-end' }}>
                                   <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
                                   <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
+                                  {renderPlayerEvents(p, true)}
                                 </View>
                                 <Text style={[styles.pPoints, { textAlign: 'left' }]}>{p.combined_points} pts</Text>
                               </TouchableOpacity>
@@ -761,5 +813,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   playerScoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, padding: 8, borderRadius: 4, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
   pName: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
   pPos: { color: colors.textMuted, fontSize: 8, fontWeight: '800', marginTop: 1 },
+  playerEventRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 4 },
+  playerEventRowRight: { justifyContent: 'flex-end' },
+  playerEventChip: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  playerEventText: { fontSize: 7, fontWeight: '900' },
   pPoints: { color: colors.accent, fontSize: 11, fontWeight: '800', width: '30%', textAlign: 'right' },
 });

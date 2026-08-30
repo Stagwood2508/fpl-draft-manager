@@ -69,6 +69,7 @@ interface GameweekStat {
   opponent_short: string;
   is_home: boolean;
   score_display: string;
+  opponent_display: string;
 }
 
 interface UpcomingFixture {
@@ -316,45 +317,63 @@ export default function PlayerCardModal({
 
       if (statsMode === 'CURRENT') {
         // 2. Fetch Completed Gameweek Stats History
-        const { data: statsData } = await supabase
-          .from('player_gameweek_stats')
-          .select(`
-            gameweek,
-            minutes,
-            goals,
-            assists,
-            clean_sheets,
-            cbit_points,
-            total_points,
-            fixtures (
-              home_team_short,
-              away_team_short,
-              home_score,
-              away_score
-            )
-          `)
-          .eq('player_id', playerId)
-          .lte('gameweek', currentGameweek)
-          .order('gameweek', { ascending: false });
+        const { data: statsData, error: historyError } = await supabase
+          .rpc('get_player_gameweek_history', {
+            p_league_id: leagueId,
+            p_player_id: playerId,
+            p_through_gameweek: currentGameweek,
+          });
+
+        if (historyError) throw historyError;
 
         if (statsData) {
+          const historyGameweeks = [...new Set(statsData.map((row: any) => Number(row.gameweek)))];
+          const { data: playedFixtures, error: fixturesHistoryError } = historyGameweeks.length > 0
+            ? await supabase
+                .from('fixtures')
+                .select('gameweek, home_team_id, away_team_id, home_team_short, away_team_short, home_score, away_score, kickoff_time')
+                .in('gameweek', historyGameweeks)
+                .or(`home_team_id.eq.${playerData.team_id},away_team_id.eq.${playerData.team_id}`)
+                .order('kickoff_time', { ascending: true })
+            : { data: [], error: null };
+
+          if (fixturesHistoryError) throw fixturesHistoryError;
+
+          const fixturesByGameweek = new Map<number, any[]>();
+          (playedFixtures || []).forEach((fixture: any) => {
+            const rows = fixturesByGameweek.get(Number(fixture.gameweek)) || [];
+            rows.push(fixture);
+            fixturesByGameweek.set(Number(fixture.gameweek), rows);
+          });
+
           const formattedHistory: GameweekStat[] = statsData.map((row: any) => {
-            const fix = row.fixtures;
-            const isHome = fix?.home_team_short === playerData.team_name?.slice(0, 3).toUpperCase();
-            const oppShort = isHome ? fix?.away_team_short || 'OPP' : fix?.home_team_short || 'OPP';
-            const score = fix ? `${fix.home_score ?? 0}-${fix.away_score ?? 0}` : 'v';
+            const gameweekFixtures = fixturesByGameweek.get(Number(row.gameweek)) || [];
+            const firstFixture = gameweekFixtures[0];
+            const isHome = firstFixture ? Number(firstFixture.home_team_id) === Number(playerData.team_id) : false;
+            const opponentDisplay = gameweekFixtures.length > 0
+              ? gameweekFixtures.map((fixture: any) => {
+                  const home = Number(fixture.home_team_id) === Number(playerData.team_id);
+                  return `${home ? 'vs' : '@'} ${home ? fixture.away_team_short : fixture.home_team_short}`;
+                }).join(' / ')
+              : 'Fixture unavailable';
+            const score = gameweekFixtures.length > 0
+              ? gameweekFixtures.map((fixture: any) => `${fixture.home_score ?? 0}-${fixture.away_score ?? 0}`).join(' / ')
+              : '—';
 
             return {
               gameweek: row.gameweek,
               minutes: row.minutes || 0,
-              goals: row.goals || 0,
+              goals: row.goals_scored || 0,
               assists: row.assists || 0,
               clean_sheets: row.clean_sheets || 0,
-              cbit_points: row.cbit_points || 0,
+              cbit_points: row.defcon_points || 0,
               total_points: row.total_points || 0,
-              opponent_short: oppShort,
+              opponent_short: firstFixture
+                ? (isHome ? firstFixture.away_team_short : firstFixture.home_team_short)
+                : '—',
               is_home: isHome,
               score_display: score,
+              opponent_display: opponentDisplay,
             };
           });
           setHistory(formattedHistory);
@@ -376,7 +395,7 @@ export default function PlayerCardModal({
               gameweek: fix.gameweek,
               opponent_short: isHome ? fix.away_team_short || 'OPP' : fix.home_team_short || 'OPP',
               is_home: isHome,
-              fdr: isHome ? fix.home_fdr || 3 : fix.away_fdr || 3,
+              fdr: isHome ? fix.home_difficulty || 3 : fix.away_difficulty || 3,
             };
           });
           setSchedule(formattedSchedule);
@@ -641,13 +660,13 @@ export default function PlayerCardModal({
                   {/* Defensive Contribution Tiers Summary */}
                   {statsMode === 'CURRENT' && (
                     <>
-                      <Text style={styles.sectionHeader}>Tactical Defensive Contributions (CBIT/CBIRT)</Text>
+                      <Text style={styles.sectionHeader}>Custom Defensive Contributions (DEFCON)</Text>
                       <View style={styles.cbitBanner}>
                         <Ionicons name="shield-checkmark" size={18} color={colors.accent} />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={styles.cbitBannerTitle}>Custom Tier Points Earned</Text>
                           <Text style={styles.cbitBannerSub}>
-                            Accumulated via successful CBIT/CBIRT action thresholds.
+                            Accumulated through this league’s custom DEFCON tiers.
                           </Text>
                         </View>
                         <Text style={styles.cbitBannerVal}>
@@ -672,7 +691,7 @@ export default function PlayerCardModal({
                         <Text style={[styles.thCell, { width: 35 }]}>MIN</Text>
                         <Text style={[styles.thCell, { width: 25 }]}>G</Text>
                         <Text style={[styles.thCell, { width: 25 }]}>A</Text>
-                        <Text style={[styles.thCell, { width: 30 }]}>CBIT</Text>
+                        <Text style={[styles.thCell, { width: 30 }]}>DC</Text>
                         <Text style={[styles.thCell, { width: 35, textAlign: 'right' }]}>PTS</Text>
                       </View>
 
@@ -682,8 +701,7 @@ export default function PlayerCardModal({
                             {row.gameweek}
                           </Text>
                           <Text style={[styles.tdCell, { flex: 1 }]}>
-                            {row.is_home ? 'vs ' : '@ '}
-                            {row.opponent_short} ({row.score_display})
+                            {row.opponent_display} ({row.score_display})
                           </Text>
                           <Text style={[styles.tdCell, { width: 35 }]}>{row.minutes}'</Text>
                           <Text style={[styles.tdCell, { width: 25 }]}>{row.goals}</Text>

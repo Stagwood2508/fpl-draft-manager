@@ -593,7 +593,12 @@ export default function HomeDashboardScreen() {
                           <Text style={styles.mobileTeamName} numberOfLines={1}>{fixture.homeTeamName}</Text>
                         </View>
                         <View style={styles.mobileScoreBlock}>
-                          <Text style={fixtureIsLive || fixture.isFinished ? styles.mobileScoreText : styles.mobileVersusText}>
+                          <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.82}
+                            style={fixtureIsLive || fixture.isFinished ? styles.mobileScoreText : styles.mobileVersusText}
+                          >
                             {fixtureIsLive || fixture.isFinished ? `${fixture.homeScore}–${fixture.awayScore}` : 'VS'}
                           </Text>
                         </View>
@@ -975,8 +980,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   mobileScoreboard: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: appSpacing.md, paddingVertical: appSpacing.sm },
   mobileTeamBlock: { flex: 1, minWidth: 0 },
   mobileTeamName: { color: appColors.textPrimary, fontSize: 12, fontWeight: '900' },
-  mobileScoreBlock: { width: 58, alignItems: 'center' },
-  mobileScoreText: { color: appColors.textPrimary, fontSize: 20, fontWeight: '900' },
+  mobileScoreBlock: { width: 78, minWidth: 78, alignItems: 'center' },
+  mobileScoreText: { width: '100%', color: appColors.textPrimary, fontSize: 20, lineHeight: 24, fontWeight: '900', textAlign: 'center' },
   mobileVersusText: { color: appColors.accent, fontSize: 15, fontWeight: '900' },
   mobileFixtureEmpty: { ...appTypography.metadata, color: appColors.textMuted, padding: appSpacing.lg, textAlign: 'center' },
   mobileDeadlineRow: { minHeight: 43, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: appSpacing.md, paddingVertical: 7, backgroundColor: appColors.backgroundDeep, borderTopWidth: 1, borderTopColor: appColors.borderSubtle },
