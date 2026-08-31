@@ -14,7 +14,7 @@ import {
   Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { supabase } from '@/utils/supabase';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import { useAppSession } from '@/features/account/hooks/useAppSession';

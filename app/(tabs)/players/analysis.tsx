@@ -9,7 +9,7 @@ import {
   Alert,
   useWindowDimensions
 } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';

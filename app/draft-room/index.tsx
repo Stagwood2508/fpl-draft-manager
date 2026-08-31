@@ -5320,7 +5320,11 @@ sidebarSquadButtonPlayerList: {
 },
 
 myTurnPulseOverlay: {
-  ...StyleSheet.absoluteFillObject,
+  position: 'absolute',
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
   backgroundColor: 'rgba(0,242,122,0.18)',
   borderWidth: 2,
   borderColor: '#00F27A',

@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useRouter } from 'expo-router';
 
 import PlayerHeadshot from '@/components/PlayerHeadshot';
@@ -1144,7 +1144,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   scoreModeTextActive: { color: appColors.accentForeground },
   pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 13, backgroundColor: appColors.pitch, borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
   pitchCompact: { height: 480, paddingVertical: 9 },
-  pitchLines: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', opacity: 0.2 },
+  pitchLines: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', opacity: 0.2 },
   penaltyArea: { position: 'absolute', top: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: appColors.pitchLine },
   centerLine: { position: 'absolute', width: '100%', height: 1.5, backgroundColor: appColors.pitchLine },
   centerCircle: { width: 105, height: 105, borderRadius: 53, borderWidth: 1.5, borderColor: appColors.pitchLine },

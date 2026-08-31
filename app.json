@@ -7,11 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "fpldraftmanager",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A1F14"
-    },
     "web": {
       "favicon": "./assets/icon.png"
     },

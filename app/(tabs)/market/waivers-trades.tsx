@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useAppSession } from '@/features/account/hooks/useAppSession';

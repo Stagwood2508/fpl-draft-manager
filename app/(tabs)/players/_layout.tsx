@@ -1,4 +1,4 @@
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { createMaterialTopTabNavigator } from 'expo-router/js-top-tabs';
 import { withLayoutContext } from 'expo-router';
 import { Platform } from 'react-native';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
