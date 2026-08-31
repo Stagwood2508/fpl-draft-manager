@@ -522,7 +522,7 @@ export default function PlayerCardModal({
                 style={[styles.tabText, styles.scoringHistoryTabText, activeTab === 'HISTORY' && styles.tabTextActive]}
                 numberOfLines={1}
               >
-                SCORING HISTORY
+                HISTORY
               </Text>
             </TouchableOpacity>
 
