@@ -69,6 +69,14 @@ interface GameweekStat {
   goals: number;
   assists: number;
   clean_sheets: number;
+  goals_conceded: number;
+  own_goals: number;
+  penalties_saved: number;
+  penalties_missed: number;
+  yellow_cards: number;
+  red_cards: number;
+  saves: number;
+  bonus: number;
   cbit_points: number;
   total_points: number;
   opponent_short: string;
@@ -391,6 +399,14 @@ export default function PlayerCardModal({
               goals: row.goals_scored || 0,
               assists: row.assists || 0,
               clean_sheets: row.clean_sheets || 0,
+              goals_conceded: row.goals_conceded || 0,
+              own_goals: row.own_goals || 0,
+              penalties_saved: row.penalties_saved || 0,
+              penalties_missed: row.penalties_missed || 0,
+              yellow_cards: row.yellow_cards || 0,
+              red_cards: row.red_cards || 0,
+              saves: row.saves || 0,
+              bonus: row.bonus || 0,
               cbit_points: row.defcon_points || 0,
               total_points: row.total_points || 0,
               opponent_short: firstFixture
@@ -743,34 +759,50 @@ export default function PlayerCardModal({
                       <Text style={[styles.emptyText, styles.historyEmptyText]}>No scoring history has been recorded for this season yet.</Text>
                     </View>
                   ) : (
-                    <View>
-                      <View style={styles.tableHeaderRow}>
-                        <Text style={[styles.thCell, { width: 35 }]}>GW</Text>
-                        <Text style={[styles.thCell, { flex: 1 }]}>OPPONENT</Text>
-                        <Text style={[styles.thCell, { width: 35 }]}>MIN</Text>
-                        <Text style={[styles.thCell, { width: 25 }]}>G</Text>
-                        <Text style={[styles.thCell, { width: 25 }]}>A</Text>
-                        <Text style={[styles.thCell, { width: 30 }]}>DC</Text>
-                        <Text style={[styles.thCell, { width: 35, textAlign: 'right' }]}>PTS</Text>
-                      </View>
+                    <View style={styles.historyList}>
+                      {history.map((row) => {
+                        const events = [
+                          { key: 'minutes', icon: 'time-outline', label: `${row.minutes}'`, color: colors.textSecondary, show: true },
+                          { key: 'goals', icon: 'football-outline', label: `${row.goals} ${row.goals === 1 ? 'goal' : 'goals'}`, color: colors.accent, show: row.goals > 0 },
+                          { key: 'assists', icon: 'hand-left-outline', label: `${row.assists} ${row.assists === 1 ? 'assist' : 'assists'}`, color: colors.info, show: row.assists > 0 },
+                          { key: 'clean-sheet', icon: 'shield-checkmark-outline', label: 'Clean sheet', color: colors.accent, show: player?.element_type !== 'FWD' && row.clean_sheets > 0 },
+                          { key: 'conceded', icon: 'remove-circle-outline', label: `${row.goals_conceded} conceded`, color: colors.textSecondary, show: ['GKP', 'DEF'].includes(player?.element_type || '') && row.goals_conceded > 0 },
+                          { key: 'saves', icon: 'hand-left-outline', label: `${row.saves} saves`, color: colors.info, show: row.saves > 0 },
+                          { key: 'pen-saved', icon: 'shield-outline', label: `${row.penalties_saved} pen saved`, color: colors.accent, show: row.penalties_saved > 0 },
+                          { key: 'pen-missed', icon: 'close-circle-outline', label: `${row.penalties_missed} pen missed`, color: colors.danger, show: row.penalties_missed > 0 },
+                          { key: 'own-goal', icon: 'alert-circle-outline', label: `${row.own_goals} ${row.own_goals === 1 ? 'own goal' : 'own goals'}`, color: colors.danger, show: row.own_goals > 0 },
+                          { key: 'yellow', icon: 'square', label: `${row.yellow_cards} yellow`, color: colors.warning, show: row.yellow_cards > 0 },
+                          { key: 'red', icon: 'square', label: `${row.red_cards} red`, color: colors.danger, show: row.red_cards > 0 },
+                          { key: 'bonus', icon: 'star', label: `+${row.bonus} bonus`, color: colors.warning, show: row.bonus > 0 },
+                          { key: 'defcon', icon: 'shield-checkmark', label: `+${row.cbit_points} DEFCON`, color: colors.accent, show: row.cbit_points > 0 },
+                        ].filter(event => event.show);
 
-                      {history.map((row) => (
-                        <View key={row.gameweek} style={styles.tableBodyRow}>
-                          <Text style={[styles.tdCell, { width: 35, fontWeight: '900' }]}>
-                            {row.gameweek}
-                          </Text>
-                          <Text style={[styles.tdCell, { flex: 1 }]}>
-                            {row.opponent_display} ({row.score_display})
-                          </Text>
-                          <Text style={[styles.tdCell, { width: 35 }]}>{row.minutes}'</Text>
-                          <Text style={[styles.tdCell, { width: 25 }]}>{row.goals}</Text>
-                          <Text style={[styles.tdCell, { width: 25 }]}>{row.assists}</Text>
-                          <Text style={[styles.tdCell, { width: 30, color: colors.accent }]}>
-                            +{row.cbit_points}
-                          </Text>
-                          <Text style={[styles.tdCell, styles.ptsCell]}>{row.total_points}</Text>
-                        </View>
-                      ))}
+                        return (
+                          <View key={row.gameweek} style={styles.historyCard}>
+                            <View style={styles.historyCardHeader}>
+                              <View style={styles.historyGwBadge}>
+                                <Text style={styles.historyGwText}>GW {row.gameweek}</Text>
+                              </View>
+                              <View style={styles.historyFixtureCopy}>
+                                <Text style={styles.historyOpponent} numberOfLines={1}>{row.opponent_display}</Text>
+                                <Text style={styles.historyResult}>Premier League result · {row.score_display}</Text>
+                              </View>
+                              <View style={styles.historyPointsBadge}>
+                                <Text style={styles.historyPointsValue}>{row.total_points}</Text>
+                                <Text style={styles.historyPointsLabel}>PTS</Text>
+                              </View>
+                            </View>
+                            <View style={styles.historyEventRow}>
+                              {events.map(event => (
+                                <View key={event.key} style={styles.historyEventChip}>
+                                  <Ionicons name={event.icon as any} size={11} color={event.color} />
+                                  <Text style={[styles.historyEventText, { color: event.color }]}>{event.label}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                 </ScrollView>
@@ -1023,7 +1055,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
   tabBtnActive: { backgroundColor: colors.accentFill },
   tabText: { color: colors.textMuted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
-  scoringHistoryTabText: { fontSize: 8, letterSpacing: 0.1 },
+  scoringHistoryTabText: { fontSize: 11, letterSpacing: 0.1 },
   tabTextActive: { color: colors.accentForeground },
   seasonBanner: {
     flexDirection: 'row',
@@ -1208,30 +1240,20 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   cbitBannerSub: { color: colors.textSecondary, fontSize: 10, marginTop: 1 },
   cbitBannerVal: { color: colors.accent, fontSize: 14, fontWeight: '900' },
 
-  tableHeaderRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundDeep,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 4,
-    marginBottom: 6,
-  },
-  thCell: { color: colors.textMuted, fontSize: 9, fontWeight: '900', textAlign: 'left' },
-  tableBodyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceRaised,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tdCell: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
-  ptsCell: { width: 35, textAlign: 'right', color: colors.accent, fontWeight: '900' },
+  historyList: { gap: 7 },
+  historyCard: { padding: 10, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 7 },
+  historyCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  historyGwBadge: { minWidth: 42, paddingVertical: 6, paddingHorizontal: 7, alignItems: 'center', backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 5 },
+  historyGwText: { color: colors.textPrimary, fontSize: 9, fontWeight: '900' },
+  historyFixtureCopy: { flex: 1, minWidth: 0 },
+  historyOpponent: { color: colors.textPrimary, fontSize: 11, fontWeight: '900' },
+  historyResult: { color: colors.textMuted, fontSize: 8.5, fontWeight: '700', marginTop: 2 },
+  historyPointsBadge: { minWidth: 42, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 7, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: 6 },
+  historyPointsValue: { color: colors.accent, fontSize: 16, lineHeight: 17, fontWeight: '900' },
+  historyPointsLabel: { color: colors.textSecondary, fontSize: 7, fontWeight: '900', marginTop: 1 },
+  historyEventRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 9, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borderSubtle },
+  historyEventChip: { minHeight: 25, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderSubtle, borderRadius: 999 },
+  historyEventText: { fontSize: 8, fontWeight: '900' },
 
   emptyText: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic', textAlign: 'center', marginTop: 40 },
 
