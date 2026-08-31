@@ -71,6 +71,13 @@ interface AutoSubAuditItem {
   created_at: string;
 }
 
+interface SquadGameweekScore {
+  player_id: number;
+  combined_points: number;
+  minutes: number;
+  stats_updated_at: string | null;
+}
+
 interface SquadCounts {
   GKP: number;
   DEF: number;
@@ -178,6 +185,41 @@ export default function SquadScreen() {
   const [selectedRosterId, setSelectedRosterId] = useState<string | null>(null);
   const [inspectingPlayerId, setInspectingPlayerId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [displayMode, setDisplayMode] = useState<'fixtures' | 'points'>('fixtures');
+  const [gameweekScores, setGameweekScores] = useState<Record<number, SquadGameweekScore>>({});
+  const [scoresLoading, setScoresLoading] = useState(false);
+
+  const loadGameweekScores = useCallback(async (gameweekOverride?: number) => {
+    const gameweek = gameweekOverride || currentGameweek;
+    if (!activeLeagueId || gameweek <= 0) {
+      setGameweekScores({});
+      return;
+    }
+
+    setScoresLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_my_squad_gameweek_scores', {
+        p_league_id: activeLeagueId,
+        p_gameweek: gameweek,
+      });
+      if (error) throw error;
+
+      const nextScores: Record<number, SquadGameweekScore> = {};
+      ((data || []) as SquadGameweekScore[]).forEach(score => {
+        nextScores[Number(score.player_id)] = {
+          ...score,
+          player_id: Number(score.player_id),
+          combined_points: Number(score.combined_points || 0),
+          minutes: Number(score.minutes || 0),
+        };
+      });
+      setGameweekScores(nextScores);
+    } catch (error) {
+      console.warn('[SQUAD] Gameweek scores unavailable', error);
+    } finally {
+      setScoresLoading(false);
+    }
+  }, [activeLeagueId, currentGameweek]);
 
   const loadSquad = useCallback(async (asRefresh = false) => {
     if (!currentUserId || !activeLeagueId) {
@@ -308,13 +350,14 @@ export default function SquadScreen() {
       setAutosubAudit(resolvedAutosubAudit);
       setWatchlistIds(new Set((watchlistResponse.data || []).map(row => Number(row.player_id))));
       setLastSavedAt(auditResponse.data?.created_at || null);
+      void loadGameweekScores(resolvedGameweek);
     } catch (error: any) {
       Alert.alert('Squad unavailable', error?.message || 'Your squad could not be loaded.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeLeagueId, currentUserId]);
+  }, [activeLeagueId, currentUserId, loadGameweekScores]);
 
   useEffect(() => {
     if (isFocused) void loadSquad();
@@ -331,6 +374,12 @@ export default function SquadScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!isFocused || displayMode !== 'points' || currentGameweek <= 0 || gameweekFinished) return;
+    const timer = setInterval(() => void loadGameweekScores(), 30000);
+    return () => clearInterval(timer);
+  }, [currentGameweek, displayMode, gameweekFinished, isFocused, loadGameweekScores]);
+
   const formationErrors = useMemo(() => getFormationErrors(roster), [roster]);
   const rosterCounts = useMemo(() => getCounts(roster), [roster]);
   const starters = useMemo(() => roster.filter(item => item.is_starting), [roster]);
@@ -343,6 +392,16 @@ export default function SquadScreen() {
       .filter(item => !item.is_starting && item.players?.element_type !== 'GKP')
       .sort((a, b) => (a.bench_order ?? 99) - (b.bench_order ?? 99)),
     [roster]
+  );
+  const startingPoints = useMemo(
+    () => starters.reduce((total, item) => total + (gameweekScores[item.player_id]?.combined_points || 0), 0),
+    [gameweekScores, starters]
+  );
+  const benchPoints = useMemo(
+    () => roster
+      .filter(item => !item.is_starting)
+      .reduce((total, item) => total + (gameweekScores[item.player_id]?.combined_points || 0), 0),
+    [gameweekScores, roster]
   );
   const starterCounts = useMemo(() => getCounts(roster, true), [roster]);
   const formation = `${starterCounts.DEF}-${starterCounts.MID}-${starterCounts.FWD}`;
@@ -530,6 +589,11 @@ export default function SquadScreen() {
     const availability = getAvailability(item.players, appColors);
     const isBenchOutfield = !item.is_starting && item.players.element_type !== 'GKP';
     const fixtureLabel = item.players.next_fixture || 'NO FIXTURE';
+    const gameweekScore = gameweekScores[item.player_id];
+    const playerPoints = gameweekScore?.combined_points ?? 0;
+    const metaLabel = displayMode === 'points'
+      ? `${playerPoints} ${playerPoints === 1 ? 'PT' : 'PTS'}`
+      : fixtureLabel;
 
     return (
       <View key={item.id} style={[styles.playerSlot, isCompact && styles.playerSlotCompact]}>
@@ -544,29 +608,40 @@ export default function SquadScreen() {
           accessibilityRole="button"
           accessibilityLabel={`${item.players.web_name}${isEditing ? ', select for lineup change' : ', view player details'}`}
         >
-          <View style={styles.playerStatusRow}>
-            <View style={[styles.availabilityDot, { backgroundColor: availability.color }]} />
-            <View style={styles.playerFlags}>
-              {watchlistIds.has(item.player_id) && <Ionicons name="star" size={10} color={appColors.warning} />}
-              {item.is_transfer_listed && <Ionicons name="swap-horizontal" size={11} color={appColors.info} />}
+          <View style={[styles.playerVisual, isCompact && styles.playerVisualCompact]}>
+            <View style={[styles.availabilityMarker, { borderColor: appColors.pitch }]}>
+              <View style={[styles.availabilityDot, { backgroundColor: availability.color }]} />
             </View>
-          </View>
-
-          <View style={[styles.avatar, isCompact && styles.avatarCompact]}>
-            <PlayerHeadshot
-              code={item.players.code}
-              photoCode={item.players.photo_code}
-              teamId={item.players.team_id}
-              style={[styles.headshot, isCompact && styles.headshotCompact]}
-              fallbackSize={isCompact ? 28 : 34}
-            />
+            <View style={styles.playerFlags}>
+              {watchlistIds.has(item.player_id) && <Ionicons name="star" size={12} color={appColors.warning} />}
+              {item.is_transfer_listed && <Ionicons name="swap-horizontal" size={12} color={appColors.info} />}
+            </View>
+            <View style={[styles.avatar, isCompact && styles.avatarCompact]}>
+              <PlayerHeadshot
+                code={item.players.code}
+                photoCode={item.players.photo_code}
+                teamId={item.players.team_id}
+                style={[styles.headshot, isCompact && styles.headshotCompact]}
+                fallbackSize={isCompact ? 28 : 34}
+              />
+            </View>
           </View>
 
           <Text style={[styles.playerName, isCompact && styles.playerNameCompact]} numberOfLines={1}>
             {item.players.web_name}
           </Text>
-          <Text numberOfLines={1} style={[styles.playerMeta, { color: POSITION_COLORS[item.players.element_type as SquadPosition] || appColors.textMuted }]}>
-            {fixtureLabel}
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.playerMeta,
+              {
+                color: displayMode === 'points'
+                  ? (playerPoints === 0 ? appColors.textMuted : appColors.accent)
+                  : POSITION_COLORS[item.players.element_type as SquadPosition] || appColors.textMuted,
+              },
+            ]}
+          >
+            {metaLabel}
           </Text>
         </Pressable>
 
@@ -861,12 +936,46 @@ export default function SquadScreen() {
         <View style={[styles.sectionHeader, isCompact && styles.sectionHeaderCompact]}>
           <View>
             <Text style={styles.sectionEyebrow}>STARTING XI</Text>
-            <Text style={styles.sectionTitle}>Formation view</Text>
+            <Text style={styles.sectionTitle}>
+              {displayMode === 'points' ? `XI · ${startingPoints} PTS` : 'Formation view'}
+            </Text>
           </View>
-          <View style={[styles.modeBadge, isEditing && styles.modeBadgeEditing]}>
-            <Ionicons name={isEditing ? 'swap-vertical' : 'eye-outline'} size={13} color={isEditing ? appColors.warning : appColors.accent} />
-            <Text style={[styles.modeBadgeText, isEditing && styles.modeBadgeTextEditing]}>{isEditing ? 'EDITING' : 'VIEW'}</Text>
-          </View>
+          {isEditing ? (
+            <View style={[styles.modeBadge, styles.modeBadgeEditing]}>
+              <Ionicons name="swap-vertical" size={13} color={appColors.warning} />
+              <Text style={[styles.modeBadgeText, styles.modeBadgeTextEditing]}>EDITING</Text>
+            </View>
+          ) : (
+            <View style={styles.scoreModeSwitch}>
+              <TouchableOpacity
+                style={[styles.scoreModeButton, displayMode === 'fixtures' && styles.scoreModeButtonActive]}
+                onPress={() => setDisplayMode('fixtures')}
+                accessibilityRole="button"
+                accessibilityState={{ selected: displayMode === 'fixtures' }}
+                accessibilityLabel="Show upcoming fixtures"
+              >
+                <Ionicons name="calendar-outline" size={12} color={displayMode === 'fixtures' ? appColors.accentForeground : appColors.textMuted} />
+                <Text style={[styles.scoreModeText, displayMode === 'fixtures' && styles.scoreModeTextActive]}>FIXTURES</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.scoreModeButton, displayMode === 'points' && styles.scoreModeButtonActive]}
+                onPress={() => {
+                  setDisplayMode('points');
+                  void loadGameweekScores();
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: displayMode === 'points' }}
+                accessibilityLabel={`Show Gameweek ${currentGameweek} points`}
+              >
+                {scoresLoading && displayMode === 'points' ? (
+                  <ActivityIndicator size={11} color={appColors.accentForeground} />
+                ) : (
+                  <Ionicons name="stats-chart" size={12} color={displayMode === 'points' ? appColors.accentForeground : appColors.textMuted} />
+                )}
+                <Text style={[styles.scoreModeText, displayMode === 'points' && styles.scoreModeTextActive]}>GW POINTS</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <View style={[styles.pitch, isCompact && styles.pitchCompact, isCompact && { height: Math.max(330, Math.min(430, height - 330)) }]}>
@@ -886,7 +995,9 @@ export default function SquadScreen() {
           <View style={[styles.sectionHeader, isCompact && styles.sectionHeaderCompact]}>
             <View>
               <Text style={styles.sectionEyebrow}>SUBSTITUTES</Text>
-              <Text style={styles.sectionTitle}>Automatic substitution priority</Text>
+              <Text style={styles.sectionTitle}>
+                {displayMode === 'points' ? `Bench · ${benchPoints} PTS` : 'Automatic substitution priority'}
+              </Text>
             </View>
             <Text style={styles.sectionHint}>GK fixed · outfield 1 → 3</Text>
           </View>
@@ -1034,6 +1145,11 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   modeBadgeEditing: { backgroundColor: appColors.warningSoft, borderColor: '#69501F' },
   modeBadgeText: { color: appColors.accent, fontSize: 7, fontWeight: '900' },
   modeBadgeTextEditing: { color: appColors.warning },
+  scoreModeSwitch: { flexDirection: 'row', alignItems: 'center', padding: 2, backgroundColor: appColors.backgroundDeep, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.pill },
+  scoreModeButton: { minHeight: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8, borderRadius: appRadius.pill },
+  scoreModeButtonActive: { backgroundColor: appColors.accentFill },
+  scoreModeText: { color: appColors.textMuted, fontSize: 7, fontWeight: '900' },
+  scoreModeTextActive: { color: appColors.accentForeground },
   pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 13, backgroundColor: appColors.pitch, borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
   pitchCompact: { height: 480, paddingVertical: 9 },
   pitchLines: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', opacity: 0.2 },
@@ -1041,22 +1157,24 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   centerLine: { position: 'absolute', width: '100%', height: 1.5, backgroundColor: appColors.pitchLine },
   centerCircle: { width: 105, height: 105, borderRadius: 53, borderWidth: 1.5, borderColor: appColors.pitchLine },
   pitchRow: { minHeight: 98, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 5, zIndex: 2 },
-  pitchRowCompact: { minHeight: 76, paddingHorizontal: 2 },
+  pitchRowCompact: { minHeight: 70, paddingHorizontal: 2 },
   playerSlot: { flex: 1, maxWidth: 155, minWidth: 0, alignItems: 'center', marginHorizontal: 3 },
   playerSlotCompact: { marginHorizontal: 1 },
-  playerCard: { width: '100%', minHeight: 76, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 3, backgroundColor: appColors.pitchPlayerSurface, borderWidth: 1, borderColor: 'transparent', borderRadius: appRadius.small },
-  playerCardCompact: { minHeight: 70, paddingHorizontal: 1 },
+  playerCard: { width: '100%', minHeight: 70, alignItems: 'center', justifyContent: 'center', paddingVertical: 3, paddingHorizontal: 3, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'transparent', borderRadius: appRadius.small },
+  playerCardCompact: { minHeight: 62, paddingVertical: 2, paddingHorizontal: 1 },
   playerCardSelected: { backgroundColor: 'rgba(0,242,122,0.16)', borderColor: appColors.accent },
   playerCardPressed: { opacity: 0.78 },
-  playerStatusRow: { width: '100%', minHeight: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3 },
+  playerVisual: { position: 'relative', width: 54, height: 40, alignItems: 'center', justifyContent: 'center' },
+  playerVisualCompact: { width: 48, height: 33 },
+  availabilityMarker: { position: 'absolute', top: 1, left: 0, zIndex: 3, width: 11, height: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.pitchPlayerSurface, borderWidth: 1.5, borderRadius: 6 },
   availabilityDot: { width: 6, height: 6, borderRadius: 3 },
-  playerFlags: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  playerFlags: { position: 'absolute', top: -2, right: -4, zIndex: 3, flexDirection: 'row', alignItems: 'center', gap: 2 },
   avatar: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center' },
   avatarCompact: { width: 31, height: 30 },
   headshot: { width: 38, height: 38 },
   headshotCompact: { width: 31, height: 31 },
-  playerName: { width: '100%', color: appColors.pitchPlayerNameText, fontSize: 9, fontWeight: '900', textAlign: 'center', backgroundColor: appColors.pitchPlayerNameSurface, paddingVertical: 2, paddingHorizontal: 3, borderRadius: 3 },
-  playerNameCompact: { fontSize: 7.5 },
+  playerName: { minWidth: 50, maxWidth: '96%', alignSelf: 'center', color: appColors.pitchPlayerNameText, fontSize: 9, fontWeight: '900', textAlign: 'center', backgroundColor: appColors.pitchPlayerNameSurface, paddingVertical: 2, paddingHorizontal: 7, borderRadius: 3, overflow: 'hidden' },
+  playerNameCompact: { minWidth: 44, maxWidth: '92%', fontSize: 7.5, paddingHorizontal: 5 },
   playerMeta: { fontSize: 7, fontWeight: '900', marginTop: 2 },
   priorityControls: { flexDirection: 'row', alignItems: 'center', marginTop: 3, backgroundColor: appColors.backgroundDeep, borderRadius: appRadius.small },
   priorityButton: { width: 26, height: 24, alignItems: 'center', justifyContent: 'center' },
