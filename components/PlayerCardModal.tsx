@@ -1022,7 +1022,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     borderRadius: 2,
   },
   tabBtnActive: { backgroundColor: colors.accentFill },
-  tabText: { color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  tabText: { color: colors.textMuted, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
   scoringHistoryTabText: { fontSize: 8, letterSpacing: 0.1 },
   tabTextActive: { color: colors.accentForeground },
   seasonBanner: {
