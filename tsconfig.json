@@ -8,6 +8,8 @@
     }
   },
   "exclude": [
+    "dist/**",
+    ".expo/**",
     "supabase/functions/**",
     "fantasy-draft-worker/supabase/functions/**"
   ]
