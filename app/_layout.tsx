@@ -250,6 +250,7 @@ function RootLayoutContent() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="league-chronicle" options={{ headerShown: false }} />
+          <Stack.Screen name="scoring-guide" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/create-league" options={{ title: 'CREATE LEAGUE' }} />
           <Stack.Screen name="(auth)/join-league" options={{ title: 'JOIN LEAGUE' }} />
           <Stack.Screen name="(auth)/forgot-password" options={{ title: 'RESET PASSWORD' }} />

@@ -12,7 +12,7 @@ declare
     'commissioner_restart_draft', 'counter_trade_package',
     'create_trade_package', 'execute_draft_pick', 'submit_draft_pick',
     'get_league_gameweek_player_scores', 'get_league_live_fixture_scores',
-    'get_league_luck_standings', 'get_league_standings_v2',
+    'get_league_luck_standings', 'get_league_scoring_guide', 'get_league_standings_v2',
     'get_manager_h2h_matrix', 'get_manager_squad_breakdown',
     'get_manager_trends_data', 'get_my_waiver_status',
     'get_gameweek_simulation_status', 'get_gameweek_simulation_players',

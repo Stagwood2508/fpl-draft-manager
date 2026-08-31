@@ -330,9 +330,17 @@ serve(async (req) => {
     const standardLiveUrl = `https://fantasy.premierleague.com/api/event/${gwNumber}/live/`;
     const draftLiveUrl = `https://draft.premierleague.com/api/event/${gwNumber}/live`;
 
-    const [bootstrapData, standardBootstrapData] = await Promise.all([
+    const [bootstrapData, standardBootstrapData, standardFixturesData] = await Promise.all([
       fetchJsonWithRetry("https://draft.premierleague.com/api/bootstrap-static"),
       fetchJsonWithRetry("https://fantasy.premierleague.com/api/bootstrap-static/"),
+      fetchJsonWithRetry(`https://fantasy.premierleague.com/api/fixtures/?event=${gwNumber}`)
+        .catch((fixtureError) => {
+          console.warn(
+            `Fixture-state refresh failed for GW${gwNumber}; live player scoring will continue without changing provisional autosubs:`,
+            fixtureError instanceof Error ? fixtureError.message : String(fixtureError),
+          );
+          return [];
+        }),
     ]);
 
     let liveData: any;
@@ -564,6 +572,42 @@ serve(async (req) => {
       }
     }
 
+    const standardTeams = Array.isArray(standardBootstrapData?.teams)
+      ? standardBootstrapData.teams
+      : [];
+    const standardTeamById = new Map<number, any>(
+      standardTeams.map((team: any) => [Number(team.id), team]),
+    );
+    const fixtureRows = Array.isArray(standardFixturesData)
+      ? standardFixturesData.map((fixture: any) => {
+          const homeTeam = standardTeamById.get(Number(fixture.team_h));
+          const awayTeam = standardTeamById.get(Number(fixture.team_a));
+          return {
+            id: Number(fixture.id),
+            gameweek: Number(fixture.event || gwNumber),
+            home_team_id: Number(fixture.team_h),
+            away_team_id: Number(fixture.team_a),
+            home_team_name: homeTeam?.name || "Unknown",
+            away_team_name: awayTeam?.name || "Unknown",
+            home_team_short: homeTeam?.short_name || "UNK",
+            away_team_short: awayTeam?.short_name || "UNK",
+            home_score: fixture.team_h_score,
+            away_score: fixture.team_a_score,
+            kickoff_time: fixture.kickoff_time,
+            home_difficulty: Number(fixture.team_h_difficulty || 0),
+            away_difficulty: Number(fixture.team_a_difficulty || 0),
+            is_finished: Boolean(fixture.finished),
+          };
+        })
+      : [];
+
+    if (fixtureRows.length > 0) {
+      const { error: fixtureSyncError } = await supabase
+        .from("fixtures")
+        .upsert(fixtureRows, { onConflict: "id" });
+      if (fixtureSyncError) throw fixtureSyncError;
+    }
+
 // 5. Perform bulk UPSERT into player_gameweek_stats
     if (rowsToUpsert.length > 0) {
       const statsBatchSize = 200;
@@ -580,6 +624,16 @@ serve(async (req) => {
           throw error;
         }
       }
+    }
+
+    let provisionalAutosubData = null;
+    if (!targetEvent?.finished) {
+      const { data, error: provisionalAutosubError } = await supabase.rpc(
+        "refresh_provisional_gameweek_autosubs",
+        { p_gameweek: gwNumber },
+      );
+      if (provisionalAutosubError) throw provisionalAutosubError;
+      provisionalAutosubData = data;
     }
 
     // 6. Process only after the master gameweek has finished. The RPC is
@@ -637,6 +691,8 @@ serve(async (req) => {
         players_reconciled: mappedBootstrapPlayers.length,
         unmapped_live_players: unmappedLivePlayers,
         schedule_records: gameweekRows.length,
+        fixtures_refreshed: fixtureRows.length,
+        provisional_autosubs: provisionalAutosubData,
         fixture_finalization: fixtureFinalizationData,
         cup_finalization: cupFinalizationData,
         message: `Successfully synced live stats for GW${gwNumber}`,

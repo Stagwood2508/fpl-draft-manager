@@ -232,6 +232,10 @@ export default function StandingsScreen() {
             <Ionicons name="newspaper-outline" size={15} color={colors.accent} />
             <Text style={styles.chronicleButtonText}>CHRONICLE</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.chronicleButton} onPress={() => router.push('/scoring-guide')} accessibilityLabel="Open league scoring rules">
+            <Ionicons name="calculator-outline" size={15} color={colors.accent} />
+            <Text style={styles.chronicleButtonText}>RULES</Text>
+          </TouchableOpacity>
         </View>
       </View>
 

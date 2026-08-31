@@ -775,7 +775,7 @@ export default function SquadScreen() {
             {autosubAudit.length === 0 ? (
               <Text style={styles.autosubSummaryText}>
                 {snapshotStatus === 'LOCKED'
-                  ? 'Your deadline lineup is safely stored. Autosubs will be evaluated after the gameweek finishes.'
+                  ? 'Your deadline lineup is safely stored. Live autosubs update provisionally as club fixtures finish and are confirmed at the end of the Gameweek.'
                   : 'No automatic substitutions were required.'}
               </Text>
             ) : autosubAudit.map(event => {

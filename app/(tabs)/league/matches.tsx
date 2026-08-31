@@ -588,7 +588,7 @@ export default function MatchesScreen() {
                       <View style={styles.panelHeaderRow}>
                         <Text style={styles.panelHeaderTitle}>Starting XI Matchup</Text>
                         {viewMode === 'LIVE' && (
-                          <Text style={styles.provisionalText}>Provisional · autosubs are applied when the Gameweek finishes</Text>
+                          <Text style={styles.provisionalText}>Provisional · autosubs update as club fixtures finish</Text>
                         )}
                       </View>
 
