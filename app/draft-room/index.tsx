@@ -2154,6 +2154,24 @@ useEffect(() => {
     });
   };
 
+  const randomiseDraftOrder = () => {
+    setDraftOrderDraft(current => {
+      if (current.length < 2) return current;
+
+      const shuffled = [...current];
+      for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+      }
+
+      // A valid shuffle can occasionally reproduce the same order. Rotate once
+      // so the commissioner always sees a visibly new draw after pressing the button.
+      const unchanged = shuffled.every((manager, index) => manager.user_id === current[index]?.user_id);
+      return unchanged ? [...shuffled.slice(1), shuffled[0]] : shuffled;
+    });
+    setCommissionerNotice('Random draft order generated · review it, then save to confirm');
+  };
+
   const saveDraftOrder = async () => {
     if (!leagueId) return;
     const saved = await runCommissionerRpc(
@@ -3074,13 +3092,21 @@ useEffect(() => {
               </View>
               <View style={styles.commissionerControlHeaderCopy}>
                 <Text style={styles.commissionerControlEyebrow}>COMMISSIONER</Text>
-                <Text style={styles.commissionerControlTitle}>Set manager draft order</Text>
+                <Text style={styles.commissionerControlTitle}>Set or randomise draft order</Text>
               </View>
               <Ionicons name={isDraftOrderEditorOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
             </TouchableOpacity>
             {isDraftOrderEditorOpen && (
               <View style={styles.draftOrderEditorBody}>
-                <Text style={styles.commissionerControlContext}>Set the first-round order. Even rounds automatically reverse.</Text>
+                <Text style={styles.commissionerControlContext}>Choose the first-round order manually or draw it randomly. Even rounds automatically reverse.</Text>
+                <TouchableOpacity
+                  style={styles.randomiseDraftOrderButton}
+                  onPress={randomiseDraftOrder}
+                  disabled={Boolean(commissionerAction) || draftOrderDraft.length < 2}
+                >
+                  <Ionicons name="shuffle" size={15} color={colors.accent} />
+                  <Text style={styles.randomiseDraftOrderButtonText}>RANDOMISE ORDER</Text>
+                </TouchableOpacity>
                 {draftOrderDraft.map((manager, index) => (
                   <View key={`order-editor-${manager.user_id}`} style={styles.draftOrderEditorRow}>
                     <View style={styles.draftOrderEditorNumber}><Text style={styles.draftOrderEditorNumberText}>{index + 1}</Text></View>
@@ -5652,6 +5678,8 @@ preDraftCommissionerPanel: {
 },
 preDraftCommissionerHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 },
 draftOrderEditorBody: { padding: 10, paddingTop: 2, borderTopWidth: 1, borderTopColor: '#172A24' },
+randomiseDraftOrderButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 9, marginBottom: 2, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: 9 },
+randomiseDraftOrderButtonText: { color: colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 0.4 },
 draftOrderEditorRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', marginTop: 5, paddingHorizontal: 8, backgroundColor: '#0D1B24', borderRadius: 8 },
 draftOrderEditorNumber: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0D2A1C', borderRadius: 6 },
 draftOrderEditorNumberText: { color: '#00F27A', fontSize: 9, fontWeight: '900' },
