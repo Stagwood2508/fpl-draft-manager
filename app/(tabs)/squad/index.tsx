@@ -180,7 +180,6 @@ export default function SquadScreen() {
   const [autosubAudit, setAutosubAudit] = useState<AutoSubAuditItem[]>([]);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [watchlistIds, setWatchlistIds] = useState<Set<number>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [selectedRosterId, setSelectedRosterId] = useState<string | null>(null);
   const [inspectingPlayerId, setInspectingPlayerId] = useState<number | null>(null);
@@ -231,7 +230,7 @@ export default function SquadScreen() {
     else setLoading(true);
 
     try {
-      const [rosterResponse, memberResponse, leagueResponse, gameweekResponse, watchlistResponse, auditResponse, fixturesResponse] = await Promise.all([
+      const [rosterResponse, memberResponse, leagueResponse, gameweekResponse, auditResponse, fixturesResponse] = await Promise.all([
         supabase
           .from('rosters')
           .select('id, player_id, is_starting, is_gk, bench_order, is_transfer_listed, trade_note, players(*)')
@@ -256,11 +255,6 @@ export default function SquadScreen() {
           .order('gameweek', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from('watchlists')
-          .select('player_id')
-          .eq('league_id', activeLeagueId)
-          .eq('user_id', currentUserId),
         supabase
           .from('lineup_change_audit')
           .select('created_at')
@@ -348,7 +342,6 @@ export default function SquadScreen() {
       setGameweekStatus(gameweekResponse.data?.status || null);
       setSnapshotStatus(resolvedSnapshotStatus);
       setAutosubAudit(resolvedAutosubAudit);
-      setWatchlistIds(new Set((watchlistResponse.data || []).map(row => Number(row.player_id))));
       setLastSavedAt(auditResponse.data?.created_at || null);
       void loadGameweekScores(resolvedGameweek);
     } catch (error: any) {
@@ -613,7 +606,6 @@ export default function SquadScreen() {
               <View style={[styles.availabilityDot, { backgroundColor: availability.color }]} />
             </View>
             <View style={styles.playerFlags}>
-              {watchlistIds.has(item.player_id) && <Ionicons name="star" size={12} color={appColors.warning} />}
               {item.is_transfer_listed && <Ionicons name="swap-horizontal" size={12} color={appColors.info} />}
             </View>
             <View style={[styles.avatar, isCompact && styles.avatarCompact]}>
