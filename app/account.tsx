@@ -64,6 +64,12 @@ export default function AccountAndPrivacyScreen() {
           <Text style={styles.body}>Crash reports and tester feedback may include the app screen, device platform, app version and technical error details. Passwords are handled by Supabase Auth and are not visible to this app.</Text>
           <Text style={styles.body}>Your information is used to provide league features, maintain reliability and investigate beta feedback. It is not sold. League activity may remain visible to other league members while your account exists.</Text>
           <Text style={styles.body}>Use the Tester Feedback screen for privacy questions or data requests. Account deletion below removes your authentication record and associated personal app data.</Text>
+          <TouchableOpacity style={styles.policyButton} onPress={() => router.push('/privacy')}>
+            <Text style={styles.policyButtonText}>VIEW FULL PRIVACY POLICY</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.policyButton} onPress={() => router.push('/delete-account')}>
+            <Text style={styles.policyButtonText}>OPEN PUBLIC ACCOUNT-DELETION PAGE</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={[styles.card, styles.dangerCard]}>
@@ -101,6 +107,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: appSpacing.lg, borderRadius: appRadius.medium },
   sectionTitle: { ...appTypography.sectionTitle, color: colors.accent, textTransform: 'uppercase', marginBottom: 12 },
   body: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: 10 },
+  policyButton: { borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSoft, padding: 12, borderRadius: appRadius.small, alignItems: 'center', marginTop: 8 },
+  policyButtonText: { color: colors.accent, fontSize: 11, fontWeight: '900' },
   dangerCard: { borderColor: colors.danger },
   dangerTitle: { ...appTypography.sectionTitle, color: colors.danger, textTransform: 'uppercase', marginBottom: 12 },
   input: { backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.border, color: colors.textPrimary, padding: 13, borderRadius: appRadius.small, marginTop: 8 },

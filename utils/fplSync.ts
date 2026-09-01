@@ -32,6 +32,7 @@ interface FPLRawFixture {
   team_h_score: number | null;
   team_a_score: number | null;
   finished: boolean;
+  finished_provisional?: boolean;
   kickoff_time: string;
   team_h_difficulty: number;
   team_a_difficulty: number;
@@ -174,6 +175,7 @@ export async function synchronizeFplPlayerPool(): Promise<{ success: boolean; co
           home_difficulty: f.team_h_difficulty,
           away_difficulty: f.team_a_difficulty,
           is_finished: f.finished,
+          is_finished_provisional: Boolean(f.finished_provisional || f.finished),
         };
       });
 

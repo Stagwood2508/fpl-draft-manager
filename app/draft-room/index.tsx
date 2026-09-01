@@ -569,9 +569,9 @@ const PlayerPoolRow = React.memo(({
   onInspect, 
   onToggleWatchlist, 
   onSelect,
-  onLongPressRow,
-  onMoveUp,
-  onMoveDown,
+  onPriorityPress,
+  isPrioritySwapSource = false,
+  isPrioritySwapActive = false,
   rosterBlockedReason,
   sortMetric = 'POINTS',
 }: {
@@ -584,9 +584,9 @@ const PlayerPoolRow = React.memo(({
   onInspect: (p: DraftedPlayer) => void;
   onToggleWatchlist: (p: DraftedPlayer) => void;
   onSelect: (p: DraftedPlayer) => void;
-  onLongPressRow?: (p: DraftedPlayer) => void;
-  onMoveUp?: (p: DraftedPlayer) => void;
-  onMoveDown?: (p: DraftedPlayer) => void;
+  onPriorityPress?: (p: DraftedPlayer) => void;
+  isPrioritySwapSource?: boolean;
+  isPrioritySwapActive?: boolean;
   rosterBlockedReason?: string | null;
   sortMetric?: SortMetric;
 }) => {
@@ -604,6 +604,8 @@ const PlayerPoolRow = React.memo(({
       themeStyles.playerPoolRow,
       isSelected && styles.playerPoolRowSelected,
       isSelected && themeStyles.playerPoolRowSelected,
+      isPrioritySwapSource && styles.watchlistSwapSourceRow,
+      isPrioritySwapActive && !isPrioritySwapSource && styles.watchlistSwapTargetRow,
       isPickDisabled && styles.playerPoolRowTurnDisabled,
     ]}
   >
@@ -613,13 +615,17 @@ const PlayerPoolRow = React.memo(({
         isInfoHovered && styles.rowClickContainerHovered,
         pressed && styles.rowClickContainerPressed,
       ]}
-      onPress={() => onInspect(item)}
-      onLongPress={() => onLongPressRow && onLongPressRow(item)}
+      onPress={() => onPriorityPress ? onPriorityPress(item) : onInspect(item)}
       onHoverIn={() => Platform.OS === 'web' && setIsInfoHovered(true)}
       onHoverOut={() => Platform.OS === 'web' && setIsInfoHovered(false)}
-      delayLongPress={300}
       accessibilityRole="button"
-      accessibilityLabel={`View stats for ${item.web_name}`}
+      accessibilityLabel={onPriorityPress
+        ? isPrioritySwapSource
+          ? `Cancel moving ${item.web_name}`
+          : isPrioritySwapActive
+            ? `Swap priority with ${item.web_name}`
+            : `Select ${item.web_name} to change priority`
+        : `View stats for ${item.web_name}`}
     >
       {watchlistIndex !== undefined && (
         <Text style={styles.watchlistIndexNumberText}>{watchlistIndex}. </Text>
@@ -631,14 +637,17 @@ const PlayerPoolRow = React.memo(({
         </Text>
       </View>
       <PositionBadge position={item.element_type} />
-      <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
+      <Ionicons
+        name={onPriorityPress ? (isPrioritySwapSource ? 'close-circle' : 'swap-vertical') : 'information-circle-outline'}
+        size={16}
+        color={isPrioritySwapSource || isPrioritySwapActive ? colors.accent : colors.textMuted}
+      />
     </Pressable>
 
     <View style={styles.playerRowActionBar}>
-      {onMoveUp && onMoveDown ? (
+      {onPriorityPress ? (
         <>
-          <PlayerRowAction icon="arrow-up" label="UP" onPress={() => onMoveUp(item)} />
-          <PlayerRowAction icon="arrow-down" label="DOWN" onPress={() => onMoveDown(item)} />
+          <PlayerRowAction icon="information-circle-outline" label="INFO" onPress={() => onInspect(item)} />
           <PlayerRowAction
             icon="trash-outline"
             label="REMOVE"
@@ -1027,7 +1036,8 @@ const isDesktop = width >= 1050;
   
   const [selectedPlayer, setSelectedPlayer] = useState<DraftedPlayer | null>(null);
   const [inspectingPlayer, setInspectingPlayer] = useState<DraftedPlayer | null>(null);
-  const [dragMovingPlayer, setDragMovingPlayer] = useState<DraftedPlayer | null>(null);
+  const [prioritySwapPlayerId, setPrioritySwapPlayerId] = useState<number | null>(null);
+  const [isSavingWatchlistOrder, setIsSavingWatchlistOrder] = useState(false);
 
   const [draftStartTimeStr, setDraftStartTimeStr] = useState<string | null>(null);
   const [waitingRoomCountdown, setWaitingRoomCountdown] = useState<string>('00:00');
@@ -1123,6 +1133,15 @@ const isDesktop = width >= 1050;
   useEffect(() => {
     watchlistIdsRef.current = watchlistIds;
   }, [watchlistIds]);
+
+  useEffect(() => {
+    if (
+      prioritySwapPlayerId !== null
+      && (activeTab !== 'WATCHLIST' || !watchlistIds.includes(prioritySwapPlayerId))
+    ) {
+      setPrioritySwapPlayerId(null);
+    }
+  }, [activeTab, prioritySwapPlayerId, watchlistIds]);
 
   const loadDraftRoomReadiness = useCallback(async (
     targetLeagueId: string,
@@ -1947,19 +1966,38 @@ useEffect(() => {
     }
   }, [activeFilter, filledPositions]);
 
-  const executeDirectPriorityReindex = async (targetPlayerId: number, targetIndex: number) => {
-    if (!leagueId || !myUserId) return;
+  const handleWatchlistPriorityPress = async (player: DraftedPlayer) => {
+    if (!leagueId || !myUserId || isSavingWatchlistOrder) return;
 
-    let baseIds = watchlistIds.filter(id => id !== targetPlayerId);
-    baseIds.splice(targetIndex, 0, targetPlayerId);
+    if (prioritySwapPlayerId === null) {
+      setPrioritySwapPlayerId(player.id);
+      return;
+    }
 
-    setWatchlistIds(baseIds);
-    setDragMovingPlayer(null);
+    if (prioritySwapPlayerId === player.id) {
+      setPrioritySwapPlayerId(null);
+      return;
+    }
+
+    const sourceIndex = watchlistIds.indexOf(prioritySwapPlayerId);
+    const targetIndex = watchlistIds.indexOf(player.id);
+    if (sourceIndex < 0 || targetIndex < 0) {
+      setPrioritySwapPlayerId(null);
+      return;
+    }
+
+    const previousIds = [...watchlistIds];
+    const nextIds = [...watchlistIds];
+    [nextIds[sourceIndex], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[sourceIndex]];
+
+    setWatchlistIds(nextIds);
+    setPrioritySwapPlayerId(null);
+    setIsSavingWatchlistOrder(true);
 
     try {
       const { data, error } = await supabase.rpc('reorder_watchlist', {
         p_league_id: leagueId,
-        p_player_ids: baseIds,
+        p_player_ids: nextIds,
       });
       if (error) throw error;
       if (data && data.success === false) {
@@ -1968,15 +2006,12 @@ useEffect(() => {
       if (session) await syncPipelineEngine(session);
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleMoveWatchlistPlayer = async (player: DraftedPlayer, direction: 'UP' | 'DOWN') => {
-    const idx = watchlistIds.indexOf(player.id);
-    if (idx === -1) return;
-    const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
-    if (targetIdx >= 0 && targetIdx < watchlistIds.length) {
-      await executeDirectPriorityReindex(player.id, targetIdx);
+      setWatchlistIds(previousIds);
+      const message = err instanceof Error ? err.message : 'Watchlist order could not be saved.';
+      if (Platform.OS === 'web') window.alert(`Priority change failed\n\n${message}`);
+      else Alert.alert('Priority Change Failed', message);
+    } finally {
+      setIsSavingWatchlistOrder(false);
     }
   };
 
@@ -3499,17 +3534,41 @@ useEffect(() => {
             <FlatList
               data={watchlistPlayers}
               keyExtractor={(item) => item.id.toString()}
-              ListHeaderComponent={<Text style={styles.sectionHeading}>⭐ PRESS & HOLD ROWS TO REORDER PRIORITY QUEUE</Text>}
+              ListHeaderComponent={
+                <View style={[
+                  styles.watchlistPriorityGuide,
+                  prioritySwapPlayerId !== null && styles.watchlistPriorityGuideActive,
+                ]}>
+                  <Ionicons
+                    name={prioritySwapPlayerId !== null ? 'swap-vertical' : 'finger-print-outline'}
+                    size={17}
+                    color={prioritySwapPlayerId !== null ? colors.accent : colors.textMuted}
+                  />
+                  <View style={styles.watchlistPriorityGuideCopy}>
+                    <Text style={[styles.watchlistPriorityGuideTitle, prioritySwapPlayerId !== null && styles.watchlistPriorityGuideTitleActive]}>
+                      {prioritySwapPlayerId !== null ? 'CHOOSE THE PLAYER TO SWAP WITH' : 'TAP A PLAYER TO CHANGE PRIORITY'}
+                    </Text>
+                    <Text style={styles.watchlistPriorityGuideText}>
+                      {prioritySwapPlayerId !== null
+                        ? `${watchlistPlayers.find(player => player.id === prioritySwapPlayerId)?.web_name || 'Selected player'} is ready to move. Tap another row to exchange positions, or tap it again to cancel.`
+                        : 'Select one player, then tap another player to exchange their priority positions.'}
+                    </Text>
+                  </View>
+                  {isSavingWatchlistOrder && <ActivityIndicator size="small" color={colors.accent} />}
+                </View>
+              }
               ListEmptyComponent={<Text style={styles.emptyNoticeText}>No players added to watchlist queue.</Text>}
               contentContainerStyle={{ paddingBottom: 30 }}
               renderItem={({ item }) => (
                 <PlayerPoolRow
                   item={item} isSelected={selectedPlayer?.id === item.id} isOnWatchlist={true} isMyTurn={isMyTurn && connectionState === 'CONNECTED'}
-                  watchlistIndex={watchlistIds.indexOf(item.id) + 1} showPickCheckbox={isLive} onInspect={setInspectingPlayer}
-                  rosterBlockedReason={positionEligibility[item.element_type as RosterPosition]?.reason}
-                  onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress} onLongPressRow={(p) => setDragMovingPlayer(p)}
-                  onMoveUp={(p) => handleMoveWatchlistPlayer(p, 'UP')} onMoveDown={(p) => handleMoveWatchlistPlayer(p, 'DOWN')}
-                />
+                   watchlistIndex={watchlistIds.indexOf(item.id) + 1} showPickCheckbox={isLive} onInspect={setInspectingPlayer}
+                   rosterBlockedReason={positionEligibility[item.element_type as RosterPosition]?.reason}
+                   onToggleWatchlist={toggleWatchlist} onSelect={handleSelectPress}
+                   onPriorityPress={handleWatchlistPriorityPress}
+                   isPrioritySwapSource={prioritySwapPlayerId === item.id}
+                   isPrioritySwapActive={prioritySwapPlayerId !== null}
+                 />
               )}
             />
           )}
@@ -3842,28 +3901,6 @@ useEffect(() => {
             </ScrollView>
           </Pressable>
         </Pressable>
-      </Modal>
-
-      {/* REORDER INDEX QUEUE MODAL */}
-      <Modal visible={dragMovingPlayer !== null} transparent animationType="fade" statusBarTranslucent>
-        <View style={styles.modalBlurOverlay}>
-          <View style={[styles.modalCardContainer, { maxHeight: '80%' }]}>
-            <Text style={styles.modalPlayerTitle}>Reposition priority queue</Text>
-            <Text style={styles.modalPlayerSub}>Select the target priority rank index assignment for {dragMovingPlayer?.web_name}</Text>
-            <ScrollView style={{ marginVertical: 14 }}>
-              {watchlistIds.map((_, index) => (
-                <TouchableOpacity 
-                  key={`target-idx-${index}`} style={styles.prioritySelectorChipRow}
-                  onPress={() => dragMovingPlayer && executeDirectPriorityReindex(dragMovingPlayer.id, index)}
-                >
-                  <Text style={styles.prioritySelectorRowLabelText}>Move to Priority Rank Position #{index + 1}</Text>
-                  <Ionicons name="arrow-forward" size={14} color={colors.accent} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setDragMovingPlayer(null)}><Text style={styles.closeModalBtnText}>CANCEL MOVEMENT</Text></TouchableOpacity>
-          </View>
-        </View>
       </Modal>
 
       <Modal
@@ -4523,10 +4560,18 @@ playerPoolRow: {
   overflow: 'hidden',
 },
 
-playerPoolRowSelected: {
-  backgroundColor: '#10251B',
-  borderColor: '#00F27A',
-},
+  playerPoolRowSelected: {
+    backgroundColor: '#10251B',
+    borderColor: '#00F27A',
+  },
+  watchlistSwapSourceRow: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+    borderWidth: 2,
+  },
+  watchlistSwapTargetRow: {
+    borderColor: colors.accentBorder,
+  },
  rowClickContainer: {
   flex: 1,
   minWidth: 0,
@@ -4644,6 +4689,27 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
   splitMetricVal: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   splitMetricLabel: { color: '#444', fontSize: 8, fontWeight: '700', marginTop: 1 },
   sectionHeading: { color: '#00ff87', fontSize: 10, fontWeight: '900', paddingHorizontal: 14, marginVertical: 12, letterSpacing: 0.3 },
+  watchlistPriorityGuide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginHorizontal: 10,
+    marginVertical: 9,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+  },
+  watchlistPriorityGuideActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  watchlistPriorityGuideCopy: { flex: 1, minWidth: 0 },
+  watchlistPriorityGuideTitle: { color: colors.textSecondary, fontSize: 9, fontWeight: '900', letterSpacing: 0.35 },
+  watchlistPriorityGuideTitleActive: { color: colors.accent },
+  watchlistPriorityGuideText: { color: colors.textMuted, fontSize: 9, fontWeight: '600', lineHeight: 13, marginTop: 2 },
   emptyNoticeText: { color: '#444', fontSize: 11, textAlign: 'center', padding: 20, fontWeight: '600' },
   pitchScrollBounds: { paddingBottom: 20 },
   footballPitchFieldContainer: { backgroundColor: colors.pitch, margin: 12, borderRadius: 8, padding: 12, borderWidth: 2, borderColor: colors.pitchBorder, elevation: 4 },
@@ -4658,8 +4724,6 @@ markPresentButtonText: { color: '#241500', fontSize: 9, fontWeight: '900' },
   pitchNodeFilled: { backgroundColor: colors.pitchPlayerSurface, borderColor: colors.accentBorder },
   pitchNodeEmpty: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: colors.pitchBorder },
   pitchPlayerNameLabelText: { color: colors.pitchPlayerNameText, fontSize: 10, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  prioritySelectorChipRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A1A', padding: 14, borderRadius: 4, marginVertical: 4, borderWidth: 1, borderColor: '#222' },
-  prioritySelectorRowLabelText: { color: '#DDD', fontSize: 12, fontWeight: '700' },
   pickReviewPanel: {
     backgroundColor: '#0C171F',
     borderTopWidth: 2,

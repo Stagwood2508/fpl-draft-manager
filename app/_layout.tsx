@@ -174,6 +174,14 @@ function RootLayoutContent() {
     const currentSubSegment = segments[1] ?? '';
 
     const inAuthGroup = currentSegment === '(auth)';
+    const isPublicLegalRoute =
+      currentSegment === 'privacy' ||
+      currentSegment === 'delete-account' ||
+      currentSegment === 'community-guidelines';
+
+    if (isPublicLegalRoute) {
+      return;
+    }
 
     const isActivelyOnboarding =
       currentSubSegment === 'onboarding' ||
@@ -249,6 +257,10 @@ function RootLayoutContent() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="privacy" options={{ headerShown: false }} />
+          <Stack.Screen name="delete-account" options={{ headerShown: false }} />
+          <Stack.Screen name="community-guidelines" options={{ headerShown: false }} />
+          <Stack.Screen name="league-lounge" options={{ headerShown: false }} />
           <Stack.Screen name="league-chronicle" options={{ headerShown: false }} />
           <Stack.Screen name="scoring-guide" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/create-league" options={{ title: 'CREATE LEAGUE' }} />

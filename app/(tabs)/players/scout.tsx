@@ -197,6 +197,7 @@ export default function PlayerPoolScreen() {
   const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentGameweek, setCurrentGameweek] = useState<number>(1);
+  const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
   
   // Market Window State: 'WAIVERS_OPEN' | 'FREE_AGENCY' | 'IN_PLAY'
   const [marketStatus, setMarketStatus] = useState<'WAIVERS_OPEN' | 'FREE_AGENCY' | 'IN_PLAY'>('WAIVERS_OPEN');
@@ -311,6 +312,17 @@ export default function PlayerPoolScreen() {
       }
 
       setActiveLeagueId(currentLeagueId);
+
+      if (currentLeagueId) {
+        const { data: rosterSettings, error: rosterSettingsError } = await supabase
+          .from('league_settings')
+          .select('roster_type')
+          .eq('league_id', currentLeagueId)
+          .maybeSingle();
+
+        if (rosterSettingsError) throw rosterSettingsError;
+        setRosterType(rosterSettings?.roster_type === 'FLEXIBLE' ? 'FLEXIBLE' : 'STRICT');
+      }
 
       // 2. Fetch Market Window Status & Active Gameweek
       let resolvedGameweek = 1;
@@ -520,8 +532,33 @@ export default function PlayerPoolScreen() {
         .eq('user_id', currentUserId)
         .eq('league_id', activeLeagueId);
 
-      const structured = (rosterData || []).map((r: any) => Array.isArray(r.players) ? r.players[0] : r.players).filter(Boolean);
-      setEligibleRosterPlayers(structured.filter((p: any) => p.element_type === poolPlayer.element_type));
+      const structured = (rosterData || [])
+        .map((r: any) => Array.isArray(r.players) ? r.players[0] : r.players)
+        .filter(Boolean)
+        .map((player: any) => ({
+          ...player,
+          element_type: allPlayers.find(candidate => candidate.id === player.id)?.element_type || player.element_type,
+        }));
+
+      const positionCounts = structured.reduce<Record<string, number>>((counts, player: any) => {
+        counts[player.element_type] = (counts[player.element_type] || 0) + 1;
+        return counts;
+      }, {});
+      const isEligibleDrop = (dropPlayer: any) => {
+        if (rosterType === 'STRICT') return dropPlayer.element_type === poolPlayer.element_type;
+        if ((dropPlayer.element_type === 'GKP') !== (poolPlayer.element_type === 'GKP')) return false;
+
+        const projected = { ...positionCounts };
+        projected[dropPlayer.element_type] = (projected[dropPlayer.element_type] || 0) - 1;
+        projected[poolPlayer.element_type] = (projected[poolPlayer.element_type] || 0) + 1;
+
+        return projected.GKP === 2
+          && (projected.DEF || 0) >= 4 && (projected.DEF || 0) <= 6
+          && (projected.MID || 0) >= 4 && (projected.MID || 0) <= 6
+          && (projected.FWD || 0) >= 2 && (projected.FWD || 0) <= 4;
+      };
+
+      setEligibleRosterPlayers(structured.filter(isEligibleDrop));
       setIsWaiverModalVisible(true);
     } catch (err: any) {
       Alert.alert('Roster Query Error', err.message);
@@ -549,6 +586,7 @@ export default function PlayerPoolScreen() {
           DROP_PLAYER_NOT_OWNED: 'The player you selected to drop is no longer in your squad.',
           DUPLICATE_PENDING_CLAIM: 'You already have this exact player swap in your waiver queue.',
           POSITION_MISMATCH: 'That swap does not comply with this league’s roster rules.',
+          INVALID_ROSTER: 'That swap would leave your squad outside the flexible roster limits.',
           CLAIM_CONFLICT: 'Your waiver queue changed at the same time. Refresh it and try again.',
         };
         throw new Error(messages[data?.error] || 'The server rejected this waiver claim.');
@@ -786,7 +824,7 @@ export default function PlayerPoolScreen() {
         onClose={() => { setDetailsVisible(false); setSelectedModalPlayerId(null); }} 
       />
 
-      {/* POSITION-MATCHED WAIVER QUEUE MODAL (WAIVERS_OPEN) */}
+      {/* ROSTER-VALID WAIVER QUEUE MODAL (WAIVERS_OPEN) */}
       <Modal visible={isWaiverModalVisible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => !submittingWaiver && setIsWaiverModalVisible(false)}>
         <View style={[styles.modalOverlay, isMobileLayout && styles.modalOverlayMobile]}>
           <View style={[styles.modalContent, isMobileLayout && styles.modalContentMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
@@ -818,18 +856,20 @@ export default function PlayerPoolScreen() {
               </View>
             )}
 
-            <Text style={styles.selectionTitle}>Drop player (Filtered by {selectedPoolPlayer?.element_type}):</Text>
+            <Text style={styles.selectionTitle}>
+              {rosterType === 'FLEXIBLE' ? 'Choose an eligible player to drop:' : `Drop player (${selectedPoolPlayer?.element_type}):`}
+            </Text>
             <View style={{ maxHeight: 200 }}>
               <ScrollView style={styles.rosterSelectorList}>
                 {eligibleRosterPlayers.length === 0 ? (
-                  <Text style={styles.noPlayersText}>No available position assets on roster.</Text>
+                  <Text style={styles.noPlayersText}>No squad player can be dropped while keeping a valid roster.</Text>
                 ) : (
                   eligibleRosterPlayers.map((player) => {
                     const isSelected = selectedRosterPlayerId === player.id;
                     return (
                       <TouchableOpacity key={player.id} style={[styles.rosterSelectRow, isSelected && styles.rosterSelectRowActive]} onPress={() => setSelectedRosterPlayerId(player.id)}>
                         <Text style={[styles.rosterSelectName, isSelected && styles.rosterSelectNameActive]}>{player.web_name}</Text>
-                        <Text style={styles.rosterSelectTeam}>{player.team_name}</Text>
+                        <Text style={styles.rosterSelectTeam}>{player.team_name} · {player.element_type}</Text>
                       </TouchableOpacity>
                     );
                   })

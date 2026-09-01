@@ -15,6 +15,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import {
+  GameweekPresentationState,
+  resolveGameweekPresentationState,
+} from '@/utils/gameweekPresentation';
 
 interface StandingRow {
   rank: number;
@@ -40,6 +44,7 @@ export default function StandingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [gameweekIsLive, setGameweekIsLive] = useState(false);
+  const [gameweekPresentationState, setGameweekPresentationState] = useState<GameweekPresentationState>('UPCOMING');
   const [currentGW, setCurrentGW] = useState(1);
   const [standings, setStandings] = useState<StandingRow[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -123,15 +128,25 @@ export default function StandingsScreen() {
         || gameweeks.find((row: any) => !row.is_finished)
         || gameweeks[gameweeks.length - 1];
       const activeGW = Number(activeGameweek?.gameweek || 1);
-      const activeIsLive = Boolean(
-        activeGameweek
-        && !activeGameweek.is_finished
-        && new Date(activeGameweek.gw_deadline).getTime() <= now
-      );
+      const { data: premierLeagueFixtures, error: premierLeagueFixturesError } = await supabase
+        .from('fixtures')
+        .select('is_finished, is_finished_provisional')
+        .eq('gameweek', activeGW);
+      if (premierLeagueFixturesError) throw premierLeagueFixturesError;
+
+      const presentationState = resolveGameweekPresentationState({
+        deadline: activeGameweek?.gw_deadline,
+        isFinished: Boolean(activeGameweek?.is_finished),
+        fixtures: premierLeagueFixtures || [],
+        now,
+      });
+      const activeIsLive = presentationState === 'LIVE'
+        || presentationState === 'AWAITING_CONFIRMATION';
       const effectiveLiveMode = liveMode && activeIsLive;
 
       setCurrentGW(activeGW);
       setGameweekIsLive(activeIsLive);
+      setGameweekPresentationState(presentationState);
       if (liveMode && !activeIsLive) setIsLive(false);
 
       // 3. Fetch Active Standings & Baseline Standings in PARALLEL (Scoped to targetLeagueId)
@@ -210,13 +225,19 @@ export default function StandingsScreen() {
             disabled={!gameweekIsLive}
           >
             <View style={styles.liveButtonContent}>
-              <Animated.View
-                style={[
-                  styles.liveDot,
-                  { opacity: isLive ? pulseAnim : 0.3, backgroundColor: isLive ? colors.danger : colors.textMuted },
-                ]}
-              />
-              <Text style={[styles.toggleText, isLive && styles.toggleTextActive]}>LIVE</Text>
+              {gameweekPresentationState === 'AWAITING_CONFIRMATION' ? (
+                <Ionicons name="hourglass-outline" size={13} color={isLive ? colors.warning : colors.textMuted} />
+              ) : (
+                <Animated.View
+                  style={[
+                    styles.liveDot,
+                    { opacity: isLive ? pulseAnim : 0.3, backgroundColor: isLive ? colors.danger : colors.textMuted },
+                  ]}
+                />
+              )}
+              <Text style={[styles.toggleText, isLive && styles.toggleTextActive]}>
+                {gameweekPresentationState === 'AWAITING_CONFIRMATION' ? 'CHECKING' : 'LIVE'}
+              </Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -224,8 +245,19 @@ export default function StandingsScreen() {
         <View style={styles.topBarActions}>
           {isLive && (
             <View style={styles.liveBadgeContainer}>
-              <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
-              <Text style={styles.liveBadgeText}>IN-PLAY GW{currentGW}</Text>
+              {gameweekPresentationState === 'LIVE' ? (
+                <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
+              ) : (
+                <Ionicons name="hourglass-outline" size={13} color={colors.warning} />
+              )}
+              <Text style={[
+                styles.liveBadgeText,
+                gameweekPresentationState === 'AWAITING_CONFIRMATION' && styles.confirmationBadgeText,
+              ]}>
+                {gameweekPresentationState === 'AWAITING_CONFIRMATION'
+                  ? `GW${currentGW} AWAITING CONFIRMATION`
+                  : `IN-PLAY GW${currentGW}`}
+              </Text>
             </View>
           )}
           <TouchableOpacity style={styles.chronicleButton} onPress={() => router.push('/league-chronicle')} accessibilityLabel="Open League Chronicle">
@@ -357,6 +389,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
   pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   liveBadgeText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  confirmationBadgeText: { color: colors.warning },
   errorBanner: { paddingVertical: 7, paddingHorizontal: 12, backgroundColor: colors.dangerSoft, borderBottomWidth: 1, borderBottomColor: colors.dangerBorder, alignItems: 'center' },
   errorText: { color: colors.danger, fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
   tableHeaderRow: {

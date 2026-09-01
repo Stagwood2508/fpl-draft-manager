@@ -1,0 +1,1 @@
+export const LOUNGE_POLICY_VERSION = '2026-09-01';

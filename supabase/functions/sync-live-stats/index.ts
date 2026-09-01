@@ -597,6 +597,9 @@ serve(async (req) => {
             home_difficulty: Number(fixture.team_h_difficulty || 0),
             away_difficulty: Number(fixture.team_a_difficulty || 0),
             is_finished: Boolean(fixture.finished),
+            is_finished_provisional: Boolean(
+              fixture.finished_provisional || fixture.finished,
+            ),
           };
         })
       : [];
@@ -680,13 +683,28 @@ serve(async (req) => {
       }
     }
 
+    const targetFixtureRows = fixtureRows.filter(
+      (fixture: any) => Number(fixture.gameweek) === gwNumber,
+    );
+    const gameweekAwaitingConfirmation = Boolean(
+      !targetEvent?.finished
+      && targetFixtureRows.length > 0
+      && targetFixtureRows.every((fixture: any) =>
+        Boolean(fixture.is_finished || fixture.is_finished_provisional)
+      )
+    );
+
     return new Response(
       JSON.stringify({
         success: true,
         gameweek: gwNumber,
         live_stats_source: liveStatsSource,
         gameweek_finished: Boolean(targetEvent?.finished),
-        scoring_state: targetEvent?.finished ? "FINAL" : "PROVISIONAL",
+        scoring_state: targetEvent?.finished
+          ? "FINAL"
+          : gameweekAwaitingConfirmation
+          ? "AWAITING_CONFIRMATION"
+          : "LIVE",
         records_processed: rowsToUpsert.length,
         players_reconciled: mappedBootstrapPlayers.length,
         unmapped_live_players: unmappedLivePlayers,

@@ -10,7 +10,8 @@ export type HomeShortcutId =
   | 'watchlist'
   | 'scout_players'
   | 'league_table'
-  | 'my_squad';
+  | 'my_squad'
+  | 'league_lounge';
 
 export const DEFAULT_HOME_SHORTCUTS: HomeShortcutId[] = [
   'trade_offers',
@@ -29,6 +30,7 @@ const isShortcutId = (value: unknown): value is HomeShortcutId =>
     'scout_players',
     'league_table',
     'my_squad',
+    'league_lounge',
   ].includes(value);
 
 const normalizeShortcuts = (value: unknown): HomeShortcutId[] => {

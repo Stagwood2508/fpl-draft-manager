@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { getLeagueActivity, LeagueActivityItem } from '@/features/market/services/leagueActivity';
+import {
+  GameweekPresentationState,
+  resolveGameweekPresentationState,
+} from '@/utils/gameweekPresentation';
 import { supabase } from '@/utils/supabase';
 
 export interface HomeLeagueMembership {
@@ -23,6 +27,7 @@ export interface HomeGameweek {
   status: string | null;
   isFinished: boolean;
   waiversProcessed: boolean;
+  presentationState: GameweekPresentationState;
 }
 
 export interface HomeStanding {
@@ -193,6 +198,21 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         !row.is_finished && (row.is_current || new Date(row.gw_deadline).getTime() > now)
       ) || gameweekRows[gameweekRows.length - 1] || null;
 
+      const premierLeagueFixturesResponse = selectedGameweek
+        ? await supabase
+            .from('fixtures')
+            .select('is_finished, is_finished_provisional')
+            .eq('gameweek', Number(selectedGameweek.gameweek))
+        : { data: [], error: null };
+      if (premierLeagueFixturesResponse.error) throw premierLeagueFixturesResponse.error;
+
+      const presentationState = resolveGameweekPresentationState({
+        deadline: selectedGameweek?.gw_deadline,
+        isFinished: Boolean(selectedGameweek?.is_finished),
+        fixtures: premierLeagueFixturesResponse.data || [],
+        now,
+      });
+
       const gameweek: HomeGameweek | null = selectedGameweek ? {
         gameweek: Number(selectedGameweek.gameweek),
         deadline: selectedGameweek.gw_deadline,
@@ -200,12 +220,12 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         status: selectedGameweek.status || null,
         isFinished: Boolean(selectedGameweek.is_finished),
         waiversProcessed: Boolean(selectedGameweek.is_waiver_processed),
+        presentationState,
       } : null;
 
       const gameweekNumber = gameweek?.gameweek || 1;
-      const isLive = Boolean(
-        gameweek && !gameweek.isFinished && new Date(gameweek.deadline).getTime() <= now
-      );
+      const isLive = gameweek?.presentationState === 'LIVE'
+        || gameweek?.presentationState === 'AWAITING_CONFIRMATION';
 
       const [
         draftResponse,

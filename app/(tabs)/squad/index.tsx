@@ -169,6 +169,7 @@ export default function SquadScreen() {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [roster, setRoster] = useState<RosterItem[]>([]);
   const [savedRoster, setSavedRoster] = useState<RosterItem[]>([]);
+  const [lockedGameweekRoster, setLockedGameweekRoster] = useState<RosterItem[]>([]);
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
   const [teamName, setTeamName] = useState('My Team');
   const [leagueName, setLeagueName] = useState('Active League');
@@ -309,12 +310,13 @@ export default function SquadScreen() {
       const resolvedGameweek = Number(gameweekResponse.data?.gameweek || 0);
 
       let resolvedSnapshotStatus: string | null = null;
+      let resolvedLockedRoster: RosterItem[] = [];
       let resolvedAutosubAudit: AutoSubAuditItem[] = [];
       if (resolvedGameweek > 0) {
         const [snapshotResponse, autosubResponse] = await Promise.all([
           supabase
             .from('gameweek_lineup_snapshots')
-            .select('status')
+            .select('status, starting_player_ids, bench_player_ids, effective_starting_player_ids, effective_bench_player_ids')
             .eq('league_id', activeLeagueId)
             .eq('user_id', currentUserId)
             .eq('gameweek', resolvedGameweek)
@@ -327,12 +329,79 @@ export default function SquadScreen() {
             .eq('gameweek', resolvedGameweek)
             .order('created_at', { ascending: true }),
         ]);
-        resolvedSnapshotStatus = snapshotResponse.data?.status || null;
+        if (snapshotResponse.error) throw snapshotResponse.error;
+        const snapshot = snapshotResponse.data as any;
+        resolvedSnapshotStatus = snapshot?.status || null;
         resolvedAutosubAudit = (autosubResponse.data || []) as AutoSubAuditItem[];
+
+        if (snapshot) {
+          const lockedStarterIds: number[] = (
+            snapshot.effective_starting_player_ids?.length
+              ? snapshot.effective_starting_player_ids
+              : snapshot.starting_player_ids
+          ).map(Number);
+          const lockedBenchIds: number[] = (
+            snapshot.effective_bench_player_ids?.length
+              ? snapshot.effective_bench_player_ids
+              : snapshot.bench_player_ids
+          ).map(Number);
+          const lockedPlayerIds = [...lockedStarterIds, ...lockedBenchIds];
+
+          if (lockedPlayerIds.length > 0) {
+            const { data: lockedPlayers, error: lockedPlayersError } = await supabase
+              .from('players')
+              .select('*')
+              .in('id', lockedPlayerIds);
+            if (lockedPlayersError) throw lockedPlayersError;
+
+            const playerById = new Map<number, PlayerData>(
+              (lockedPlayers || []).map((player: any) => [
+                Number(player.id),
+                {
+                  ...player,
+                  next_fixture: nextFixtureByTeam.get(Number(player.team_id)) || null,
+                } as PlayerData,
+              ])
+            );
+            let outfieldPriority = 0;
+            const lockedStarters = lockedStarterIds
+              .map(playerId => playerById.get(playerId))
+              .filter((player): player is PlayerData => Boolean(player))
+              .map(player => ({
+                id: `gw${resolvedGameweek}-${player.id}`,
+                player_id: player.id,
+                is_starting: true,
+                is_gk: player.element_type === 'GKP',
+                bench_order: null,
+                is_transfer_listed: false,
+                trade_note: null,
+                players: player,
+              }));
+            const lockedBench = lockedBenchIds
+              .map(playerId => playerById.get(playerId))
+              .filter((player): player is PlayerData => Boolean(player))
+              .map(player => {
+                const goalkeeper = player.element_type === 'GKP';
+                if (!goalkeeper) outfieldPriority += 1;
+                return {
+                  id: `gw${resolvedGameweek}-${player.id}`,
+                  player_id: player.id,
+                  is_starting: false,
+                  is_gk: goalkeeper,
+                  bench_order: goalkeeper ? 0 : outfieldPriority,
+                  is_transfer_listed: false,
+                  trade_note: null,
+                  players: player,
+                };
+              });
+            resolvedLockedRoster = [...lockedStarters, ...lockedBench];
+          }
+        }
       }
 
       setRoster(normalized);
       setSavedRoster(cloneRoster(normalized));
+      setLockedGameweekRoster(resolvedLockedRoster);
       setTeamName(memberResponse.data?.team_name || 'My Team');
       setLeagueName(leagueResponse.data?.name || 'Active League');
       setRosterType((leagueResponse.data?.roster_type as 'STRICT' | 'FLEXIBLE') || 'STRICT');
@@ -373,30 +442,36 @@ export default function SquadScreen() {
     return () => clearInterval(timer);
   }, [currentGameweek, displayMode, gameweekFinished, isFocused, loadGameweekScores]);
 
+  const displayRoster = useMemo(
+    () => displayMode === 'points' && lockedGameweekRoster.length === 15
+      ? lockedGameweekRoster
+      : roster,
+    [displayMode, lockedGameweekRoster, roster]
+  );
   const formationErrors = useMemo(() => getFormationErrors(roster), [roster]);
   const rosterCounts = useMemo(() => getCounts(roster), [roster]);
-  const starters = useMemo(() => roster.filter(item => item.is_starting), [roster]);
+  const starters = useMemo(() => displayRoster.filter(item => item.is_starting), [displayRoster]);
   const benchGoalkeeper = useMemo(
-    () => roster.find(item => !item.is_starting && item.players?.element_type === 'GKP') || null,
-    [roster]
+    () => displayRoster.find(item => !item.is_starting && item.players?.element_type === 'GKP') || null,
+    [displayRoster]
   );
   const benchOutfield = useMemo(
-    () => roster
+    () => displayRoster
       .filter(item => !item.is_starting && item.players?.element_type !== 'GKP')
       .sort((a, b) => (a.bench_order ?? 99) - (b.bench_order ?? 99)),
-    [roster]
+    [displayRoster]
   );
   const startingPoints = useMemo(
     () => starters.reduce((total, item) => total + (gameweekScores[item.player_id]?.combined_points || 0), 0),
     [gameweekScores, starters]
   );
   const benchPoints = useMemo(
-    () => roster
+    () => displayRoster
       .filter(item => !item.is_starting)
       .reduce((total, item) => total + (gameweekScores[item.player_id]?.combined_points || 0), 0),
-    [gameweekScores, roster]
+    [displayRoster, gameweekScores]
   );
-  const starterCounts = useMemo(() => getCounts(roster, true), [roster]);
+  const starterCounts = useMemo(() => getCounts(displayRoster, true), [displayRoster]);
   const formation = `${starterCounts.DEF}-${starterCounts.MID}-${starterCounts.FWD}`;
   const unavailableCount = roster.filter(item => getAvailability(item.players, appColors).label !== 'Available').length;
   const listedCount = roster.filter(item => item.is_transfer_listed).length;
@@ -418,6 +493,7 @@ export default function SquadScreen() {
       );
       return;
     }
+    setDisplayMode('fixtures');
     setSavedRoster(cloneRoster(roster));
     setSelectedRosterId(null);
     setIsEditing(true);
@@ -779,8 +855,8 @@ export default function SquadScreen() {
                   : 'No automatic substitutions were required.'}
               </Text>
             ) : autosubAudit.map(event => {
-              const outName = roster.find(item => item.player_id === event.subbed_out_player_id)?.players.web_name || 'Starting player';
-              const inName = roster.find(item => item.player_id === event.subbed_in_player_id)?.players.web_name || 'Substitute';
+              const outName = displayRoster.find(item => item.player_id === event.subbed_out_player_id)?.players.web_name || 'Starting player';
+              const inName = displayRoster.find(item => item.player_id === event.subbed_in_player_id)?.players.web_name || 'Substitute';
               return (
                 <View key={event.id} style={styles.autosubEvent}>
                   <Ionicons
@@ -927,7 +1003,11 @@ export default function SquadScreen() {
 
         <View style={[styles.sectionHeader, isCompact && styles.sectionHeaderCompact]}>
           <View>
-            <Text style={styles.sectionEyebrow}>STARTING XI</Text>
+            <Text style={styles.sectionEyebrow}>
+              {displayMode === 'points' && lockedGameweekRoster.length === 15
+                ? `GW${currentGameweek} LOCKED SQUAD`
+                : 'STARTING XI'}
+            </Text>
             <Text style={styles.sectionTitle}>
               {displayMode === 'points' ? `XI · ${startingPoints} PTS` : 'Formation view'}
             </Text>

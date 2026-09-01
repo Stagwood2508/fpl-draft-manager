@@ -17,6 +17,10 @@ import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import LivePlayerBreakdownModal, { LivePlayerScore } from '@/components/LivePlayerBreakdownModal';
+import {
+  GameweekPresentationState,
+  resolveGameweekPresentationState,
+} from '@/utils/gameweekPresentation';
 
 const POSITION_ORDER: Record<string, number> = {
   '1': 1,
@@ -80,6 +84,7 @@ export default function MatchesScreen() {
   const [selectedPlayer, setSelectedPlayer] = useState<LivePlayerScore | null>(null);
   const [contextReady, setContextReady] = useState(false);
   const [gameweekIsLive, setGameweekIsLive] = useState(false);
+  const [gameweekPresentationState, setGameweekPresentationState] = useState<GameweekPresentationState>('UPCOMING');
   const [currentGameweekFinished, setCurrentGameweekFinished] = useState(false);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -190,14 +195,24 @@ export default function MatchesScreen() {
         || gameweeks[gameweeks.length - 1];
       const activeGW = Number(activeGameweek?.gameweek || 1);
       const isFinished = Boolean(activeGameweek?.is_finished);
-      const isLive = Boolean(
-        activeGameweek
-        && !isFinished
-        && new Date(activeGameweek.gw_deadline).getTime() <= now
-      );
+      const { data: premierLeagueFixtures, error: premierLeagueFixturesError } = await supabase
+        .from('fixtures')
+        .select('is_finished, is_finished_provisional')
+        .eq('gameweek', activeGW);
+      if (premierLeagueFixturesError) throw premierLeagueFixturesError;
+
+      const presentationState = resolveGameweekPresentationState({
+        deadline: activeGameweek?.gw_deadline,
+        isFinished,
+        fixtures: premierLeagueFixtures || [],
+        now,
+      });
+      const isLive = presentationState === 'LIVE'
+        || presentationState === 'AWAITING_CONFIRMATION';
 
       setCurrentGW(activeGW);
       setGameweekIsLive(isLive);
+      setGameweekPresentationState(presentationState);
       setCurrentGameweekFinished(isFinished);
 
       if (isLive) {
@@ -306,7 +321,8 @@ export default function MatchesScreen() {
 
       fixturePlayers.forEach((fixture) => {
         const sortPlayers = (a: PlayerScoreRow, b: PlayerScoreRow) =>
-          (POSITION_ORDER[a.position] || 99) - (POSITION_ORDER[b.position] || 99)
+          (a.lineup_status === 'BENCH' ? 1 : 0) - (b.lineup_status === 'BENCH' ? 1 : 0)
+          || (POSITION_ORDER[a.position] || 99) - (POSITION_ORDER[b.position] || 99)
           || a.player_name.localeCompare(b.player_name);
         fixture.home.sort(sortPlayers);
         fixture.away.sort(sortPlayers);
@@ -411,6 +427,35 @@ export default function MatchesScreen() {
     );
   };
 
+  const renderSquadPlayers = (players: PlayerScoreRow[] | undefined, alignRight = false) =>
+    (players || []).map((player, index, squad) => {
+      const beginsBench = player.lineup_status === 'BENCH'
+        && (index === 0 || squad[index - 1]?.lineup_status !== 'BENCH');
+
+      return (
+        <React.Fragment key={player.player_id}>
+          {beginsBench && (
+            <View style={styles.squadSectionDivider}>
+              <View style={styles.squadSectionRule} />
+              <Text style={styles.squadSectionLabel}>SUBSTITUTES</Text>
+              <View style={styles.squadSectionRule} />
+            </View>
+          )}
+          <TouchableOpacity
+            style={[styles.playerScoreRow, alignRight && styles.playerScoreRowReversed]}
+            onPress={() => setSelectedPlayer(player)}
+          >
+            <View style={[styles.playerScoreCopy, alignRight && styles.playerScoreCopyRight]}>
+              <Text style={styles.pName} numberOfLines={1}>{player.player_name}</Text>
+              <Text style={styles.pPos}>{player.position} · {player.fpl_points} FPL + {player.defcon_points} DC</Text>
+              {renderPlayerEvents(player, alignRight)}
+            </View>
+            <Text style={[styles.pPoints, alignRight && styles.pPointsLeft]}>{player.combined_points} pts</Text>
+          </TouchableOpacity>
+        </React.Fragment>
+      );
+    });
+
   const getAvailableGameweeks = () => {
     if (viewMode === 'RESULTS') {
       const latestResult = currentGameweekFinished ? currentGW : Math.max(1, currentGW - 1);
@@ -439,13 +484,19 @@ export default function MatchesScreen() {
           disabled={!gameweekIsLive}
         >
           <View style={styles.liveSegmentContent}>
-            <Animated.View
-              style={[
-                styles.liveDot,
-                { opacity: viewMode === 'LIVE' ? pulseAnim : 0.3, backgroundColor: viewMode === 'LIVE' ? colors.danger : colors.textMuted },
-              ]}
-            />
-            <Text style={[styles.segmentText, viewMode === 'LIVE' && styles.segmentTextActive]}>LIVE</Text>
+            {gameweekPresentationState === 'AWAITING_CONFIRMATION' ? (
+              <Ionicons name="hourglass-outline" size={13} color={viewMode === 'LIVE' ? colors.warning : colors.textMuted} />
+            ) : (
+              <Animated.View
+                style={[
+                  styles.liveDot,
+                  { opacity: viewMode === 'LIVE' ? pulseAnim : 0.3, backgroundColor: viewMode === 'LIVE' ? colors.danger : colors.textMuted },
+                ]}
+              />
+            )}
+            <Text style={[styles.segmentText, viewMode === 'LIVE' && styles.segmentTextActive]}>
+              {gameweekPresentationState === 'AWAITING_CONFIRMATION' ? 'CHECKING' : 'LIVE'}
+            </Text>
           </View>
         </TouchableOpacity>
 
@@ -498,10 +549,27 @@ export default function MatchesScreen() {
       )}
 
       {viewMode === 'LIVE' && (
-        <View style={styles.liveHeaderBanner}>
-          <View style={styles.liveBannerBadge}>
-            <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
-            <Text style={styles.liveBannerText}>IN-PLAY GAMEWEEK {currentGW}</Text>
+        <View style={[
+          styles.liveHeaderBanner,
+          gameweekPresentationState === 'AWAITING_CONFIRMATION' && styles.confirmationHeaderBanner,
+        ]}>
+          <View style={[
+            styles.liveBannerBadge,
+            gameweekPresentationState === 'AWAITING_CONFIRMATION' && styles.confirmationBannerBadge,
+          ]}>
+            {gameweekPresentationState === 'LIVE' ? (
+              <Animated.View style={[styles.pulsingBadge, { opacity: pulseAnim }]} />
+            ) : (
+              <Ionicons name="hourglass-outline" size={14} color={colors.warning} />
+            )}
+            <Text style={[
+              styles.liveBannerText,
+              gameweekPresentationState === 'AWAITING_CONFIRMATION' && styles.confirmationBannerText,
+            ]}>
+              {gameweekPresentationState === 'AWAITING_CONFIRMATION'
+                ? `GAMEWEEK ${currentGW} · SCORES BEING CHECKED`
+                : `IN-PLAY GAMEWEEK ${currentGW}`}
+            </Text>
           </View>
           <Text style={[
             styles.liveUpdateText,
@@ -567,7 +635,11 @@ export default function MatchesScreen() {
 
                       <View style={[styles.statusBadge, viewMode === 'RESULTS' && styles.finishedBadge, viewMode === 'FIXTURES' && styles.upcomingBadge]}>
                         <Text style={[styles.statusText, viewMode === 'RESULTS' && styles.finishedText, viewMode === 'FIXTURES' && styles.upcomingText]}>
-                          {viewMode === 'RESULTS' ? 'FT' : `GW${match.gameweek}`}
+                          {viewMode === 'RESULTS'
+                            ? 'FT'
+                            : viewMode === 'LIVE'
+                            ? gameweekPresentationState === 'AWAITING_CONFIRMATION' ? 'CHECKING' : 'LIVE'
+                            : `GW${match.gameweek}`}
                         </Text>
                       </View>
                     </View>
@@ -586,9 +658,13 @@ export default function MatchesScreen() {
                   {isExpanded && (
                     <View style={styles.expansionPanel}>
                       <View style={styles.panelHeaderRow}>
-                        <Text style={styles.panelHeaderTitle}>Starting XI Matchup</Text>
+                        <Text style={styles.panelHeaderTitle}>Full Squad Matchup</Text>
                         {viewMode === 'LIVE' && (
-                          <Text style={styles.provisionalText}>Provisional · autosubs update as club fixtures finish</Text>
+                          <Text style={styles.provisionalText}>
+                            {gameweekPresentationState === 'AWAITING_CONFIRMATION'
+                              ? 'Provisional · awaiting official FPL confirmation'
+                              : 'Provisional · autosubs update as club fixtures finish'}
+                          </Text>
                         )}
                       </View>
 
@@ -642,16 +718,7 @@ export default function MatchesScreen() {
                               <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
                                 {match.home_players?.length === 0 ? (
                                   <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-                                ) : match.home_players?.map((p) => (
-                                  <TouchableOpacity key={p.player_id} style={styles.playerScoreRow} onPress={() => setSelectedPlayer(p)}>
-                                    <View style={{ width: '70%' }}>
-                                      <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
-                                      <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
-                                      {renderPlayerEvents(p)}
-                                    </View>
-                                    <Text style={styles.pPoints}>{p.combined_points} pts</Text>
-                                  </TouchableOpacity>
-                                ))}
+                                ) : renderSquadPlayers(match.home_players)}
                               </View>
 
                               <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
@@ -664,16 +731,7 @@ export default function MatchesScreen() {
                                   </View>
                                 ) : match.away_players?.length === 0 ? (
                                   <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-                                ) : match.away_players?.map((p) => (
-                                  <TouchableOpacity key={p.player_id} style={styles.playerScoreRow} onPress={() => setSelectedPlayer(p)}>
-                                    <View style={{ width: '70%' }}>
-                                      <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
-                                      <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
-                                      {renderPlayerEvents(p)}
-                                    </View>
-                                    <Text style={styles.pPoints}>{p.combined_points} pts</Text>
-                                  </TouchableOpacity>
-                                ))}
+                                ) : renderSquadPlayers(match.away_players)}
                               </View>
                             </ScrollView>
                           </View>
@@ -688,16 +746,7 @@ export default function MatchesScreen() {
                         <View style={styles.splitRosterGrid}>
                           <View style={styles.rosterColumn}>
                             {match.home_players?.length === 0 && <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>}
-                            {match.home_players?.map((p) => (
-                              <TouchableOpacity key={p.player_id} style={styles.playerScoreRow} onPress={() => setSelectedPlayer(p)}>
-                                <View style={{ width: '70%' }}>
-                                  <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
-                                  <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
-                                  {renderPlayerEvents(p)}
-                                </View>
-                                <Text style={styles.pPoints}>{p.combined_points} pts</Text>
-                              </TouchableOpacity>
-                            ))}
+                            {renderSquadPlayers(match.home_players)}
                           </View>
 
                           <View style={styles.gridDivider} />
@@ -710,16 +759,7 @@ export default function MatchesScreen() {
                               </View>
                             ) : match.away_players?.length === 0 ? (
                               <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-                            ) : match.away_players?.map((p) => (
-                              <TouchableOpacity key={p.player_id} style={[styles.playerScoreRow, { flexDirection: 'row-reverse' }]} onPress={() => setSelectedPlayer(p)}>
-                                <View style={{ width: '70%', alignItems: 'flex-end' }}>
-                                  <Text style={styles.pName} numberOfLines={1}>{p.player_name}</Text>
-                                  <Text style={styles.pPos}>{p.position} · {p.fpl_points} FPL + {p.defcon_points} DC</Text>
-                                  {renderPlayerEvents(p, true)}
-                                </View>
-                                <Text style={[styles.pPoints, { textAlign: 'left' }]}>{p.combined_points} pts</Text>
-                              </TouchableOpacity>
-                            ))}
+                            ) : renderSquadPlayers(match.away_players, true)}
                           </View>
                         </View>
                       )}
@@ -769,9 +809,12 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   gwText: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
   gwTextActive: { color: colors.accent, fontWeight: '900' },
   liveHeaderBanner: { paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: colors.border },
+  confirmationHeaderBanner: { backgroundColor: colors.warningSoft, borderBottomColor: `${colors.warning}66` },
   liveBannerBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dangerSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.dangerBorder, gap: 6 },
+  confirmationBannerBadge: { backgroundColor: colors.warningSoft, borderColor: `${colors.warning}66` },
   pulsingBadge: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   liveBannerText: { color: colors.danger, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  confirmationBannerText: { color: colors.warning },
   liveUpdateText: { color: colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 0.4 },
   liveUpdateStale: { color: colors.warning },
   errorBanner: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.dangerSoft, borderBottomWidth: 1, borderBottomColor: colors.dangerBorder, alignItems: 'center' },
@@ -821,6 +864,13 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   lineupUnavailable: { color: colors.textMuted, fontSize: 9, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   gridDivider: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, backgroundColor: colors.border },
   playerScoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, padding: 8, borderRadius: 4, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
+  playerScoreRowReversed: { flexDirection: 'row-reverse' },
+  playerScoreCopy: { width: '70%' },
+  playerScoreCopyRight: { alignItems: 'flex-end' },
+  pPointsLeft: { textAlign: 'left' },
+  squadSectionDivider: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 7, marginBottom: 7 },
+  squadSectionRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  squadSectionLabel: { color: colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 0.7 },
   pName: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
   pPos: { color: colors.textMuted, fontSize: 8, fontWeight: '800', marginTop: 1 },
   playerEventRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 4 },

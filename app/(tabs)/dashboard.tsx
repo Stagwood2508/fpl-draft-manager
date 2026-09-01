@@ -31,6 +31,7 @@ import {
   useHomeShortcuts,
 } from '@/features/home/hooks/useHomeShortcuts';
 import { LeagueActivityItem } from '@/features/market/services/leagueActivity';
+import { useLeagueLoungeUnread } from '@/features/lounge/hooks/useLeagueLoungeUnread';
 
 const formatCountdown = (target: string | null, now: number) => {
   if (!target) return 'Schedule pending';
@@ -80,6 +81,7 @@ const HOME_SHORTCUTS: Record<HomeShortcutId, {
   scout_players: { label: 'Scout players', icon: 'search-outline', route: '/(tabs)/players/scout' },
   league_table: { label: 'League table', icon: 'trophy-outline', route: '/(tabs)/league' },
   my_squad: { label: 'My squad', icon: 'shirt-outline', route: '/(tabs)/squad' },
+  league_lounge: { label: 'League Lounge', icon: 'chatbubbles-outline', route: '/league-lounge' },
 };
 
 interface SummaryCardProps {
@@ -135,6 +137,7 @@ export default function HomeDashboardScreen() {
   const [draftShortcutIds, setDraftShortcutIds] = useState<HomeShortcutId[]>(DEFAULT_HOME_SHORTCUTS);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const { shortcutIds, saveShortcuts, saving: shortcutsSaving } = useHomeShortcuts(currentUserId);
+  const { unreadCount: loungeUnread } = useLeagueLoungeUnread(activeLeagueId, currentUserId);
   const {
     memberships,
     activeLeague,
@@ -176,17 +179,23 @@ export default function HomeDashboardScreen() {
     gameweek && new Date(gameweek.deadline).getTime() <= clockNow && !gameweek.isFinished
   );
   const isDraftLive = String(activeLeague?.draftStatus || '').toUpperCase() === 'LIVE';
-  const fixtureIsLive = Boolean(fixture && gameweek && deadlinePassed && !fixture.isFinished);
+  const fixtureIsLive = Boolean(fixture && gameweek?.presentationState === 'LIVE');
+  const fixtureAwaitingConfirmation = Boolean(
+    fixture && gameweek?.presentationState === 'AWAITING_CONFIRMATION'
+  );
+  const fixtureScoreVisible = Boolean(
+    fixture && (fixtureIsLive || fixtureAwaitingConfirmation || fixture.isFinished)
+  );
 
   useEffect(() => {
-    if (!fixtureIsLive) return;
+    if (!fixtureIsLive && !fixtureAwaitingConfirmation) return;
 
     const liveRefreshTimer = setInterval(() => {
       void refresh('silent');
     }, 30_000);
 
     return () => clearInterval(liveRefreshTimer);
-  }, [fixtureIsLive, refresh]);
+  }, [fixtureAwaitingConfirmation, fixtureIsLive, refresh]);
 
   const opponentName = fixture
     ? fixture.homeUserId === currentUserId
@@ -241,6 +250,8 @@ export default function HomeDashboardScreen() {
     if (shortcutId === 'trade_offers' && pendingTrades > 0) return String(pendingTrades);
     if (shortcutId === 'waivers' && waiver.pendingClaims > 0) return String(waiver.pendingClaims);
     if (shortcutId === 'live_matches' && fixtureIsLive) return 'LIVE';
+    if (shortcutId === 'live_matches' && fixtureAwaitingConfirmation) return 'CHECKING';
+    if (shortcutId === 'league_lounge' && loungeUnread > 0) return loungeUnread > 99 ? '99+' : String(loungeUnread);
     return null;
   };
 
@@ -262,14 +273,20 @@ export default function HomeDashboardScreen() {
       <View style={styles.cardHeadingRow}>
         <View>
           <Text style={styles.eyebrow}>
-            {fixtureIsLive ? 'LIVE MATCHUP' : fixture?.isFinished ? 'LATEST RESULT' : 'NEXT MATCHUP'}
+            {fixtureIsLive
+              ? 'LIVE MATCHUP'
+              : fixtureAwaitingConfirmation
+              ? 'SCORES BEING CHECKED'
+              : fixture?.isFinished
+              ? 'LATEST RESULT'
+              : 'NEXT MATCHUP'}
           </Text>
           <Text style={styles.cardHeading}>Gameweek {gameweek?.gameweek || 1}</Text>
         </View>
-        <View style={[styles.statePill, fixtureIsLive && styles.livePill]}>
+        <View style={[styles.statePill, fixtureIsLive && styles.livePill, fixtureAwaitingConfirmation && styles.confirmingPill]}>
           {fixtureIsLive && <View style={styles.liveDot} />}
-          <Text style={[styles.statePillText, fixtureIsLive && styles.livePillText]}>
-            {fixtureIsLive ? 'LIVE' : fixture?.isFinished ? 'FT' : 'UPCOMING'}
+          <Text style={[styles.statePillText, fixtureIsLive && styles.livePillText, fixtureAwaitingConfirmation && styles.confirmingPillText]}>
+            {fixtureIsLive ? 'LIVE' : fixtureAwaitingConfirmation ? 'CHECKING' : fixture?.isFinished ? 'FT' : 'UPCOMING'}
           </Text>
         </View>
       </View>
@@ -281,7 +298,7 @@ export default function HomeDashboardScreen() {
             <Text style={styles.teamName} numberOfLines={2}>{fixture.homeTeamName}</Text>
           </View>
           <View style={styles.scoreBlock}>
-            {fixtureIsLive || fixture.isFinished ? (
+            {fixtureScoreVisible ? (
               <Text style={styles.scoreText}>{fixture.homeScore}–{fixture.awayScore}</Text>
             ) : (
               <Text style={styles.versusText}>VS</Text>
@@ -360,8 +377,24 @@ export default function HomeDashboardScreen() {
                 {myStanding ? `#${myStanding.rank} · ${myStanding.points} league pts` : 'Season overview'}
               </Text>
             </View>
-            {isCommissioner && (
-              <View style={styles.leagueActions}>
+            <View style={styles.leagueActions}>
+                <TouchableOpacity
+                  style={styles.settingsButton}
+                  onPress={() => router.push('/league-lounge')}
+                  accessibilityLabel={loungeUnread > 0 ? `League Lounge, ${loungeUnread} unread messages` : 'League Lounge'}
+                >
+                  <View>
+                    <Ionicons name="chatbubbles-outline" size={17} color={appColors.accent} />
+                    {loungeUnread > 0 ? (
+                      <View style={styles.headerActionBadge}>
+                        <Text style={styles.headerActionBadgeText}>{loungeUnread > 99 ? '99+' : loungeUnread}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  {isDesktop && <Text style={styles.settingsText}>LOUNGE</Text>}
+                </TouchableOpacity>
+              {isCommissioner && (
+                <>
                 <TouchableOpacity
                   style={styles.settingsButton}
                   onPress={() => router.push({ pathname: '/(admin)/league-announcements', params: { leagueId: activeLeagueId || '' } } as any)}
@@ -376,8 +409,9 @@ export default function HomeDashboardScreen() {
                   <Ionicons name="settings-outline" size={17} color={appColors.accent} />
                   {isDesktop && <Text style={styles.settingsText}>LEAGUE SETTINGS</Text>}
                 </TouchableOpacity>
-              </View>
-            )}
+                </>
+              )}
+            </View>
           </View>
 
           {errorMessage && (
@@ -586,13 +620,21 @@ export default function HomeDashboardScreen() {
                     <TouchableOpacity onPress={() => router.push('/(tabs)/league/matches')} activeOpacity={0.8} style={styles.mobileMatchPressArea}>
                     <View style={styles.mobileMatchHeading}>
                       <View>
-                        <Text style={styles.eyebrow}>{fixtureIsLive ? 'LIVE MATCHUP' : fixture?.isFinished ? 'LATEST RESULT' : 'NEXT MATCHUP'}</Text>
+                        <Text style={styles.eyebrow}>
+                          {fixtureIsLive
+                            ? 'LIVE MATCHUP'
+                            : fixtureAwaitingConfirmation
+                            ? 'SCORES BEING CHECKED'
+                            : fixture?.isFinished
+                            ? 'LATEST RESULT'
+                            : 'NEXT MATCHUP'}
+                        </Text>
                         <Text style={styles.mobileGameweek}>Gameweek {gameweek?.gameweek || 1}</Text>
                       </View>
-                      <View style={[styles.statePill, fixtureIsLive && styles.livePill]}>
+                      <View style={[styles.statePill, fixtureIsLive && styles.livePill, fixtureAwaitingConfirmation && styles.confirmingPill]}>
                         {fixtureIsLive && <View style={styles.liveDot} />}
-                        <Text style={[styles.statePillText, fixtureIsLive && styles.livePillText]}>
-                          {fixtureIsLive ? 'LIVE' : fixture?.isFinished ? 'FT' : 'UPCOMING'}
+                        <Text style={[styles.statePillText, fixtureIsLive && styles.livePillText, fixtureAwaitingConfirmation && styles.confirmingPillText]}>
+                          {fixtureIsLive ? 'LIVE' : fixtureAwaitingConfirmation ? 'CHECKING' : fixture?.isFinished ? 'FT' : 'UPCOMING'}
                         </Text>
                       </View>
                     </View>
@@ -608,9 +650,9 @@ export default function HomeDashboardScreen() {
                             numberOfLines={1}
                             adjustsFontSizeToFit
                             minimumFontScale={0.82}
-                            style={fixtureIsLive || fixture.isFinished ? styles.mobileScoreText : styles.mobileVersusText}
+                            style={fixtureScoreVisible ? styles.mobileScoreText : styles.mobileVersusText}
                           >
-                            {fixtureIsLive || fixture.isFinished ? `${fixture.homeScore}–${fixture.awayScore}` : 'VS'}
+                            {fixtureScoreVisible ? `${fixture.homeScore}–${fixture.awayScore}` : 'VS'}
                           </Text>
                         </View>
                         <View style={[styles.mobileTeamBlock, styles.awayTeamBlock]}>
@@ -886,6 +928,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   settingsButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.medium },
   settingsText: { ...appTypography.label, color: appColors.accent },
   leagueActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerActionBadge: { position: 'absolute', top: -9, right: -11, minWidth: 17, height: 15, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderRadius: appRadius.pill, backgroundColor: appColors.danger },
+  headerActionBadgeText: { color: '#FFFFFF', fontSize: 7, fontWeight: '900' },
   errorBanner: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: appSpacing.md, backgroundColor: appColors.dangerSoft, borderWidth: 1, borderColor: appColors.dangerBorder, borderRadius: appRadius.medium },
   errorText: { ...appTypography.body, flex: 1, color: appColors.danger },
   announcementStrip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: appSpacing.md, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.medium },
@@ -916,8 +960,10 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   cardHeading: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 15, letterSpacing: 0 },
   statePill: { minHeight: 25, justifyContent: 'center', paddingHorizontal: 9, backgroundColor: appColors.surfaceMuted, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.pill },
   livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: appColors.dangerSoft, borderColor: appColors.dangerBorder },
+  confirmingPill: { backgroundColor: appColors.warningSoft, borderColor: `${appColors.warning}66` },
   statePillText: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
   livePillText: { color: appColors.danger },
+  confirmingPillText: { color: appColors.warning },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: appColors.danger },
   scoreboard: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: appSpacing.lg },
   teamBlock: { flex: 1, minWidth: 0 },
