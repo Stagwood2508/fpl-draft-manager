@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import AuthScreenFrame from '@/components/AuthScreenFrame';
@@ -21,7 +20,7 @@ export default function CreateLeagueScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
-    const { refreshLeagueMembership } = useAppSession();
+  const { selectActiveLeague } = useAppSession();
   const [name, setName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [size, setSize] = useState('8');
@@ -65,12 +64,6 @@ export default function CreateLeagueScreen() {
         throw new Error(result?.error || 'League record could not be generated.');
       }
 
-      // 5. 🌟 PERSIST NEW LEAGUE AS ACTIVE IN ASYNC STORAGE & LOCAL STORAGE
-      await AsyncStorage.setItem('active_league_id', result.league_id);
-      if (Platform.OS === 'web') {
-        window.localStorage.setItem('active_league_id', result.league_id);
-      }
-
       setCreatedLeagueId(result.league_id);
       setCreatedCode(result.invite_code);
     } catch (err: any) {
@@ -94,30 +87,13 @@ const handleEnterDashboard = async () => {
   try {
     setLoading(true);
 
-    await AsyncStorage.setItem(
-      'active_league_id',
-      createdLeagueId
-    );
-
-    const membershipConfirmed =
-      await refreshLeagueMembership();
-
-    if (!membershipConfirmed) {
-      throw new Error(
-        'Your league was created, but your membership could not be verified.'
-      );
-    }
+    await selectActiveLeague(createdLeagueId);
 
     console.log(
       '🚀 [ROUTING] Membership verified. Entering dashboard...'
     );
 
-    router.replace({
-      pathname: '/(tabs)/dashboard',
-      params: {
-        leagueId: createdLeagueId,
-      },
-    });
+    router.replace('/(tabs)/dashboard');
   } catch (err: any) {
     console.error('Navigation Error:', err);
 
