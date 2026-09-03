@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -53,6 +54,7 @@ export function AppSessionProvider({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [hasLeague, setHasLeague] = useState<boolean | null>(null);
   const [activeLeagueId, setActiveLeagueId] = useState<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
 
   /**
    * Clears all local league state.
@@ -61,6 +63,7 @@ export function AppSessionProvider({
    * Supabase user can be found.
    */
   const clearLeagueState = useCallback(async () => {
+    currentUserIdRef.current = null;
     setHasLeague(false);
     setActiveLeagueId(null);
 
@@ -198,6 +201,16 @@ export function AppSessionProvider({
   const synchroniseSession = useCallback(
     async (session: Session | null): Promise<void> => {
       const userId = session?.user?.id ?? null;
+      const userChanged = currentUserIdRef.current !== userId;
+
+      currentUserIdRef.current = userId;
+
+      // Do not expose the previous signed-out/user membership result while
+      // the newly authenticated user's memberships are still being resolved.
+      if (userId && userChanged) {
+        setHasLeague(null);
+        setActiveLeagueId(null);
+      }
 
       setSessionActive(Boolean(session));
       setCurrentUserId(userId);

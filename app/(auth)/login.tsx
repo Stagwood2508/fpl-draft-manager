@@ -54,25 +54,11 @@ export default function LoginScreen() {
         throw new Error('Authentication succeeded, but user session payload was missing. Please verify your email address.');
       }
 
-      // 2. Query league membership explicitly catching database errors.
-      // Push permission is requested later from the manager's notification settings.
-      const { data: membership, error: memberError } = await supabase
-        .from('league_members')
-        .select('league_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (memberError) {
-        console.warn('Membership lookup error:', memberError.message);
-      }
-
-      // 3. Route accurately based on membership status
+      // The shared app-session provider owns membership resolution and the
+      // normal dashboard/onboarding redirect. Keeping that decision in one
+      // place prevents a transient signed-in state from flashing onboarding.
       if (inviteCode) {
         router.replace({ pathname: '/(auth)/join-league', params: { inviteCode } });
-      } else if (membership?.league_id) {
-        router.replace('/(tabs)/dashboard');
-      } else {
-        router.replace('/(auth)/onboarding');
       }
 
     } catch (err: any) {
