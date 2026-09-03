@@ -219,6 +219,7 @@ export default function PlayerPoolScreen() {
 
   const [selectedModalPlayerId, setSelectedModalPlayerId] = useState<number | null>(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
+  const [returnToWaiverAfterDetails, setReturnToWaiverAfterDetails] = useState(false);
 
   // Waiver Queue Modal State
   const [isWaiverModalVisible, setIsWaiverModalVisible] = useState(false);
@@ -558,12 +559,45 @@ export default function PlayerPoolScreen() {
           && (projected.FWD || 0) >= 2 && (projected.FWD || 0) <= 4;
       };
 
-      setEligibleRosterPlayers(structured.filter(isEligibleDrop));
+      const positionOrder: Record<string, number> = { GKP: 0, DEF: 1, MID: 2, FWD: 3 };
+      const eligiblePlayers = structured
+        .filter(isEligibleDrop)
+        .sort((a: any, b: any) => {
+          const positionDifference = (positionOrder[a.element_type] ?? 99) - (positionOrder[b.element_type] ?? 99);
+          if (positionDifference !== 0) return positionDifference;
+          return String(a.web_name || a.second_name || '').localeCompare(String(b.web_name || b.second_name || ''));
+        });
+
+      setEligibleRosterPlayers(eligiblePlayers);
       setIsWaiverModalVisible(true);
     } catch (err: any) {
       Alert.alert('Roster Query Error', err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openPlayerDetails = (playerId: number, fromWaiver = false) => {
+    setSelectedModalPlayerId(playerId);
+    setReturnToWaiverAfterDetails(fromWaiver);
+
+    if (fromWaiver) {
+      setIsWaiverModalVisible(false);
+      setTimeout(() => setDetailsVisible(true), 120);
+      return;
+    }
+
+    setDetailsVisible(true);
+  };
+
+  const closePlayerDetails = () => {
+    const shouldReturnToWaiver = returnToWaiverAfterDetails;
+    setDetailsVisible(false);
+    setSelectedModalPlayerId(null);
+    setReturnToWaiverAfterDetails(false);
+
+    if (shouldReturnToWaiver) {
+      setTimeout(() => setIsWaiverModalVisible(true), 120);
     }
   };
 
@@ -627,7 +661,7 @@ export default function PlayerPoolScreen() {
 
     return (
       <View style={styles.playerRow}>
-        <TouchableOpacity style={styles.playerCardMainTrigger} onPress={() => { setSelectedModalPlayerId(item.id); setDetailsVisible(true); }} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.playerCardMainTrigger} onPress={() => openPlayerDetails(item.id)} activeOpacity={0.7}>
           <View style={styles.playerMeta}>
             <View style={styles.playerRowFlow}>
               {availabilityMarker && (
@@ -833,7 +867,7 @@ export default function PlayerPoolScreen() {
         playerId={selectedModalPlayerId} 
         leagueId={activeLeagueId}
         currentGameweek={currentGameweek}
-        onClose={() => { setDetailsVisible(false); setSelectedModalPlayerId(null); }} 
+        onClose={closePlayerDetails}
       />
 
       {/* ROSTER-VALID WAIVER QUEUE MODAL (WAIVERS_OPEN) */}
@@ -871,18 +905,46 @@ export default function PlayerPoolScreen() {
             <Text style={styles.selectionTitle}>
               {rosterType === 'FLEXIBLE' ? 'Choose an eligible player to drop:' : `Drop player (${selectedPoolPlayer?.element_type}):`}
             </Text>
-            <View style={{ maxHeight: 200 }}>
-              <ScrollView style={styles.rosterSelectorList}>
+            <View style={styles.rosterSelectorViewport}>
+              <ScrollView
+                style={styles.rosterSelectorList}
+                contentContainerStyle={styles.rosterSelectorGrid}
+                showsVerticalScrollIndicator={eligibleRosterPlayers.length > 12}
+              >
                 {eligibleRosterPlayers.length === 0 ? (
                   <Text style={styles.noPlayersText}>No squad player can be dropped while keeping a valid roster.</Text>
                 ) : (
                   eligibleRosterPlayers.map((player) => {
                     const isSelected = selectedRosterPlayerId === player.id;
                     return (
-                      <TouchableOpacity key={player.id} style={[styles.rosterSelectRow, isSelected && styles.rosterSelectRowActive]} onPress={() => setSelectedRosterPlayerId(player.id)}>
-                        <Text style={[styles.rosterSelectName, isSelected && styles.rosterSelectNameActive]}>{player.web_name}</Text>
-                        <Text style={styles.rosterSelectTeam}>{player.team_name} · {player.element_type}</Text>
-                      </TouchableOpacity>
+                      <View
+                        key={player.id}
+                        style={[
+                          styles.rosterSelectRow,
+                          isMobileLayout ? styles.rosterSelectRowMobile : styles.rosterSelectRowDesktop,
+                          isSelected && styles.rosterSelectRowActive,
+                        ]}
+                      >
+                        <TouchableOpacity
+                          style={styles.rosterInfoButton}
+                          onPress={() => openPlayerDetails(player.id, true)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${player.web_name} stats`}
+                        >
+                          <Ionicons name="information-circle-outline" size={20} color={colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.rosterSelectTrigger}
+                          onPress={() => setSelectedRosterPlayerId(player.id)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                          accessibilityLabel={`Select ${player.web_name} to drop`}
+                        >
+                          <Text style={[styles.rosterSelectName, isSelected && styles.rosterSelectNameActive]} numberOfLines={1}>{player.web_name}</Text>
+                          <Text style={styles.rosterSelectTeam} numberOfLines={1}>{player.team_name} · {player.element_type}</Text>
+                        </TouchableOpacity>
+                        {isSelected && <Ionicons name="checkmark-circle" size={18} color={colors.accent} />}
+                      </View>
                     );
                   })
                 )}
@@ -1014,14 +1076,20 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   emptySwapText: { color: colors.textDisabled, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingHorizontal: 4 },
   swapArrow: { color: colors.textMuted, fontSize: 20, fontWeight: '700', marginHorizontal: 8 },
   selectionTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 },
-  rosterSelectorList: { maxHeight: 200, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface, padding: 8 },
-  rosterSelectRow: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 4, marginBottom: 4 },
+  rosterSelectorViewport: { flex: 1, minHeight: 180 },
+  rosterSelectorList: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface },
+  rosterSelectorGrid: { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start', padding: 6, gap: 6 },
+  rosterSelectRow: { minHeight: 48, paddingVertical: 5, paddingHorizontal: 6, borderWidth: 1, borderColor: colors.borderSubtle, flexDirection: 'row', alignItems: 'center', borderRadius: 6 },
+  rosterSelectRowMobile: { width: '49%' },
+  rosterSelectRowDesktop: { width: '32.5%' },
   rosterSelectRowActive: { backgroundColor: colors.accentSoft, borderBottomColor: 'transparent' },
+  rosterInfoButton: { width: 30, height: 34, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
+  rosterSelectTrigger: { flex: 1, minWidth: 0, justifyContent: 'center' },
   rosterSelectName: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
   rosterSelectNameActive: { color: colors.accent },
   rosterSelectTeam: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   noPlayersText: { color: colors.textMuted, textAlign: 'center', padding: 20, fontSize: 12, fontWeight: '700' },
-  modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
+  modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 6, justifyContent: 'center' },
   modalButtonCancel: { backgroundColor: colors.surfacePressed },
   modalButtonConfirm: { backgroundColor: colors.accentFill },
