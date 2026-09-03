@@ -698,6 +698,18 @@ export default function PlayerPoolScreen() {
             <Text style={[styles.pillText, selectedPosition === pos && styles.pillTextActive]}>{pos}</Text>
           </TouchableOpacity>
         ))}
+        <View style={styles.quickFilterDivider} />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Show available players"
+          accessibilityState={{ selected: ownershipFilters.includes('AVAILABLE') }}
+          style={[styles.pillBtn, styles.availablePillBtn, ownershipFilters.includes('AVAILABLE') && styles.pillBtnActive]}
+          onPress={() => setOwnershipFilters(current => current.includes('AVAILABLE')
+            ? current.filter(item => item !== 'AVAILABLE')
+            : [...current, 'AVAILABLE'])}
+        >
+          <Text style={[styles.pillText, styles.availablePillText, ownershipFilters.includes('AVAILABLE') && styles.pillTextActive]}>AVAILABLE</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Main List with Pull-To-Refresh */}
@@ -936,6 +948,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   pillBtnActive: { backgroundColor: colors.accentFill, borderColor: colors.accent },
   pillText: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
   pillTextActive: { color: colors.accentForeground, fontWeight: '900' },
+  quickFilterDivider: { width: 1, alignSelf: 'stretch', marginVertical: 3, marginLeft: 1, marginRight: 7, backgroundColor: colors.borderStrong },
+  availablePillBtn: { borderColor: colors.accent },
+  availablePillText: { color: colors.accent },
   playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingRight: 8, borderRadius: 4, marginBottom: 4 },
   playerCardMainTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },
   playerMeta: { flex: 1, marginLeft: 2, paddingRight: 4, justifyContent: 'center' },
