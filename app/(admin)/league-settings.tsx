@@ -92,6 +92,13 @@ const serialiseDefconTiers = (tiers: TierSetting[]) => Object.fromEntries(
   ]),
 );
 
+const createDefaultDraftDate = () => {
+  const date = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000));
+  date.setSeconds(0, 0);
+  date.setMinutes(Math.ceil(date.getMinutes() / 5) * 5);
+  return date;
+};
+
 export default function UnifiedLeagueSettingsScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -121,6 +128,7 @@ export default function UnifiedLeagueSettingsScreen() {
 
   // Draft Lifecycle Lock State
   const [draftStatus, setDraftStatus] = useState<'PRE_DRAFT' | 'DRAFTING' | 'COMPLETED' | string>('PRE_DRAFT');
+  const [draftPickCount, setDraftPickCount] = useState(0);
 
   const [attackingExpanded, setAttackingExpanded] = useState(false);
   const [disciplinaryExpanded, setDisciplinaryExpanded] = useState(false);
@@ -129,11 +137,13 @@ export default function UnifiedLeagueSettingsScreen() {
   const [settings, setSettings] = useState<LeagueSettings | null>(null);
 
   // INLINE GRID SELECTION WHEELS TIME HUB STATES
-  const [schedYear, setSchedYear] = useState(2026);
-  const [schedMonth, setSchedMonth] = useState(8); 
-  const [schedDay, setSchedDay] = useState(1);
-  const [schedHour, setSchedHour] = useState(19);
-  const [schedMinute, setSchedMinute] = useState(0);
+  const defaultDraftDate = useRef(createDefaultDraftDate());
+  const [draftScheduleEnabled, setDraftScheduleEnabled] = useState(false);
+  const [schedYear, setSchedYear] = useState(defaultDraftDate.current.getFullYear());
+  const [schedMonth, setSchedMonth] = useState(defaultDraftDate.current.getMonth() + 1);
+  const [schedDay, setSchedDay] = useState(defaultDraftDate.current.getDate());
+  const [schedHour, setSchedHour] = useState(defaultDraftDate.current.getHours());
+  const [schedMinute, setSchedMinute] = useState(defaultDraftDate.current.getMinutes());
 
   const [defTiers, setDefTiers] = useState<TierSetting[]>([]);
   const [midTiers, setMidTiers] = useState<TierSetting[]>([]);
@@ -233,6 +243,12 @@ export default function UnifiedLeagueSettingsScreen() {
       const activeStatus = league.draft_status || league.status || 'PRE_DRAFT';
       setDraftStatus(activeStatus);
 
+      const { count: existingPickCount } = await supabase
+        .from('draft_picks')
+        .select('id', { count: 'exact', head: true })
+        .eq('league_id', targetLid);
+      setDraftPickCount(existingPickCount || 0);
+
       // 3. Fetch Settings for this specific league
       const { data: settingsData } = await supabase
         .from('league_settings')
@@ -253,12 +269,15 @@ export default function UnifiedLeagueSettingsScreen() {
         if (settingsData.draft_start_time) {
           const date = new Date(settingsData.draft_start_time);
           if (!isNaN(date.getTime())) {
+            setDraftScheduleEnabled(true);
             setSchedYear(date.getFullYear());
             setSchedMonth(date.getMonth() + 1);
             setSchedDay(date.getDate());
             setSchedHour(date.getHours());
             setSchedMinute(date.getMinutes());
           }
+        } else {
+          setDraftScheduleEnabled(false);
         }
       } else {
         setDefTiers(createDefaultTiers());
@@ -350,9 +369,11 @@ export default function UnifiedLeagueSettingsScreen() {
     }
   };
 
-  const tweakTimeValue = (field: 'DAY' | 'MONTH' | 'HOUR' | 'MIN', delta: number) => {
+  const tweakTimeValue = (field: 'YEAR' | 'DAY' | 'MONTH' | 'HOUR' | 'MIN', delta: number) => {
     if (isLocked) return;
-    if (field === 'DAY') {
+    if (field === 'YEAR') {
+      setSchedYear(prev => Math.max(new Date().getFullYear(), prev + delta));
+    } else if (field === 'DAY') {
       setSchedDay(prev => Math.max(1, Math.min(31, prev + delta)));
     } else if (field === 'MONTH') {
       setSchedMonth(prev => Math.max(1, Math.min(12, prev + delta)));
@@ -360,6 +381,42 @@ export default function UnifiedLeagueSettingsScreen() {
       setSchedHour(prev => (prev + delta + 24) % 24);
     } else if (field === 'MIN') {
       setSchedMinute(prev => (prev + delta + 60) % 60);
+    }
+  };
+
+  const restoreAccidentalDraft = async () => {
+    if (!leagueId || !isCommissioner || draftPickCount > 0) return;
+
+    const proceed = Platform.OS === 'web'
+      ? window.confirm('Return this empty draft to pre-draft setup? The expired draft time will be cleared.')
+      : await new Promise<boolean>(resolve => {
+          Alert.alert(
+            'Return to pre-draft setup?',
+            'No picks have been made. This will close the live draft and clear the expired draft time.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Restore', style: 'destructive', onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+
+    if (!proceed) return;
+
+    try {
+      setSavingMatrix(true);
+      const { data, error } = await supabase.rpc('commissioner_restart_draft', { p_league_id: leagueId });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data.error || 'Draft could not be restored.');
+
+      setDraftStatus('WAITING_ROOM');
+      setDraftScheduleEnabled(false);
+      setSettings(current => current ? { ...current, draft_start_time: null } : current);
+      presentSaveFeedback('success', 'Pre-draft settings restored', 'The expired draft time was cleared. You can now amend every league setting and schedule a new future time.');
+    } catch (error: any) {
+      presentSaveFeedback('error', 'Draft not restored', error.message || 'Please try again.');
+    } finally {
+      setSavingMatrix(false);
     }
   };
 
@@ -428,7 +485,7 @@ export default function UnifiedLeagueSettingsScreen() {
         && selectedDraftDate.getHours() === schedHour
         && selectedDraftDate.getMinutes() === schedMinute;
 
-      if (!isValidLocalDate) {
+      if (draftScheduleEnabled && !isValidLocalDate) {
         presentSaveFeedback(
           'error',
           'Check draft date',
@@ -437,7 +494,16 @@ export default function UnifiedLeagueSettingsScreen() {
         return;
       }
 
-      const draftStartTime = selectedDraftDate.toISOString();
+      if (draftScheduleEnabled && selectedDraftDate.getTime() <= Date.now() + 60_000) {
+        presentSaveFeedback(
+          'error',
+          'Choose a future draft time',
+          'The draft cannot be scheduled in the past. Move it to a future date, or select Not scheduled to save the other settings only.',
+        );
+        return;
+      }
+
+      const draftStartTime = draftScheduleEnabled ? selectedDraftDate.toISOString() : null;
 
       // 1. Update LEAGUES table directly with roster_type
       const { error: leagueErr } = await supabase
@@ -475,7 +541,9 @@ export default function UnifiedLeagueSettingsScreen() {
       presentSaveFeedback(
         'success',
         'League settings saved',
-        'Your scoring rules, roster settings and draft timetable have been updated successfully.',
+        draftScheduleEnabled
+          ? 'Your scoring rules, roster settings and future draft timetable have been updated successfully.'
+          : 'Your scoring and roster settings were saved. The draft remains unscheduled.',
       );
     } catch (err: any) {
       console.error('Full Settings Save Crash:', err);
@@ -613,6 +681,18 @@ export default function UnifiedLeagueSettingsScreen() {
                   <Text style={styles.shareLinkBtnText}>SHARE INVITE</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          )}
+
+          {isCommissioner && isLocked && draftPickCount === 0 && (
+            <View style={styles.recoveryCard}>
+              <View style={styles.recoveryCopy}>
+                <Text style={styles.recoveryTitle}>EMPTY DRAFT STARTED</Text>
+                <Text style={styles.recoveryText}>No picks have been made, so this league can safely return to pre-draft setup.</Text>
+              </View>
+              <TouchableOpacity style={styles.recoveryButton} onPress={() => void restoreAccidentalDraft()} disabled={savingMatrix}>
+                <Text style={styles.recoveryButtonText}>{savingMatrix ? 'RESTORING...' : 'RESTORE SETTINGS'}</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -760,9 +840,39 @@ export default function UnifiedLeagueSettingsScreen() {
             <Text style={styles.sectionSub}>
               {isLocked 
                 ? 'Draft timing is locked for the season.'
-                : 'Tap arrows to increment parameters directly. Must click master save button at the bottom to finalize changes.'}
+                : 'A new league remains unscheduled until you explicitly enable a future draft time.'}
             </Text>
-            
+
+            <View style={[styles.segmentedControlGroup, isLocked && { opacity: 0.5 }]}>
+              <TouchableOpacity
+                disabled={isLocked}
+                style={[styles.segmentBtn, !draftScheduleEnabled && styles.segmentBtnActive]}
+                onPress={() => setDraftScheduleEnabled(false)}
+              >
+                <Text style={[styles.segmentText, !draftScheduleEnabled && styles.segmentTextActive]}>Not scheduled</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={isLocked}
+                style={[styles.segmentBtn, draftScheduleEnabled && styles.segmentBtnActive]}
+                onPress={() => setDraftScheduleEnabled(true)}
+              >
+                <Text style={[styles.segmentText, draftScheduleEnabled && styles.segmentTextActive]}>Schedule draft</Text>
+              </TouchableOpacity>
+            </View>
+
+            {draftScheduleEnabled ? (
+            <View>
+              <View style={[styles.yearPickerRow, isLocked && { opacity: 0.4 }]}>
+                <Text style={styles.yearPickerLabel}>YEAR</Text>
+                <TouchableOpacity disabled={isLocked} style={styles.yearPickerButton} onPress={() => tweakTimeValue('YEAR', -1)}>
+                  <Ionicons name="remove" size={14} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <Text style={styles.yearPickerValue}>{schedYear}</Text>
+                <TouchableOpacity disabled={isLocked} style={styles.yearPickerButton} onPress={() => tweakTimeValue('YEAR', 1)}>
+                  <Ionicons name="add" size={14} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+
             <View style={[styles.wheelSelectionDeckRow, isLocked && { opacity: 0.4 }]}>
               <View style={styles.wheelItemColumn}>
                 <TouchableOpacity disabled={isLocked} style={styles.wheelArrowBtn} onPress={() => tweakTimeValue('DAY', 1)}>
@@ -820,6 +930,13 @@ export default function UnifiedLeagueSettingsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+            </View>
+            ) : (
+              <View style={styles.unscheduledNotice}>
+                <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
+                <Text style={styles.unscheduledNoticeText}>Saving other rules will not start or schedule the draft.</Text>
+              </View>
+            )}
             <View style={styles.timeZoneNotice}>
               <Ionicons name="globe-outline" size={14} color={colors.accent} />
               <Text style={styles.timeZoneText}>
@@ -1056,11 +1173,22 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   lockedNoticeBox: { backgroundColor: colors.backgroundElevated, padding: 12, borderRadius: 4, borderWidth: 1, borderColor: colors.borderSubtle },
   lockedNoticeText: { color: colors.textSecondary, fontSize: 11, fontStyle: 'italic', textAlign: 'center' },
 
+  recoveryCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.dangerBorder, padding: 14, borderRadius: 6, marginBottom: 16 },
+  recoveryCopy: { flex: 1 },
+  recoveryTitle: { color: colors.danger, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  recoveryText: { color: colors.textSecondary, fontSize: 10, fontWeight: '600', lineHeight: 14, marginTop: 3 },
+  recoveryButton: { minHeight: 38, justifyContent: 'center', backgroundColor: colors.danger, paddingHorizontal: 12, borderRadius: 4 },
+  recoveryButtonText: { color: colors.white, fontSize: 9, fontWeight: '900' },
+
   sectionCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 16, borderRadius: 4, marginBottom: 16 },
   sectionHeading: { color: colors.accent, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
   sectionSub: { color: colors.textSecondary, fontSize: 11, marginTop: 2, marginBottom: 16, fontWeight: '600', lineHeight: 16 },
 
   wheelSelectionDeckRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 6, borderRadius: 4, marginTop: 6 },
+  yearPickerRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 8 },
+  yearPickerLabel: { marginRight: 'auto', color: colors.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  yearPickerButton: { width: 34, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 4 },
+  yearPickerValue: { minWidth: 50, color: colors.textPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
   wheelItemColumn: { alignItems: 'center', width: 58 },
   wheelArrowBtn: { padding: 4, width: '100%', alignItems: 'center' },
   wheelNumericDisplayBox: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderSubtle, paddingVertical: 6, width: '100%', borderRadius: 2, alignItems: 'center', marginVertical: 2 },
@@ -1070,6 +1198,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   deckTimeColonSymbol: { color: colors.accent, fontSize: 16, fontWeight: '900', marginHorizontal: 6, marginTop: -14 },
   timeZoneNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10, paddingHorizontal: 2 },
   timeZoneText: { flex: 1, color: colors.textMuted, fontSize: 10, fontWeight: '600', lineHeight: 14 },
+  unscheduledNotice: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, paddingHorizontal: 12, backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.borderSubtle, borderRadius: 4 },
+  unscheduledNoticeText: { flex: 1, color: colors.textSecondary, fontSize: 10, fontWeight: '700', lineHeight: 14 },
 
   accordionHeaderButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderRadius: 4 },
   accordionHeaderText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
