@@ -499,7 +499,7 @@ export default function MatchesScreen() {
       <View style={styles.pitchEventRow}>
         {events.map((event, index) => (
           <View key={`${event.icon}-${index}`} style={styles.pitchEventBadge}>
-            <Ionicons name={event.icon} size={9} color={colors.pitchPlayerNameText} />
+            <Ionicons name={event.icon} size={11} color={colors.pitchPlayerNameText} />
             {event.label ? <Text style={styles.pitchEventBadgeText}>{event.label}</Text> : null}
           </View>
         ))}
@@ -1028,8 +1028,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   pitchPointsTextZero: { color: colors.textPrimary },
   pitchPlayerNamePlate: { width: '100%', maxWidth: 88, marginTop: 8, paddingVertical: 3, paddingHorizontal: 4, borderRadius: 4, backgroundColor: colors.pitchPlayerNameSurface },
   pitchPlayerName: { color: colors.pitchPlayerNameText, fontSize: 8, lineHeight: 10, fontWeight: '900', textAlign: 'center' },
-  pitchEventRow: { position: 'absolute', top: -7, right: -15, flexDirection: 'row', gap: 2 },
-  pitchEventBadge: { minWidth: 18, height: 18, paddingHorizontal: 3, borderRadius: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: colors.accentFill, borderWidth: 1, borderColor: colors.pitch },
+  pitchEventRow: { position: 'absolute', top: -9, right: -18, flexDirection: 'row', gap: 3, zIndex: 4 },
+  pitchEventBadge: { minWidth: 21, height: 21, paddingHorizontal: 4, borderRadius: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: colors.pitchPlayerNameSurface, borderWidth: 1, borderColor: colors.pitchPlayerNameText, elevation: 2, shadowColor: colors.black, shadowOpacity: 0.28, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
   pitchEventBadgeText: { color: colors.pitchPlayerNameText, fontSize: 7, fontWeight: '900' },
   pitchBenchLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.pitch },
   pitchBenchRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.pitchLine },
