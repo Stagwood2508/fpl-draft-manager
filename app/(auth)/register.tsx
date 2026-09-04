@@ -26,6 +26,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState(''); 
   const [lastName, setLastName] = useState('');   
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -81,9 +82,22 @@ export default function RegisterScreen() {
         throw new Error('Registration succeeded, but no user session was returned. Please check if email confirmation is enabled in your Supabase dashboard.');
       }
 
-      // Direct replacement ensures web router transitions immediately
+      if (!signUpData.session) {
+        notifyUser(
+          'Confirm Your Email',
+          'Your account has been created. Open the confirmation email, then sign in to continue with your league invitation.'
+        );
+        router.replace({
+          pathname: '/(auth)/login',
+          params: inviteCode ? { inviteCode } : {},
+        });
+        return;
+      }
+
+      // Let a new manager choose Create or Join from onboarding. Invitation
+      // context is retained so Join League can prefill the code.
       router.replace(inviteCode
-        ? { pathname: '/(auth)/join-league', params: { inviteCode } }
+        ? { pathname: '/(auth)/onboarding', params: { inviteCode } }
         : '/(auth)/onboarding');
 
     } catch (err: any) {
@@ -147,15 +161,27 @@ export default function RegisterScreen() {
         autoCapitalize="none" 
         keyboardType="email-address" 
       />
-      <TextInput 
-        style={styles.input} 
-        placeholder="Password" 
-        placeholderTextColor={colors.textMuted}
-        value={password} 
-        onChangeText={(txt) => handleTextChange(setPassword, txt)} 
-        secureTextEntry 
-        autoCapitalize="none" 
-      />
+      <View style={styles.passwordField}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Password"
+          placeholderTextColor={colors.textMuted}
+          value={password}
+          onChangeText={(txt) => handleTextChange(setPassword, txt)}
+          secureTextEntry={!passwordVisible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+        />
+        <TouchableOpacity
+          style={styles.passwordToggle}
+          onPress={() => setPasswordVisible(current => !current)}
+          accessibilityRole="button"
+          accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+        >
+          <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={21} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity 
         style={[styles.btnPrimary, loading && { opacity: 0.6 }]} 
@@ -198,6 +224,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   input: { backgroundColor: colors.surface, color: colors.textPrimary, padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  passwordField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  passwordInput: { flex: 1, minWidth: 0, color: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 14 },
+  passwordToggle: { width: 48, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { backgroundColor: colors.accentFill, padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
   btnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 14 },
   switchLink: { marginTop: 20, alignItems: 'center' },

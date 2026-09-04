@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
@@ -10,6 +10,8 @@ export default function OnboardingScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ inviteCode?: string }>();
+  const inviteCode = String(params.inviteCode || '').trim().toUpperCase();
 
   // 🛡️ Auto-forward if user is already assigned to a league
   useEffect(() => {
@@ -47,10 +49,17 @@ const { data: member } = await supabase
 
       <TouchableOpacity 
         style={[styles.choiceCard, { borderColor: colors.borderStrong }]}
-        onPress={() => router.replace('/(auth)/join-league')}
+        onPress={() => router.replace({
+          pathname: '/(auth)/join-league',
+          params: inviteCode ? { inviteCode } : {},
+        })}
       >
         <Text style={[styles.cardTitle, { color: '#FFF' }]}>🤝 JOIN A LEAGUE</Text>
-        <Text style={styles.cardSub}>Enter an invite code provided by your league commissioner.</Text>
+        <Text style={styles.cardSub}>
+          {inviteCode
+            ? `Your invitation code ${inviteCode} is ready to use.`
+            : 'Enter an invite code provided by your league commissioner.'}
+        </Text>
       </TouchableOpacity>
     </AuthScreenFrame>
   );

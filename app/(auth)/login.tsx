@@ -24,6 +24,7 @@ export default function LoginScreen() {
   const inviteCode = String(params.inviteCode || '').trim().toUpperCase();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -103,18 +104,30 @@ export default function LoginScreen() {
         autoCapitalize="none" 
         keyboardType="email-address" 
       />
-      <TextInput 
-        style={styles.input} 
-        placeholder="Password" 
-        placeholderTextColor={colors.textMuted}
-        value={password} 
-        onChangeText={(txt) => {
-          setPassword(txt);
-          if (errorMessage) setErrorMessage(null);
-        }} 
-        secureTextEntry 
-        autoCapitalize="none" 
-      />
+      <View style={styles.passwordField}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Password"
+          placeholderTextColor={colors.textMuted}
+          value={password}
+          onChangeText={(txt) => {
+            setPassword(txt);
+            if (errorMessage) setErrorMessage(null);
+          }}
+          secureTextEntry={!passwordVisible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="password"
+        />
+        <TouchableOpacity
+          style={styles.passwordToggle}
+          onPress={() => setPasswordVisible(current => !current)}
+          accessibilityRole="button"
+          accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+        >
+          <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={21} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity 
         style={[styles.btnPrimary, loading && { opacity: 0.6 }]} 
@@ -161,6 +174,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   input: { backgroundColor: colors.surface, color: colors.textPrimary, padding: 16, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  passwordField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  passwordInput: { flex: 1, minWidth: 0, color: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 14 },
+  passwordToggle: { width: 48, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
   btnPrimary: { backgroundColor: colors.accentFill, padding: 16, borderRadius: 4, alignItems: 'center', marginTop: 10 },
   btnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 14 },
   switchLink: { marginTop: 20, alignItems: 'center' },

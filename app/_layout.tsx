@@ -195,6 +195,16 @@ function RootLayoutContent() {
       currentSubSegment === 'reset-password';
 
     if (!sessionActive) {
+      // A signed-out visitor following a league invitation needs an account
+      // before the join form can submit. Preserve the code throughout auth.
+      if (globalParams.inviteCode && currentSubSegment === 'join-league') {
+        router.replace({
+          pathname: '/(auth)/register',
+          params: { inviteCode: String(globalParams.inviteCode) },
+        });
+        return;
+      }
+
       if (!inAuthGroup) {
         router.replace({
           pathname: '/(auth)/login',
