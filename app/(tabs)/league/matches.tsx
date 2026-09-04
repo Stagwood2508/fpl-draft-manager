@@ -17,6 +17,7 @@ import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import LivePlayerBreakdownModal, { LivePlayerScore } from '@/components/LivePlayerBreakdownModal';
+import PlayerHeadshot from '@/components/PlayerHeadshot';
 import {
   GameweekPresentationState,
   resolveGameweekPresentationState,
@@ -35,6 +36,7 @@ const POSITION_ORDER: Record<string, number> = {
 };
 
 type ViewMode = 'RESULTS' | 'LIVE' | 'FIXTURES';
+type RosterDisplayMode = 'PITCH' | 'LIST';
 
 interface TeamOption {
   user_id: string;
@@ -42,6 +44,13 @@ interface TeamOption {
 }
 
 type PlayerScoreRow = LivePlayerScore;
+
+interface PlayerVisual {
+  id: number;
+  code: number | null;
+  photo_code: number | null;
+  team_id: number | null;
+}
 
 interface MatchupItem {
   id: string;
@@ -80,6 +89,7 @@ export default function MatchesScreen() {
   const [matchups, setMatchups] = useState<MatchupItem[]>([]);
   const [expandedMatchupId, setExpandedMatchupId] = useState<string | null>(null);
   const [activeRosterSides, setActiveRosterSides] = useState<Record<string, 'HOME' | 'AWAY'>>({});
+  const [rosterDisplayModes, setRosterDisplayModes] = useState<Record<string, RosterDisplayMode>>({});
   const [rosterPagerWidths, setRosterPagerWidths] = useState<Record<string, number>>({});
   const [selectedPlayer, setSelectedPlayer] = useState<LivePlayerScore | null>(null);
   const [contextReady, setContextReady] = useState(false);
@@ -269,7 +279,7 @@ export default function MatchesScreen() {
         query = query.eq('gameweek', selectedGameweek);
       }
 
-      const [fixturesResult, liveScoresResult, playerScoresResult] = await Promise.all([
+      const [fixturesResult, liveScoresResult, playerScoresResult, playerVisualsResult] = await Promise.all([
         query,
         viewMode === 'LIVE'
           ? supabase.rpc('get_league_live_fixture_scores', {
@@ -281,11 +291,13 @@ export default function MatchesScreen() {
           p_league_id: currentLeagueId,
           p_gameweek: selectedGameweek,
         }),
+        supabase.from('players').select('id, code, photo_code, team_id'),
       ]);
 
       if (fixturesResult.error) throw fixturesResult.error;
       if (liveScoresResult.error) throw liveScoresResult.error;
       if (playerScoresResult.error) throw playerScoresResult.error;
+      if (playerVisualsResult.error) throw playerVisualsResult.error;
 
       const provisionalBonusResult = viewMode === 'LIVE'
         ? await supabase.rpc('get_gameweek_provisional_bonus_rankings', {
@@ -305,11 +317,16 @@ export default function MatchesScreen() {
       const provisionalBonusMap = new Map<number, any>(
         (provisionalBonusResult.data || []).map((ranking: any) => [Number(ranking.player_id), ranking])
       );
+      const playerVisualMap = new Map<number, PlayerVisual>(
+        (playerVisualsResult.data || []).map((player: any) => [Number(player.id), player as PlayerVisual])
+      );
 
       (playerScoresResult.data || []).forEach((rawPlayer: any) => {
         const bonusRanking = provisionalBonusMap.get(Number(rawPlayer.player_id));
         const player = {
           ...rawPlayer,
+          ...playerVisualMap.get(Number(rawPlayer.player_id)),
+          player_id: Number(rawPlayer.player_id),
           bonus_rank: bonusRanking ? Number(bonusRanking.bonus_rank) : null,
           provisional_bonus_points: bonusRanking ? Number(bonusRanking.provisional_bonus_points) : 0,
         } as PlayerScoreRow;
@@ -376,6 +393,8 @@ export default function MatchesScreen() {
         const refreshedBonus = provisionalBonusMap.get(Number(refreshedRawPlayer.player_id));
         return {
           ...refreshedRawPlayer,
+          ...playerVisualMap.get(Number(refreshedRawPlayer.player_id)),
+          player_id: Number(refreshedRawPlayer.player_id),
           bonus_rank: refreshedBonus ? Number(refreshedBonus.bonus_rank) : null,
           provisional_bonus_points: refreshedBonus ? Number(refreshedBonus.provisional_bonus_points) : 0,
         } as LivePlayerScore;
@@ -455,6 +474,180 @@ export default function MatchesScreen() {
         </React.Fragment>
       );
     });
+
+  const normalizedPosition = (position: string) => {
+    const value = String(position || '').toUpperCase();
+    if (value === '1' || value === 'GK') return 'GKP';
+    if (value === '2') return 'DEF';
+    if (value === '3') return 'MID';
+    if (value === '4') return 'FWD';
+    return value;
+  };
+
+  const renderPitchEventIcons = (player: PlayerScoreRow) => {
+    const events = [
+      player.goal_count > 0 ? { icon: 'football-outline' as const, label: player.goal_count > 1 ? String(player.goal_count) : '' } : null,
+      player.assist_count > 0 ? { icon: 'arrow-redo-outline' as const, label: player.assist_count > 1 ? String(player.assist_count) : '' } : null,
+      player.save_points > 0 ? { icon: 'hand-left-outline' as const, label: `+${player.save_points}` } : null,
+      player.defcon_points > 0 ? { icon: 'shield-checkmark-outline' as const, label: `+${player.defcon_points}` } : null,
+      (player.provisional_bonus_points || 0) > 0 ? { icon: 'star' as const, label: `+${player.provisional_bonus_points}` } : null,
+    ].filter(Boolean).slice(0, 3) as { icon: 'football-outline' | 'arrow-redo-outline' | 'hand-left-outline' | 'shield-checkmark-outline' | 'star'; label: string }[];
+
+    if (events.length === 0) return null;
+
+    return (
+      <View style={styles.pitchEventRow}>
+        {events.map((event, index) => (
+          <View key={`${event.icon}-${index}`} style={styles.pitchEventBadge}>
+            <Ionicons name={event.icon} size={9} color={colors.pitchPlayerNameText} />
+            {event.label ? <Text style={styles.pitchEventBadgeText}>{event.label}</Text> : null}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderPitchPlayer = (player: PlayerScoreRow, compact = false) => {
+    const visual = player as PlayerScoreRow & Partial<PlayerVisual>;
+    const points = Number(player.combined_points || 0);
+
+    return (
+      <TouchableOpacity
+        key={player.player_id}
+        style={[styles.pitchPlayer, compact && styles.pitchPlayerBench]}
+        onPress={() => setSelectedPlayer(player)}
+        accessibilityRole="button"
+        accessibilityLabel={`${player.player_name}, ${points} points. View scoring breakdown`}
+      >
+        <View style={[styles.pitchHeadshotFrame, compact && styles.pitchHeadshotFrameBench]}>
+          <PlayerHeadshot
+            code={visual.code}
+            photoCode={visual.photo_code}
+            teamId={visual.team_id}
+            style={[styles.pitchHeadshot, compact && styles.pitchHeadshotBench]}
+            fallbackSize={compact ? 31 : 37}
+          />
+          <View style={[styles.pitchPointsBadge, points === 0 && styles.pitchPointsBadgeZero]}>
+            <Text style={[styles.pitchPointsText, points === 0 && styles.pitchPointsTextZero]}>{points}</Text>
+          </View>
+          {renderPitchEventIcons(player)}
+        </View>
+        <View style={styles.pitchPlayerNamePlate}>
+          <Text style={styles.pitchPlayerName} numberOfLines={1}>{player.player_name}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderPitchSquad = (players: PlayerScoreRow[] | undefined) => {
+    const squad = players || [];
+    const starters = squad.filter(player => player.lineup_status !== 'BENCH');
+    const bench = squad.filter(player => player.lineup_status === 'BENCH');
+    const rows = ['GKP', 'DEF', 'MID', 'FWD'].map(position => ({
+      position,
+      players: starters.filter(player => normalizedPosition(player.position) === position),
+    }));
+
+    return (
+      <View style={styles.pitchSquad}>
+        <View style={styles.pitchField}>
+          <View style={styles.pitchPenaltyBox} />
+          <View style={styles.pitchGoalBox} />
+          <View style={styles.pitchHalfwayLine} />
+          <View style={styles.pitchCentreCircle} />
+          {rows.map(row => (
+            <View key={row.position} style={styles.pitchFormationRow}>
+              {row.players.map(player => renderPitchPlayer(player))}
+            </View>
+          ))}
+        </View>
+        <View style={styles.pitchBenchLabelRow}>
+          <View style={styles.pitchBenchRule} />
+          <Text style={styles.pitchBenchLabel}>SUBSTITUTES</Text>
+          <View style={styles.pitchBenchRule} />
+        </View>
+        <View style={styles.pitchBenchRow}>
+          {bench.map(player => renderPitchPlayer(player, true))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderRosterPager = (match: MatchupItem, displayMode: RosterDisplayMode) => (
+    <View style={styles.mobileRosterPager}>
+      <View style={styles.mobileTeamTabs}>
+        {([
+          { side: 'HOME' as const, name: match.home_team_name, score: match.home_score },
+          { side: 'AWAY' as const, name: match.away_team_name, score: match.away_score },
+        ]).map(team => {
+          const isActive = (activeRosterSides[match.id] || 'HOME') === team.side;
+          return (
+            <TouchableOpacity
+              key={team.side}
+              style={[styles.mobileTeamTab, isActive && styles.mobileTeamTabActive]}
+              onPress={() => selectRosterSide(match.id, team.side)}
+            >
+              <Text style={[styles.mobileTeamTabName, isActive && styles.mobileTeamTabNameActive]} numberOfLines={1}>
+                {team.name}
+              </Text>
+              <Text style={[styles.mobileTeamTabScore, isActive && styles.mobileTeamTabScoreActive]}>
+                {viewMode === 'FIXTURES' ? 'XI' : `${team.score} PTS`}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View
+        style={styles.mobileRosterViewport}
+        onLayout={(event) => {
+          const pageWidth = event.nativeEvent.layout.width;
+          if (pageWidth > 0 && rosterPagerWidths[match.id] !== pageWidth) {
+            setRosterPagerWidths(current => ({ ...current, [match.id]: pageWidth }));
+          }
+        }}
+      >
+        <ScrollView
+          ref={(ref) => { rosterPagerRefs.current[match.id] = ref; }}
+          horizontal
+          pagingEnabled
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onMomentumScrollEnd={(event) => {
+            const pageWidth = rosterPagerWidths[match.id] || event.nativeEvent.layoutMeasurement.width;
+            const side = event.nativeEvent.contentOffset.x >= pageWidth / 2 ? 'AWAY' : 'HOME';
+            setActiveRosterSides(current => ({ ...current, [match.id]: side }));
+          }}
+        >
+          <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
+            {match.home_players?.length === 0 ? (
+              <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
+            ) : displayMode === 'PITCH' ? renderPitchSquad(match.home_players) : renderSquadPlayers(match.home_players)}
+          </View>
+
+          <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
+            {match.is_league_average ? (
+              <View style={styles.averageExplanation}>
+                <Text style={styles.averageExplanationTitle}>LEAGUE AVERAGE</Text>
+                <Text style={styles.averageExplanationText}>
+                  Rounded average of every other manager's score. Your own score is excluded.
+                </Text>
+              </View>
+            ) : match.away_players?.length === 0 ? (
+              <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
+            ) : displayMode === 'PITCH' ? renderPitchSquad(match.away_players) : renderSquadPlayers(match.away_players)}
+          </View>
+        </ScrollView>
+      </View>
+
+      <View style={styles.mobileSwipeHint}>
+        <View style={[styles.mobileSwipeDot, (activeRosterSides[match.id] || 'HOME') === 'HOME' && styles.mobileSwipeDotActive]} />
+        <Text style={styles.mobileSwipeHintText}>SWIPE BETWEEN TEAMS</Text>
+        <View style={[styles.mobileSwipeDot, activeRosterSides[match.id] === 'AWAY' && styles.mobileSwipeDotActive]} />
+      </View>
+    </View>
+  );
 
   const getAvailableGameweeks = () => {
     if (viewMode === 'RESULTS') {
@@ -607,6 +800,7 @@ export default function MatchesScreen() {
           ) : (
             matchups.map((match) => {
               const isExpanded = expandedMatchupId === match.id;
+              const rosterDisplayMode = rosterDisplayModes[match.id] || 'PITCH';
 
               return (
                 <View key={match.id} style={styles.matchupWrapper}>
@@ -658,90 +852,38 @@ export default function MatchesScreen() {
                   {isExpanded && (
                     <View style={styles.expansionPanel}>
                       <View style={styles.panelHeaderRow}>
-                        <Text style={styles.panelHeaderTitle}>Full Squad Matchup</Text>
-                        {viewMode === 'LIVE' && (
-                          <Text style={styles.provisionalText}>
-                            {gameweekPresentationState === 'AWAITING_CONFIRMATION'
-                              ? 'Provisional · awaiting official FPL confirmation'
-                              : 'Provisional · autosubs update as club fixtures finish'}
-                          </Text>
-                        )}
+                        <View style={styles.panelHeaderCopy}>
+                          <Text style={styles.panelHeaderTitle}>Full Squad Matchup</Text>
+                          {viewMode === 'LIVE' && (
+                            <Text style={styles.provisionalText}>
+                              {gameweekPresentationState === 'AWAITING_CONFIRMATION'
+                                ? 'Provisional · awaiting official FPL confirmation'
+                                : 'Provisional · autosubs update as club fixtures finish'}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.rosterViewToggle}>
+                          {(['PITCH', 'LIST'] as RosterDisplayMode[]).map(mode => (
+                            <TouchableOpacity
+                              key={mode}
+                              style={[styles.rosterViewButton, rosterDisplayMode === mode && styles.rosterViewButtonActive]}
+                              onPress={() => setRosterDisplayModes(current => ({ ...current, [match.id]: mode }))}
+                            >
+                              <Ionicons
+                                name={mode === 'PITCH' ? 'football-outline' : 'list-outline'}
+                                size={13}
+                                color={rosterDisplayMode === mode ? colors.accent : colors.textMuted}
+                              />
+                              <Text style={[styles.rosterViewButtonText, rosterDisplayMode === mode && styles.rosterViewButtonTextActive]}>
+                                {mode}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       </View>
 
-                      {compactMatchup ? (
-                        <View style={styles.mobileRosterPager}>
-                          <View style={styles.mobileTeamTabs}>
-                            {([
-                              { side: 'HOME' as const, name: match.home_team_name, score: match.home_score },
-                              { side: 'AWAY' as const, name: match.away_team_name, score: match.away_score },
-                            ]).map(team => {
-                              const isActive = (activeRosterSides[match.id] || 'HOME') === team.side;
-                              return (
-                                <TouchableOpacity
-                                  key={team.side}
-                                  style={[styles.mobileTeamTab, isActive && styles.mobileTeamTabActive]}
-                                  onPress={() => selectRosterSide(match.id, team.side)}
-                                >
-                                  <Text style={[styles.mobileTeamTabName, isActive && styles.mobileTeamTabNameActive]} numberOfLines={1}>
-                                    {team.name}
-                                  </Text>
-                                  <Text style={[styles.mobileTeamTabScore, isActive && styles.mobileTeamTabScoreActive]}>
-                                    {viewMode === 'FIXTURES' ? 'XI' : `${team.score} PTS`}
-                                  </Text>
-                                </TouchableOpacity>
-                              );
-                            })}
-                          </View>
-
-                          <View
-                            style={styles.mobileRosterViewport}
-                            onLayout={(event) => {
-                              const pageWidth = event.nativeEvent.layout.width;
-                              if (pageWidth > 0 && rosterPagerWidths[match.id] !== pageWidth) {
-                                setRosterPagerWidths(current => ({ ...current, [match.id]: pageWidth }));
-                              }
-                            }}
-                          >
-                            <ScrollView
-                              ref={(ref) => { rosterPagerRefs.current[match.id] = ref; }}
-                              horizontal
-                              pagingEnabled
-                              nestedScrollEnabled
-                              showsHorizontalScrollIndicator={false}
-                              scrollEventThrottle={16}
-                              onMomentumScrollEnd={(event) => {
-                                const pageWidth = rosterPagerWidths[match.id] || event.nativeEvent.layoutMeasurement.width;
-                                const side = event.nativeEvent.contentOffset.x >= pageWidth / 2 ? 'AWAY' : 'HOME';
-                                setActiveRosterSides(current => ({ ...current, [match.id]: side }));
-                              }}
-                            >
-                              <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
-                                {match.home_players?.length === 0 ? (
-                                  <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-                                ) : renderSquadPlayers(match.home_players)}
-                              </View>
-
-                              <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
-                                {match.is_league_average ? (
-                                  <View style={styles.averageExplanation}>
-                                    <Text style={styles.averageExplanationTitle}>LEAGUE AVERAGE</Text>
-                                    <Text style={styles.averageExplanationText}>
-                                      Rounded average of every other manager's score. Your own score is excluded.
-                                    </Text>
-                                  </View>
-                                ) : match.away_players?.length === 0 ? (
-                                  <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-                                ) : renderSquadPlayers(match.away_players)}
-                              </View>
-                            </ScrollView>
-                          </View>
-
-                          <View style={styles.mobileSwipeHint}>
-                            <View style={[styles.mobileSwipeDot, (activeRosterSides[match.id] || 'HOME') === 'HOME' && styles.mobileSwipeDotActive]} />
-                            <Text style={styles.mobileSwipeHintText}>SWIPE BETWEEN TEAMS</Text>
-                            <View style={[styles.mobileSwipeDot, activeRosterSides[match.id] === 'AWAY' && styles.mobileSwipeDotActive]} />
-                          </View>
-                        </View>
+                      {rosterDisplayMode === 'PITCH' || compactMatchup ? (
+                        renderRosterPager(match, rosterDisplayMode)
                       ) : (
                         <View style={styles.splitRosterGrid}>
                           <View style={styles.rosterColumn}>
@@ -842,9 +984,15 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   upcomingBadge: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
   upcomingText: { color: colors.textSecondary },
   expansionPanel: { backgroundColor: colors.backgroundElevated, borderWidth: 1, borderColor: colors.accent, borderTopWidth: 0, borderBottomLeftRadius: 6, borderBottomRightRadius: 6, padding: 12 },
-  panelHeaderRow: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6, marginBottom: 10 },
+  panelHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8, marginBottom: 10 },
+  panelHeaderCopy: { flex: 1, minWidth: 0 },
   panelHeaderTitle: { color: colors.textMuted, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   provisionalText: { color: colors.warning, fontSize: 8, fontWeight: '700', marginTop: 3 },
+  rosterViewToggle: { flexDirection: 'row', padding: 2, borderRadius: 7, backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.border },
+  rosterViewButton: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 5 },
+  rosterViewButtonActive: { backgroundColor: colors.accentSoft },
+  rosterViewButtonText: { color: colors.textMuted, fontSize: 7, fontWeight: '900', letterSpacing: 0.35 },
+  rosterViewButtonTextActive: { color: colors.accent },
   splitRosterGrid: { flexDirection: 'row', justifyContent: 'space-between', position: 'relative' },
   rosterColumn: { width: '49%', paddingRight: 8 },
   mobileRosterPager: { width: '100%' },
@@ -861,6 +1009,32 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   mobileSwipeHintText: { color: colors.textMuted, fontSize: 7, fontWeight: '900', letterSpacing: 0.45 },
   mobileSwipeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.borderStrong },
   mobileSwipeDotActive: { width: 12, backgroundColor: colors.accentFill },
+  pitchSquad: { width: '100%', maxWidth: 680, alignSelf: 'center', borderRadius: 10, overflow: 'hidden', backgroundColor: colors.pitch },
+  pitchField: { height: 480, paddingVertical: 10, paddingHorizontal: 4, position: 'relative', borderWidth: 1, borderColor: colors.pitchBorder, backgroundColor: colors.pitch },
+  pitchFormationRow: { flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', zIndex: 2 },
+  pitchHalfwayLine: { position: 'absolute', left: 0, right: 0, top: '50%', height: 1, backgroundColor: colors.pitchLine, opacity: 0.48 },
+  pitchCentreCircle: { position: 'absolute', width: 92, height: 92, borderRadius: 46, left: '50%', top: '50%', marginLeft: -46, marginTop: -46, borderWidth: 1, borderColor: colors.pitchLine, opacity: 0.45 },
+  pitchPenaltyBox: { position: 'absolute', width: '52%', height: 76, top: 0, left: '24%', borderWidth: 1, borderTopWidth: 0, borderColor: colors.pitchLine, opacity: 0.48 },
+  pitchGoalBox: { position: 'absolute', width: '25%', height: 33, top: 0, left: '37.5%', borderWidth: 1, borderTopWidth: 0, borderColor: colors.pitchLine, opacity: 0.48 },
+  pitchPlayer: { flex: 1, minWidth: 0, maxWidth: 92, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
+  pitchPlayerBench: { maxWidth: 100, paddingHorizontal: 3 },
+  pitchHeadshotFrame: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'flex-end', backgroundColor: colors.pitchPlayerSurface, position: 'relative' },
+  pitchHeadshotFrameBench: { width: 45, height: 45, borderRadius: 23 },
+  pitchHeadshot: { width: 47, height: 51 },
+  pitchHeadshotBench: { width: 39, height: 43 },
+  pitchPointsBadge: { position: 'absolute', bottom: -5, minWidth: 22, height: 22, paddingHorizontal: 4, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentFill, borderWidth: 2, borderColor: colors.pitch },
+  pitchPointsBadgeZero: { backgroundColor: colors.backgroundDeep },
+  pitchPointsText: { color: colors.accentForeground, fontSize: 9, fontWeight: '900' },
+  pitchPointsTextZero: { color: colors.textPrimary },
+  pitchPlayerNamePlate: { width: '100%', maxWidth: 88, marginTop: 8, paddingVertical: 3, paddingHorizontal: 4, borderRadius: 4, backgroundColor: colors.pitchPlayerNameSurface },
+  pitchPlayerName: { color: colors.pitchPlayerNameText, fontSize: 8, lineHeight: 10, fontWeight: '900', textAlign: 'center' },
+  pitchEventRow: { position: 'absolute', top: -7, right: -15, flexDirection: 'row', gap: 2 },
+  pitchEventBadge: { minWidth: 18, height: 18, paddingHorizontal: 3, borderRadius: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: colors.accentFill, borderWidth: 1, borderColor: colors.pitch },
+  pitchEventBadgeText: { color: colors.pitchPlayerNameText, fontSize: 7, fontWeight: '900' },
+  pitchBenchLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.pitch },
+  pitchBenchRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.pitchLine },
+  pitchBenchLabel: { color: colors.pitchPlayerNameText, fontSize: 7, fontWeight: '900', letterSpacing: 0.8 },
+  pitchBenchRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 4, paddingBottom: 8, backgroundColor: colors.pitch },
   lineupUnavailable: { color: colors.textMuted, fontSize: 9, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
   gridDivider: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, backgroundColor: colors.border },
   playerScoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, padding: 8, borderRadius: 4, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
