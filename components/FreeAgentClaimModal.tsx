@@ -11,10 +11,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import PlayerCardModal from '@/components/PlayerCardModal';
 
 interface PlayerAsset {
   id: number;
@@ -60,12 +62,14 @@ export default function FreeAgentClaimModal({
   const [rosterType, setRosterType] = useState<'STRICT' | 'FLEXIBLE'>('STRICT');
   const [myRoster, setMyRoster] = useState<PlayerAsset[]>([]);
   const [selectedDropPlayerId, setSelectedDropPlayerId] = useState<number | null>(null);
+  const [inspectingPlayerId, setInspectingPlayerId] = useState<number | null>(null);
 
   useEffect(() => {
     if (visible) {
       fetchUserRoster();
     } else {
       setSelectedDropPlayerId(null);
+      setInspectingPlayerId(null);
     }
   }, [visible, leagueId]);
 
@@ -126,16 +130,37 @@ export default function FreeAgentClaimModal({
           return players;
         }, []);
 
-      // Sort by position matching target player first for quick selection
-      if (targetPlayer) {
-        formattedRoster.sort((a, b) => {
-          if (a.element_type === targetPlayer.element_type) return -1;
-          if (b.element_type === targetPlayer.element_type) return 1;
-          return 0;
-        });
-      }
+      const positionOrder: Record<string, number> = { GKP: 0, DEF: 1, MID: 2, FWD: 3 };
+      const positionCounts = formattedRoster.reduce<Record<string, number>>((counts, player) => {
+        counts[player.element_type] = (counts[player.element_type] || 0) + 1;
+        return counts;
+      }, {});
+      const eligibleRoster = targetPlayer
+        ? formattedRoster.filter((dropPlayer) => {
+            if (activeRosterType === 'STRICT') {
+              return dropPlayer.element_type === targetPlayer.element_type;
+            }
+            if ((dropPlayer.element_type === 'GKP') !== (targetPlayer.element_type === 'GKP')) {
+              return false;
+            }
 
-      setMyRoster(formattedRoster);
+            const projected = { ...positionCounts };
+            projected[dropPlayer.element_type] = (projected[dropPlayer.element_type] || 0) - 1;
+            projected[targetPlayer.element_type] = (projected[targetPlayer.element_type] || 0) + 1;
+            return projected.GKP === 2
+              && (projected.DEF || 0) >= 4 && (projected.DEF || 0) <= 6
+              && (projected.MID || 0) >= 4 && (projected.MID || 0) <= 6
+              && (projected.FWD || 0) >= 2 && (projected.FWD || 0) <= 4;
+          })
+        : [];
+
+      eligibleRoster.sort((a, b) => {
+        const positionDifference = (positionOrder[a.element_type] ?? 99) - (positionOrder[b.element_type] ?? 99);
+        if (positionDifference !== 0) return positionDifference;
+        return a.web_name.localeCompare(b.web_name);
+      });
+
+      setMyRoster(eligibleRoster);
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
@@ -223,7 +248,8 @@ export default function FreeAgentClaimModal({
   if (!targetPlayer) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
+    <>
+    <Modal visible={visible && inspectingPlayerId === null} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
       <View style={[styles.overlay, isMobileLayout && styles.overlayMobile]}>
         <View style={[styles.modalCard, isMobileLayout && styles.modalCardMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
           {/* Header */}
@@ -234,6 +260,14 @@ export default function FreeAgentClaimModal({
           <View style={styles.addPlayerContainer}>
             <Text style={styles.boxLabel}>ADD PLAYER (FREE AGENT)</Text>
             <View style={styles.playerCardAdd}>
+              <TouchableOpacity
+                style={styles.playerInfoButton}
+                onPress={() => setInspectingPlayerId(targetPlayer.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${targetPlayer.web_name} stats`}
+              >
+                <Ionicons name="information-circle-outline" size={20} color={colors.accent} />
+              </TouchableOpacity>
               <View style={styles.playerInfoLeft}>
                 <Text style={styles.addPlayerName}>{targetPlayer.web_name}</Text>
                 <Text style={styles.addPlayerMeta}>
@@ -262,46 +296,50 @@ export default function FreeAgentClaimModal({
             </View>
           ) : (
             <ScrollView style={[styles.rosterScroll, isMobileLayout && styles.rosterScrollMobile]} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-              {myRoster.map((player) => {
+              {myRoster.length === 0 ? (
+                <Text style={styles.emptyRosterText}>No squad player can be dropped while keeping a valid roster.</Text>
+              ) : myRoster.map((player) => {
                 const isSelected = selectedDropPlayerId === player.id;
-                const canDrop = isDropAllowed(player.element_type);
 
                 return (
-                  <TouchableOpacity
+                  <View
                     key={player.id}
                     style={[
                       styles.dropPlayerCard,
                       isMobileLayout && styles.dropPlayerCardMobile,
                       isShortMobile && styles.dropPlayerCardShortMobile,
                       isSelected && styles.dropPlayerCardSelected,
-                      !canDrop && styles.dropPlayerCardDisabled,
                     ]}
-                    onPress={() => setSelectedDropPlayerId(player.id)}
-                    disabled={!canDrop}
                   >
-                    <View style={styles.playerInfoLeft}>
+                    <TouchableOpacity
+                      style={styles.playerInfoButton}
+                      onPress={() => setInspectingPlayerId(player.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${player.web_name} stats`}
+                    >
+                      <Ionicons name="information-circle-outline" size={20} color={colors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.dropPlayerSelect} onPress={() => setSelectedDropPlayerId(player.id)}>
                       <Text
                         style={[
                           styles.dropPlayerName,
                           isSelected && styles.dropPlayerNameSelected,
-                          !canDrop && styles.disabledText,
                         ]}
                       >
                         {player.web_name}
                       </Text>
                       <Text style={styles.dropPlayerMeta}>{player.team_short_name}</Text>
-                    </View>
+                    </TouchableOpacity>
 
                     <View
                       style={[
                         styles.miniPosBadge,
                         { backgroundColor: POSITION_COLORS[player.element_type] || '#222' },
-                        !canDrop && { opacity: 0.3 },
                       ]}
                     >
                       <Text style={styles.posBadgeText}>{player.element_type}</Text>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
             </ScrollView>
@@ -335,6 +373,14 @@ export default function FreeAgentClaimModal({
         </View>
       </View>
     </Modal>
+    <PlayerCardModal
+      visible={visible && inspectingPlayerId !== null}
+      playerId={inspectingPlayerId}
+      leagueId={resolvedLid || leagueId}
+      currentGameweek={currentGameweek}
+      onClose={() => setInspectingPlayerId(null)}
+    />
+    </>
   );
 }
 
@@ -396,6 +442,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   playerInfoLeft: {
     flex: 1,
   },
+  playerInfoButton: { width: 30, height: 34, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
+  dropPlayerSelect: { flex: 1, minWidth: 0, justifyContent: 'center' },
   addPlayerName: {
     color: colors.textPrimary,
     fontSize: 14,
@@ -469,6 +517,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     fontWeight: '600',
     marginTop: 1,
   },
+  emptyRosterText: { color: colors.textSecondary, fontSize: 11, lineHeight: 16, textAlign: 'center', padding: 20 },
 
   posBadge: {
     paddingHorizontal: 6,

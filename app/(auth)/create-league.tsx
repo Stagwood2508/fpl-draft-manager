@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
@@ -20,7 +20,7 @@ export default function CreateLeagueScreen() {
   const { colors } = useAppTheme();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
-  const { selectActiveLeague } = useAppSession();
+  const { activeLeagueId, selectActiveLeague } = useAppSession();
   const [name, setName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [size, setSize] = useState('8');
@@ -28,6 +28,14 @@ export default function CreateLeagueScreen() {
   const [createdLeagueId, setCreatedLeagueId] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dashboardLeagueId, setDashboardLeagueId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dashboardLeagueId || activeLeagueId !== dashboardLeagueId) return;
+
+    console.log('🚀 [ROUTING] New league context confirmed. Entering dashboard...');
+    router.replace('/(tabs)/dashboard');
+  }, [activeLeagueId, dashboardLeagueId, router]);
 
   const handleCreateLeaguePipeline = async () => {
     const cleanName = name.trim();
@@ -86,15 +94,10 @@ const handleEnterDashboard = async () => {
 
   try {
     setLoading(true);
-
+    setDashboardLeagueId(createdLeagueId);
     await selectActiveLeague(createdLeagueId);
-
-    console.log(
-      '🚀 [ROUTING] Membership verified. Entering dashboard...'
-    );
-
-    router.replace('/(tabs)/dashboard');
   } catch (err: any) {
+    setDashboardLeagueId(null);
     console.error('Navigation Error:', err);
 
     notifyUser(
@@ -102,7 +105,6 @@ const handleEnterDashboard = async () => {
       err?.message ||
         'The dashboard could not be opened.'
     );
-  } finally {
     setLoading(false);
   }
 };

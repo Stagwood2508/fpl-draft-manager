@@ -878,6 +878,14 @@ export default function PlayerPoolScreen() {
             {selectedPoolPlayer && (
               <View style={styles.swapVisualContainer}>
                 <View style={styles.swapCard}>
+                  <TouchableOpacity
+                    style={styles.swapInfoButton}
+                    onPress={() => openPlayerDetails(selectedPoolPlayer.id, true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${selectedPoolPlayer.web_name} stats`}
+                  >
+                    <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+                  </TouchableOpacity>
                   <Text style={styles.swapLabel}>ADD</Text>
                   <Text style={styles.swapPlayerName}>{selectedPoolPlayer.web_name}</Text>
                   <Text style={styles.swapPlayerMeta}>{selectedPoolPlayer.team_name} • {selectedPoolPlayer.element_type}</Text>
@@ -986,6 +994,7 @@ export default function PlayerPoolScreen() {
         tradePartner={tradeOwnerInfo}
         leagueId={activeLeagueId}
         currentUserId={currentUserId}
+        currentGameweek={currentGameweek}
         onSuccess={loadScoutEngineContext}
       />
 
@@ -1069,6 +1078,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   modalHeader: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
   swapVisualContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.backgroundElevated, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
   swapCard: { flex: 1, alignItems: 'center', padding: 10, backgroundColor: colors.surfaceRaised, borderRadius: 6, borderWidth: 1, borderColor: colors.borderStrong, minHeight: 74, justifyContent: 'center' },
+  swapInfoButton: { position: 'absolute', top: 3, left: 3, width: 28, height: 28, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   swapCardEmpty: { backgroundColor: colors.surfaceMuted, borderStyle: 'dashed', borderColor: colors.borderStrong },
   swapLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, marginBottom: 6 },
   swapPlayerName: { color: colors.accent, fontSize: 13, fontWeight: '800', textAlign: 'center' },

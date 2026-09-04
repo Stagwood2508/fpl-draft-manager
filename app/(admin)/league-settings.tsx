@@ -385,17 +385,22 @@ export default function UnifiedLeagueSettingsScreen() {
   };
 
   const restoreAccidentalDraft = async () => {
-    if (!leagueId || !isCommissioner || draftPickCount > 0) return;
+    if (!leagueId || !isCommissioner) return;
+
+    const hasDraftPicks = draftPickCount > 0;
+    const confirmationMessage = hasDraftPicks
+      ? `This will permanently remove all ${draftPickCount} draft picks and the generated squads, then return the league to pre-draft setup. This is only allowed before official season activity has started.`
+      : 'No picks have been made. This will close the live draft and clear the expired draft time.';
 
     const proceed = Platform.OS === 'web'
-      ? window.confirm('Return this empty draft to pre-draft setup? The expired draft time will be cleared.')
+      ? window.confirm(confirmationMessage)
       : await new Promise<boolean>(resolve => {
           Alert.alert(
-            'Return to pre-draft setup?',
-            'No picks have been made. This will close the live draft and clear the expired draft time.',
+            hasDraftPicks ? 'Reset completed draft?' : 'Return to pre-draft setup?',
+            confirmationMessage,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Restore', style: 'destructive', onPress: () => resolve(true) },
+              { text: hasDraftPicks ? 'Reset draft' : 'Restore', style: 'destructive', onPress: () => resolve(true) },
             ],
             { cancelable: true, onDismiss: () => resolve(false) },
           );
@@ -407,12 +412,24 @@ export default function UnifiedLeagueSettingsScreen() {
       setSavingMatrix(true);
       const { data, error } = await supabase.rpc('commissioner_restart_draft', { p_league_id: leagueId });
       if (error) throw error;
-      if (data?.success === false) throw new Error(data.error || 'Draft could not be restored.');
+      if (data?.success === false) {
+        if (data.error === 'OFFICIAL_ACTIVITY_STARTED') {
+          throw new Error('This draft cannot be reset because official season activity has already started.');
+        }
+        throw new Error(data.error || 'Draft could not be restored.');
+      }
 
       setDraftStatus('WAITING_ROOM');
+      setDraftPickCount(0);
       setDraftScheduleEnabled(false);
       setSettings(current => current ? { ...current, draft_start_time: null } : current);
-      presentSaveFeedback('success', 'Pre-draft settings restored', 'The expired draft time was cleared. You can now amend every league setting and schedule a new future time.');
+      presentSaveFeedback(
+        'success',
+        'Pre-draft settings restored',
+        hasDraftPicks
+          ? 'The draft picks and generated squads were removed. You can now amend the league settings and schedule a new draft.'
+          : 'The expired draft time was cleared. You can now amend every league setting and schedule a new future time.',
+      );
     } catch (error: any) {
       presentSaveFeedback('error', 'Draft not restored', error.message || 'Please try again.');
     } finally {
@@ -684,14 +701,18 @@ export default function UnifiedLeagueSettingsScreen() {
             </View>
           )}
 
-          {isCommissioner && isLocked && draftPickCount === 0 && (
+          {isCommissioner && isLocked && (
             <View style={styles.recoveryCard}>
               <View style={styles.recoveryCopy}>
-                <Text style={styles.recoveryTitle}>EMPTY DRAFT STARTED</Text>
-                <Text style={styles.recoveryText}>No picks have been made, so this league can safely return to pre-draft setup.</Text>
+                <Text style={styles.recoveryTitle}>{draftPickCount > 0 ? 'RESET DRAFT & UNLOCK SETTINGS' : 'EMPTY DRAFT STARTED'}</Text>
+                <Text style={styles.recoveryText}>
+                  {draftPickCount > 0
+                    ? `${draftPickCount} picks and the generated squads will be removed. This is only available before official season activity starts.`
+                    : 'No picks have been made, so this league can safely return to pre-draft setup.'}
+                </Text>
               </View>
               <TouchableOpacity style={styles.recoveryButton} onPress={() => void restoreAccidentalDraft()} disabled={savingMatrix}>
-                <Text style={styles.recoveryButtonText}>{savingMatrix ? 'RESTORING...' : 'RESTORE SETTINGS'}</Text>
+                <Text style={styles.recoveryButtonText}>{savingMatrix ? 'RESTORING...' : draftPickCount > 0 ? 'RESET TO PRE-DRAFT' : 'RESTORE SETTINGS'}</Text>
               </TouchableOpacity>
             </View>
           )}

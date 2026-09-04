@@ -16,6 +16,14 @@ import { supabase } from '@/utils/supabase';
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 
+type LeagueMembership = {
+  leagueId: string;
+  leagueName: string;
+  teamName: string;
+  changesUsed: number;
+  changesRemaining: number;
+};
+
 export default function GenericProfileScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -25,7 +33,18 @@ export default function GenericProfileScreen() {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [userLeagues, setUserLeagues] = useState<{ leagueName: string; teamName: string }[]>([]);
+  const [userLeagues, setUserLeagues] = useState<LeagueMembership[]>([]);
+  const [editingLeagueId, setEditingLeagueId] = useState<string | null>(null);
+  const [teamNameDraft, setTeamNameDraft] = useState('');
+  const [renamingLeagueId, setRenamingLeagueId] = useState<string | null>(null);
+
+  const notifyUser = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
 
   useEffect(() => {
     loadUserProfile();
@@ -55,13 +74,16 @@ export default function GenericProfileScreen() {
       // 2. Fetch team names per league from league_members
       const { data: memberships } = await supabase
         .from('league_members')
-        .select('team_name, leagues(name)')
+        .select('league_id, team_name, team_name_change_count, leagues(name)')
         .eq('user_id', user.id);
 
       if (memberships) {
         const formatted = memberships.map((m: any) => ({
+          leagueId: m.league_id,
           leagueName: m.leagues?.name || 'League',
           teamName: m.team_name || 'Unnamed Team',
+          changesUsed: Number(m.team_name_change_count || 0),
+          changesRemaining: Math.max(0, 3 - Number(m.team_name_change_count || 0)),
         }));
         setUserLeagues(formatted);
       }
@@ -94,11 +116,74 @@ export default function GenericProfileScreen() {
         setNewPassword('');
       }
 
-      Alert.alert('Success', 'Profile settings successfully updated.');
+      notifyUser('Success', 'Profile settings successfully updated.');
     } catch (err: any) {
-      Alert.alert('Update Interrupted', err.message);
+      notifyUser('Update Interrupted', err.message);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const beginTeamRename = (membership: LeagueMembership) => {
+    setEditingLeagueId(membership.leagueId);
+    setTeamNameDraft(membership.teamName);
+  };
+
+  const cancelTeamRename = () => {
+    setEditingLeagueId(null);
+    setTeamNameDraft('');
+  };
+
+  const handleTeamRename = async (membership: LeagueMembership) => {
+    const nextName = teamNameDraft.trim();
+    if (!nextName) {
+      notifyUser('Team Name Required', 'Enter a team name before saving.');
+      return;
+    }
+
+    try {
+      setRenamingLeagueId(membership.leagueId);
+      const { data, error } = await supabase.rpc('change_my_team_name', {
+        p_league_id: membership.leagueId,
+        p_team_name: nextName,
+      });
+      if (error) throw error;
+
+      const rawResult = Array.isArray(data) ? data[0] : data;
+      const result = typeof rawResult === 'string' ? JSON.parse(rawResult) : rawResult;
+      if (!result?.success) {
+        const code = String(result?.error || 'TEAM_NAME_CHANGE_FAILED').toUpperCase();
+        if (code.includes('TEAM_NAME_TAKEN')) {
+          throw new Error('Another manager in this league is already using that team name.');
+        }
+        if (code.includes('TEAM_NAME_CHANGE_LIMIT_REACHED')) {
+          throw new Error('You have used all three team-name changes for this league season.');
+        }
+        if (code.includes('INVALID_TEAM_NAME')) {
+          throw new Error('Team names must contain text and be no longer than 50 characters.');
+        }
+        throw new Error('Your team name could not be changed. Please try again.');
+      }
+
+      setUserLeagues(current => current.map(item => item.leagueId === membership.leagueId
+        ? {
+            ...item,
+            teamName: result.team_name || nextName,
+            changesUsed: Number(result.changes_used ?? item.changesUsed),
+            changesRemaining: Number(result.changes_remaining ?? item.changesRemaining),
+          }
+        : item));
+      cancelTeamRename();
+      notifyUser(
+        result.unchanged ? 'No Change Needed' : 'Team Name Updated',
+        result.unchanged
+          ? 'That is already your current team name.'
+          : `${result.changes_remaining} team-name ${result.changes_remaining === 1 ? 'change' : 'changes'} remaining this season.`
+      );
+    } catch (err: any) {
+      notifyUser('Rename Failed', err?.message || 'Your team name could not be changed.');
+    } finally {
+      setRenamingLeagueId(null);
     }
   };
 
@@ -154,10 +239,57 @@ export default function GenericProfileScreen() {
           {userLeagues.length === 0 ? (
             <Text style={styles.emptyText}>Not currently registered in any leagues.</Text>
           ) : (
-            userLeagues.map((item, idx) => (
-              <View key={idx} style={styles.teamCard}>
-                <Text style={styles.leagueName}>{item.leagueName}</Text>
-                <Text style={styles.teamName}>{item.teamName}</Text>
+            userLeagues.map(item => (
+              <View key={item.leagueId} style={styles.teamCard}>
+                <View style={styles.teamCardHeader}>
+                  <View style={styles.teamIdentity}>
+                    <Text style={styles.leagueName}>{item.leagueName}</Text>
+                    {editingLeagueId === item.leagueId ? (
+                      <TextInput
+                        style={[styles.input, styles.teamNameInput]}
+                        value={teamNameDraft}
+                        onChangeText={setTeamNameDraft}
+                        autoCapitalize="words"
+                        maxLength={50}
+                        autoFocus
+                        selectTextOnFocus
+                      />
+                    ) : (
+                      <Text style={styles.teamName}>{item.teamName}</Text>
+                    )}
+                  </View>
+
+                  {editingLeagueId !== item.leagueId && (
+                    <TouchableOpacity
+                      style={[styles.renameButton, item.changesRemaining === 0 && styles.renameButtonDisabled]}
+                      onPress={() => beginTeamRename(item)}
+                      disabled={item.changesRemaining === 0}
+                    >
+                      <Text style={[styles.renameButtonText, item.changesRemaining === 0 && styles.renameButtonTextDisabled]}>
+                        RENAME
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <Text style={styles.renameAllowance}>
+                  {item.changesRemaining === 0
+                    ? 'Team-name change limit reached'
+                    : `${item.changesRemaining} of 3 team-name changes remaining`}
+                </Text>
+
+                {editingLeagueId === item.leagueId && (
+                  <View style={styles.renameActions}>
+                    <TouchableOpacity style={styles.cancelRenameButton} onPress={cancelTeamRename} disabled={renamingLeagueId === item.leagueId}>
+                      <Text style={styles.cancelRenameText}>CANCEL</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.saveRenameButton} onPress={() => handleTeamRename(item)} disabled={renamingLeagueId === item.leagueId}>
+                      {renamingLeagueId === item.leagueId
+                        ? <ActivityIndicator size="small" color={colors.accentForeground} />
+                        : <Text style={styles.saveRenameText}>SAVE TEAM NAME</Text>}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ))
           )}
@@ -183,7 +315,20 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   leagueSection: { marginTop: 24 },
   sectionTitle: { ...appTypography.sectionTitle, color: colors.accent, textTransform: 'uppercase', marginBottom: 12 },
   teamCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 14, borderRadius: appRadius.medium, marginBottom: 8 },
+  teamCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  teamIdentity: { flex: 1, minWidth: 0 },
   leagueName: { color: colors.textMuted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
   teamName: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', marginTop: 2 },
+  teamNameInput: { marginTop: 7, marginBottom: 0 },
+  renameAllowance: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 8 },
+  renameButton: { borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSoft, borderRadius: appRadius.small, paddingHorizontal: 12, paddingVertical: 9 },
+  renameButtonDisabled: { borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+  renameButtonText: { color: colors.accent, fontSize: 10, fontWeight: '900' },
+  renameButtonTextDisabled: { color: colors.textDisabled },
+  renameActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  cancelRenameButton: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: appRadius.small, paddingVertical: 11 },
+  cancelRenameText: { color: colors.textSecondary, fontSize: 10, fontWeight: '900' },
+  saveRenameButton: { flex: 1.5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentFill, borderRadius: appRadius.small, paddingVertical: 11 },
+  saveRenameText: { color: colors.accentForeground, fontSize: 10, fontWeight: '900' },
   emptyText: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' }
 });

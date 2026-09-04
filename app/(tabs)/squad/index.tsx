@@ -690,7 +690,7 @@ export default function SquadScreen() {
                 photoCode={item.players.photo_code}
                 teamId={item.players.team_id}
                 style={[styles.headshot, isCompact && styles.headshotCompact]}
-                fallbackSize={isCompact ? 28 : 34}
+                fallbackSize={isCompact ? 34 : 40}
               />
             </View>
           </View>
@@ -1050,7 +1050,15 @@ export default function SquadScreen() {
           )}
         </View>
 
-        <View style={[styles.pitch, isCompact && styles.pitchCompact, isCompact && { height: Math.max(330, Math.min(430, height - 330)) }]}>
+        <View
+          style={[
+            styles.pitch,
+            isCompact && styles.pitchCompact,
+            isCompact && {
+              height: Math.max(350, Math.min(455, width * 1.22, height - 300)),
+            },
+          ]}
+        >
           <View style={styles.pitchLines}>
             <View style={styles.penaltyArea} />
             <View style={styles.centerLine} />
@@ -1222,32 +1230,32 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   scoreModeButtonActive: { backgroundColor: appColors.accentFill },
   scoreModeText: { color: appColors.textMuted, fontSize: 7, fontWeight: '900' },
   scoreModeTextActive: { color: appColors.accentForeground },
-  pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 13, backgroundColor: appColors.pitch, borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
-  pitchCompact: { height: 480, paddingVertical: 9 },
+  pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 8, backgroundColor: appColors.pitch, borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
+  pitchCompact: { height: 440, paddingVertical: 5 },
   pitchLines: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', opacity: 0.2 },
   penaltyArea: { position: 'absolute', top: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: appColors.pitchLine },
   centerLine: { position: 'absolute', width: '100%', height: 1.5, backgroundColor: appColors.pitchLine },
   centerCircle: { width: 105, height: 105, borderRadius: 53, borderWidth: 1.5, borderColor: appColors.pitchLine },
-  pitchRow: { minHeight: 98, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 5, zIndex: 2 },
-  pitchRowCompact: { minHeight: 70, paddingHorizontal: 2 },
+  pitchRow: { flex: 1, minHeight: 0, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 5, zIndex: 2 },
+  pitchRowCompact: { minHeight: 0, paddingHorizontal: 1 },
   playerSlot: { flex: 1, maxWidth: 155, minWidth: 0, alignItems: 'center', marginHorizontal: 3 },
   playerSlotCompact: { marginHorizontal: 1 },
-  playerCard: { width: '100%', minHeight: 70, alignItems: 'center', justifyContent: 'center', paddingVertical: 3, paddingHorizontal: 3, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'transparent', borderRadius: appRadius.small },
-  playerCardCompact: { minHeight: 62, paddingVertical: 2, paddingHorizontal: 1 },
+  playerCard: { width: '100%', minHeight: 78, alignItems: 'center', justifyContent: 'center', paddingVertical: 2, paddingHorizontal: 2, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'transparent', borderRadius: appRadius.small },
+  playerCardCompact: { minHeight: 74, paddingVertical: 1, paddingHorizontal: 0 },
   playerCardSelected: { backgroundColor: 'rgba(0,242,122,0.16)', borderColor: appColors.accent },
   playerCardPressed: { opacity: 0.78 },
-  playerVisual: { position: 'relative', width: 54, height: 40, alignItems: 'center', justifyContent: 'center' },
-  playerVisualCompact: { width: 48, height: 33 },
-  availabilityMarker: { position: 'absolute', top: 1, left: 0, zIndex: 3, width: 11, height: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.pitchPlayerSurface, borderWidth: 1.5, borderRadius: 6 },
+  playerVisual: { position: 'relative', width: 64, height: 48, alignItems: 'center', justifyContent: 'center' },
+  playerVisualCompact: { width: 58, height: 43 },
+  availabilityMarker: { position: 'absolute', top: 2, left: 3, zIndex: 3, width: 11, height: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.pitchPlayerSurface, borderWidth: 1.5, borderRadius: 6 },
   availabilityDot: { width: 6, height: 6, borderRadius: 3 },
-  playerFlags: { position: 'absolute', top: -2, right: -4, zIndex: 3, flexDirection: 'row', alignItems: 'center', gap: 2 },
-  avatar: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center' },
-  avatarCompact: { width: 31, height: 30 },
-  headshot: { width: 38, height: 38 },
-  headshotCompact: { width: 31, height: 31 },
+  playerFlags: { position: 'absolute', top: 0, right: 2, zIndex: 3, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  avatar: { width: 46, height: 44, alignItems: 'center', justifyContent: 'center' },
+  avatarCompact: { width: 40, height: 39 },
+  headshot: { width: 46, height: 46 },
+  headshotCompact: { width: 40, height: 40 },
   playerName: { minWidth: 50, maxWidth: '96%', alignSelf: 'center', color: appColors.pitchPlayerNameText, fontSize: 9, fontWeight: '900', textAlign: 'center', backgroundColor: appColors.pitchPlayerNameSurface, paddingVertical: 2, paddingHorizontal: 7, borderRadius: 3, overflow: 'hidden' },
-  playerNameCompact: { minWidth: 44, maxWidth: '92%', fontSize: 7.5, paddingHorizontal: 5 },
-  playerMeta: { fontSize: 7, fontWeight: '900', marginTop: 2 },
+  playerNameCompact: { minWidth: 48, maxWidth: '94%', fontSize: 8, paddingHorizontal: 5 },
+  playerMeta: { fontSize: 7.5, fontWeight: '900', marginTop: 2 },
   priorityControls: { flexDirection: 'row', alignItems: 'center', marginTop: 3, backgroundColor: appColors.backgroundDeep, borderRadius: appRadius.small },
   priorityButton: { width: 26, height: 24, alignItems: 'center', justifyContent: 'center' },
   priorityNumber: { minWidth: 15, color: appColors.accent, fontSize: 8, fontWeight: '900', textAlign: 'center' },

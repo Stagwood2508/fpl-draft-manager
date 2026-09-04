@@ -12,10 +12,12 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import PlayerCardModal from '@/components/PlayerCardModal';
 
 interface PlayerAsset {
   id: number;
@@ -38,6 +40,7 @@ interface TradeDeskModalProps {
   tradePartner: OwnershipInfo | null;
   leagueId: string | null;
   currentUserId: string | null;
+  currentGameweek?: number;
   onSuccess?: () => void;
 }
 
@@ -57,6 +60,7 @@ export default function TradeDeskModal({
   tradePartner,
   leagueId,
   currentUserId,
+  currentGameweek = 0,
   onSuccess
 }: TradeDeskModalProps) {
   const { colors } = useAppTheme();
@@ -73,6 +77,7 @@ export default function TradeDeskModal({
   const [rivalTradeRoster, setRivalTradeRoster] = useState<PlayerAsset[]>([]);
   const [mySelectedTradeIds, setMySelectedTradeIds] = useState<number[]>([]);
   const [rivalSelectedTradeIds, setRivalSelectedTradeIds] = useState<number[]>([]);
+  const [inspectingPlayerId, setInspectingPlayerId] = useState<number | null>(null);
 
   const notifyUser = (title: string, message: string) => {
     if (Platform.OS === 'web') {
@@ -89,6 +94,8 @@ export default function TradeDeskModal({
   useEffect(() => {
     if (visible && targetPlayer && tradePartner) {
       loadTradeModalContext();
+    } else if (!visible) {
+      setInspectingPlayerId(null);
     }
   }, [visible, targetPlayer, tradePartner, leagueId]);
 
@@ -344,7 +351,8 @@ if (rivalDataRes.error) {
   const getShortTeamCode = (name: string) => (name ? name.slice(0, 3).toUpperCase() : 'FA');
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
+    <>
+    <Modal visible={visible && inspectingPlayerId === null} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={onClose}>
       <View style={[styles.modalOverlay, isDesktopWeb && styles.modalOverlayDesktopWeb, isMobileLayout && styles.modalOverlayMobile]}>
         <View style={[
           styles.tradeModalContent,
@@ -389,13 +397,27 @@ if (rivalDataRes.error) {
                     }
 
                     return (
-                      <TouchableOpacity 
+                      <View
                         key={p.id} 
                         style={[styles.tradeSelectorCardCompact, isDesktopWeb && styles.tradeSelectorCardDesktopWeb, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected, isSelectionDisabled && styles.tradeSelectorCardDisabled]}
-                        onPress={() => toggleSelectMyTradePlayer(p.id)}
-                        disabled={isSelectionDisabled}
                       >
-                        <View style={styles.tradeCardRowFlow}>
+                        <TouchableOpacity
+                          style={[styles.tradeInfoButton, isMobileLayout && styles.tradeInfoButtonMobile]}
+                          onPress={() => setInspectingPlayerId(p.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${p.web_name} stats`}
+                        >
+                          <Ionicons name="information-circle-outline" size={isMobileLayout ? 14 : 18} color={colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.tradeSelectTrigger}
+                          onPress={() => toggleSelectMyTradePlayer(p.id)}
+                          disabled={isSelectionDisabled}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected, disabled: isSelectionDisabled }}
+                          accessibilityLabel={`Select ${p.web_name} to offer`}
+                        >
+                          <View style={styles.tradeCardRowFlow}>
                           <View style={[styles.tradePlayerIdentity, isMobileLayout && styles.tradePlayerIdentityMobile]}>
                             <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected, isSelectionDisabled && styles.tradeCardTextDisabled]} numberOfLines={1}>
                               {p.web_name}
@@ -415,8 +437,9 @@ if (rivalDataRes.error) {
                               <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
                             </View>
                           )}
-                        </View>
-                      </TouchableOpacity>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </ScrollView>
@@ -429,12 +452,26 @@ if (rivalDataRes.error) {
                   {rivalTradeRoster.map(p => {
                     const isSelected = rivalSelectedTradeIds.includes(p.id);
                     return (
-                      <TouchableOpacity 
+                      <View
                         key={p.id} 
                         style={[styles.tradeSelectorCardCompact, isDesktopWeb && styles.tradeSelectorCardDesktopWeb, isMobileLayout && styles.tradeSelectorCardMobile, isMobileLayout && styles.tradeSelectorCardFillMobile, isShortMobile && styles.tradeSelectorCardShortMobile, isSelected && styles.tradeSelectorCardSelected]}
-                        onPress={() => toggleSelectRivalTradePlayer(p.id)}
                       >
-                        <View style={styles.tradeCardRowFlow}>
+                        <TouchableOpacity
+                          style={[styles.tradeInfoButton, isMobileLayout && styles.tradeInfoButtonMobile]}
+                          onPress={() => setInspectingPlayerId(p.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`View ${p.web_name} stats`}
+                        >
+                          <Ionicons name="information-circle-outline" size={isMobileLayout ? 14 : 18} color={colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.tradeSelectTrigger}
+                          onPress={() => toggleSelectRivalTradePlayer(p.id)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                          accessibilityLabel={`Select ${p.web_name} to request`}
+                        >
+                          <View style={styles.tradeCardRowFlow}>
                           <View style={[styles.tradePlayerIdentity, isMobileLayout && styles.tradePlayerIdentityMobile]}>
                             <Text style={[styles.tradeCardTextCompact, isMobileLayout && styles.tradeCardTextMobile, isSelected && styles.tradeCardTextSelected]} numberOfLines={1}>
                               {p.web_name}
@@ -454,8 +491,9 @@ if (rivalDataRes.error) {
                               <Text style={styles.miniPosTextCompact}>{p.element_type}</Text>
                             </View>
                           )}
-                        </View>
-                      </TouchableOpacity>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </ScrollView>
@@ -485,6 +523,14 @@ if (rivalDataRes.error) {
         </View>
       </View>
     </Modal>
+    <PlayerCardModal
+      visible={visible && inspectingPlayerId !== null}
+      playerId={inspectingPlayerId}
+      leagueId={leagueId}
+      currentGameweek={currentGameweek}
+      onClose={() => setInspectingPlayerId(null)}
+    />
+    </>
   );
 }
 
@@ -624,6 +670,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   tradeSelectorCardCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 8,
     paddingVertical: 9,
@@ -632,6 +680,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  tradeInfoButton: { width: 28, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginRight: 3 },
+  tradeInfoButtonMobile: { width: 18, marginRight: 1 },
+  tradeSelectTrigger: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center' },
   tradeSelectorCardDesktopWeb: {
     flexGrow: 1,
     flexBasis: 0,

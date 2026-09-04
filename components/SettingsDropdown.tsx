@@ -128,6 +128,10 @@ export default function SettingsDropdown() {
             <Text style={styles.menuItemText}>Tester Feedback</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/help'); }}>
+            <Text style={styles.menuItemText}>❓ Help & How to Use the App</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); router.push('/account'); }}>
             <Text style={styles.menuItemText}>Privacy & Account</Text>
           </TouchableOpacity>

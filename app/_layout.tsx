@@ -177,7 +177,8 @@ function RootLayoutContent() {
     const isPublicLegalRoute =
       currentSegment === 'privacy' ||
       currentSegment === 'delete-account' ||
-      currentSegment === 'community-guidelines';
+      currentSegment === 'community-guidelines' ||
+      currentSegment === 'help';
 
     if (isPublicLegalRoute) {
       return;
@@ -260,6 +261,7 @@ function RootLayoutContent() {
           <Stack.Screen name="privacy" options={{ headerShown: false }} />
           <Stack.Screen name="delete-account" options={{ headerShown: false }} />
           <Stack.Screen name="community-guidelines" options={{ headerShown: false }} />
+          <Stack.Screen name="help" options={{ headerShown: false }} />
           <Stack.Screen name="league-lounge" options={{ headerShown: false }} />
           <Stack.Screen name="league-chronicle" options={{ headerShown: false }} />
           <Stack.Screen name="scoring-guide" options={{ headerShown: false }} />
