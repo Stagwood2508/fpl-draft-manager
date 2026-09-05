@@ -72,7 +72,10 @@ interface MatchupItem {
 }
 
 export default function MatchesScreen() {
-  const { fixtureId: fixtureIdParam } = useLocalSearchParams<{ fixtureId?: string | string[] }>();
+  const {
+    fixtureId: fixtureIdParam,
+    gameweek: gameweekParam,
+  } = useLocalSearchParams<{ fixtureId?: string | string[]; gameweek?: string | string[] }>();
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
@@ -102,6 +105,9 @@ export default function MatchesScreen() {
   const cachedLeagueId = useRef<string | null>(null);
   const rosterPagerRefs = useRef<Record<string, ScrollView | null>>({});
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
+  const screenActiveRef = useRef(false);
+  const contextRequestRef = useRef(0);
+  const dataRequestRef = useRef(0);
 
   useEffect(() => {
     if (viewMode === 'LIVE') {
@@ -120,7 +126,13 @@ export default function MatchesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      initMatchdayContext();
+      screenActiveRef.current = true;
+      void initMatchdayContext();
+      return () => {
+        screenActiveRef.current = false;
+        contextRequestRef.current += 1;
+        dataRequestRef.current += 1;
+      };
     }, [])
   );
 
@@ -148,7 +160,19 @@ export default function MatchesScreen() {
     }
   }, [fixtureIdParam, matchups]);
 
+  useEffect(() => {
+    const rawGameweek = Array.isArray(gameweekParam) ? gameweekParam[0] : gameweekParam;
+    const requestedGameweek = Number(rawGameweek);
+    if (Number.isInteger(requestedGameweek) && requestedGameweek >= 1 && requestedGameweek <= 38) {
+      setSelectedGameweek(current => current === requestedGameweek ? current : requestedGameweek);
+    }
+  }, [gameweekParam]);
+
   async function initMatchdayContext() {
+    const requestId = contextRequestRef.current + 1;
+    contextRequestRef.current = requestId;
+    const isCurrentRequest = () => screenActiveRef.current && contextRequestRef.current === requestId;
+
     try {
       setLoading(true);
       setContextReady(false);
@@ -170,12 +194,14 @@ export default function MatchesScreen() {
         cachedLeagueId.current = targetLeagueId;
         await AsyncStorage.setItem('active_league_id', targetLeagueId);
 
+        if (!isCurrentRequest()) return;
+
         const { data: teamsData } = await supabase
           .from('league_members')
           .select('user_id, team_name')
           .eq('league_id', targetLeagueId);
 
-        if (teamsData) {
+        if (teamsData && isCurrentRequest()) {
           setLeagueTeams(teamsData.map(t => ({
             user_id: t.user_id,
             team_name: t.team_name || 'FC Manager'
@@ -184,6 +210,7 @@ export default function MatchesScreen() {
       }
 
       if (!targetLeagueId) {
+        if (!isCurrentRequest()) return;
         setLeagueTeams([]);
         setMatchups([]);
         return;
@@ -196,6 +223,8 @@ export default function MatchesScreen() {
         .order('gameweek', { ascending: true });
 
       if (gameweeksError) throw gameweeksError;
+
+      if (!isCurrentRequest()) return;
 
       const now = Date.now();
       const gameweeks = gameweeksData || [];
@@ -217,6 +246,8 @@ export default function MatchesScreen() {
         fixtures: premierLeagueFixtures || [],
         now,
       });
+
+      if (!isCurrentRequest()) return;
       const isLive = presentationState === 'LIVE'
         || presentationState === 'AWAITING_CONFIRMATION';
 
@@ -238,8 +269,10 @@ export default function MatchesScreen() {
     } catch (err: any) {
       console.error('Failed to initialize matchday context:', err.message);
     } finally {
-      setContextReady(true);
-      setLoading(false);
+      if (isCurrentRequest()) {
+        setContextReady(true);
+        setLoading(false);
+      }
     }
   }
 
@@ -258,6 +291,10 @@ export default function MatchesScreen() {
   };
 
   async function fetchMatchdayData(isBackgroundRefresh = false) {
+    const requestId = dataRequestRef.current + 1;
+    dataRequestRef.current = requestId;
+    const isCurrentRequest = () => screenActiveRef.current && dataRequestRef.current === requestId;
+
     try {
       if (!isBackgroundRefresh) setLoading(true);
       setErrorMessage(null);
@@ -299,6 +336,8 @@ export default function MatchesScreen() {
       if (playerScoresResult.error) throw playerScoresResult.error;
       if (playerVisualsResult.error) throw playerVisualsResult.error;
 
+      if (!isCurrentRequest()) return;
+
       const provisionalBonusResult = viewMode === 'LIVE'
         ? await supabase.rpc('get_gameweek_provisional_bonus_rankings', {
             p_gameweek: selectedGameweek,
@@ -308,6 +347,8 @@ export default function MatchesScreen() {
       if (provisionalBonusResult.error) {
         console.warn('Provisional live bonus rankings unavailable:', provisionalBonusResult.error.message);
       }
+
+      if (!isCurrentRequest()) return;
 
       const fixturesData = fixturesResult.data || [];
       const liveScoreMap = new Map<string, any>(
@@ -401,9 +442,11 @@ export default function MatchesScreen() {
       });
     } catch (err: any) {
       console.error('Error loading matches:', err.message);
-      setErrorMessage(err?.message || 'Live Match Centre could not be refreshed.');
+      if (isCurrentRequest()) {
+        setErrorMessage(err?.message || 'Live Match Centre could not be refreshed.');
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }
 

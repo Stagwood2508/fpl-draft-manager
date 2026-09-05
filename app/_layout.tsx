@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
@@ -51,6 +51,8 @@ function RootLayoutContent() {
   const globalParams = useGlobalSearchParams<{ inviteCode?: string }>();
   const pathname = usePathname();
   const router = useRouter();
+  const [pendingNotificationRoute, setPendingNotificationRoute] = useState<string | null>(null);
+  const handledNotificationIdsRef = useRef(new Set<string>());
 
   const {
     authInitialized,
@@ -106,21 +108,38 @@ function RootLayoutContent() {
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const openNotification = (notification: Notifications.Notification) => {
+    const queueNotificationRoute = (notification: Notifications.Notification) => {
+      const notificationId = notification.request.identifier;
+      if (handledNotificationIdsRef.current.has(notificationId)) return;
       const route = notificationRoute(notification);
-      if (route) router.push(route as any);
+      if (!route) return;
+      handledNotificationIdsRef.current.add(notificationId);
+      setPendingNotificationRoute(route);
     };
     const initialResponse = Notifications.getLastNotificationResponse();
     if (initialResponse?.notification) {
-      openNotification(initialResponse.notification);
+      queueNotificationRoute(initialResponse.notification);
       Notifications.clearLastNotificationResponse();
     }
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-      openNotification(response.notification);
+      queueNotificationRoute(response.notification);
       Notifications.clearLastNotificationResponse();
     });
     return () => subscription.remove();
-  }, [router]);
+  }, []);
+
+  // A notification can wake the app before authentication, league membership and
+  // tab navigation are ready. Defer the route until all of those are settled so
+  // it cannot race the global route guard or leave a stale screen on the stack.
+  useEffect(() => {
+    if (!appReady || !sessionActive || !hasLeague) return;
+    const route = pendingNotificationRoute;
+    if (!route) return;
+
+    setPendingNotificationRoute(null);
+    const navigationFrame = requestAnimationFrame(() => router.replace(route as any));
+    return () => cancelAnimationFrame(navigationFrame);
+  }, [appReady, hasLeague, pendingNotificationRoute, router, sessionActive]);
 
   useEffect(() => installGlobalErrorReporting(() => pathname), [pathname]);
 
