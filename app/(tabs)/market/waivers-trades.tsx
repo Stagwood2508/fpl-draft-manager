@@ -14,9 +14,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from 'expo-router/react-navigation';
 import { useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import PlayerCardModal from '@/components/PlayerCardModal';
 import {
   AppColors,
   appRadius,
@@ -165,6 +167,7 @@ export default function TransactionsScreen() {
   const [tradeImpact, setTradeImpact] = useState<TradeImpactData | null>(null);
   const [tradeImpactLoading, setTradeImpactLoading] = useState(false);
   const [tradeImpactPeriod, setTradeImpactPeriod] = useState<'BEFORE' | 'SINCE'>('SINCE');
+  const [playerCardId, setPlayerCardId] = useState<number | null>(null);
 
   const confirmAction = (
   title: string,
@@ -498,33 +501,44 @@ const handleBatchRejectTrade = async (
 };
 
   const handleBatchCancelTrade = async (packageData: GroupedTradePackage) => {
-    Alert.alert('Withdraw Proposal', 'Pull your pending trade assets out of this offer queue?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            setProcessing(true);
-            const { data, error } = await supabase.rpc('update_trade_package_status', {
-              p_transaction_id: packageData.batchKey || packageData.originalRowIds[0],
-              p_action: 'WITHDRAW',
-            });
+    confirmAction(
+      'Withdraw Proposal',
+      'Pull your pending trade assets out of this offer queue?',
+      'Withdraw',
+      async () => {
+        try {
+          setProcessing(true);
+          const { data, error } = await supabase.rpc('update_trade_package_status', {
+            p_transaction_id: packageData.batchKey || packageData.originalRowIds[0],
+            p_action: 'WITHDRAW',
+          });
 
-            if (error) throw error;
-            if (data && data.success === false) {
-              throw new Error(data.error || 'The offer could not be withdrawn.');
-            }
-            Alert.alert('Offer Withdrawn', 'Your proposal has been successfully removed.');
-            fetchTransactionContext();
-          } catch (err: any) {
-            Alert.alert('Operation Failed', err.message);
-          } finally {
-            setProcessing(false);
+          if (error) throw error;
+          if (data && data.success === false) {
+            throw new Error(data.error || 'The offer could not be withdrawn.');
           }
+
+          if (Platform.OS === 'web') {
+            window.alert('Offer withdrawn. Your proposal has been removed.');
+          } else {
+            Alert.alert('Offer Withdrawn', 'Your proposal has been successfully removed.');
+          }
+
+          await fetchTransactionContext();
+        } catch (err: any) {
+          const message = err?.message || 'The offer could not be withdrawn.';
+
+          if (Platform.OS === 'web') {
+            window.alert(`Operation Failed\n\n${message}`);
+          } else {
+            Alert.alert('Operation Failed', message);
+          }
+        } finally {
+          setProcessing(false);
         }
-      }
-    ]);
+      },
+      true
+    );
   };
 
 const handleCounterTradeOffer = async (
@@ -957,12 +971,22 @@ if (!userId || !leagueId) {
                 {/* Left Column: Requested Asset (In) */}
                 <View style={styles.colLeft}>
                   {req ? (
-                    <Text style={styles.playerTextRequested} numberOfLines={1}>
-                      {req.web_name}{' '}
-                      <Text style={styles.metaText}>
-                        ({getShortTeamCode(req.team_name)} · {req.element_type})
+                    <View style={styles.assetPlayerLine}>
+                      <Text style={[styles.playerTextRequested, styles.assetPlayerName]} numberOfLines={1}>
+                        {req.web_name}{' '}
+                        <Text style={styles.metaText}>
+                          ({getShortTeamCode(req.team_name)} · {req.element_type})
+                        </Text>
                       </Text>
-                    </Text>
+                      <TouchableOpacity
+                        style={styles.assetInfoButton}
+                        onPress={() => setPlayerCardId(req.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`View ${req.web_name} player information`}
+                      >
+                        <Ionicons name="information-circle-outline" size={16} color={colors.accent} />
+                      </TouchableOpacity>
+                    </View>
                   ) : (
                     <Text style={styles.emptyAssetText}>—</Text>
                   )}
@@ -977,12 +1001,22 @@ if (!userId || !leagueId) {
                 {/* Right Column: Offered Asset (Out - Right Aligned) */}
                 <View style={styles.colRight}>
                   {off ? (
-                    <Text style={[styles.playerTextOffered, styles.textRight]} numberOfLines={1}>
-                      {off.web_name}{' '}
-                      <Text style={styles.metaText}>
-                        ({getShortTeamCode(off.team_name)} · {off.element_type})
+                    <View style={[styles.assetPlayerLine, styles.assetPlayerLineRight]}>
+                      <TouchableOpacity
+                        style={styles.assetInfoButton}
+                        onPress={() => setPlayerCardId(off.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`View ${off.web_name} player information`}
+                      >
+                        <Ionicons name="information-circle-outline" size={16} color={colors.accent} />
+                      </TouchableOpacity>
+                      <Text style={[styles.playerTextOffered, styles.assetPlayerName, styles.textRight]} numberOfLines={1}>
+                        {off.web_name}{' '}
+                        <Text style={styles.metaText}>
+                          ({getShortTeamCode(off.team_name)} · {off.element_type})
+                        </Text>
                       </Text>
-                    </Text>
+                    </View>
                   ) : (
                     <Text style={[styles.emptyAssetText, styles.textRight]}>—</Text>
                   )}
@@ -1379,6 +1413,14 @@ if (!userId || !leagueId) {
           </View>
         </View>
       </Modal>
+
+      <PlayerCardModal
+        visible={playerCardId !== null}
+        playerId={playerCardId}
+        leagueId={leagueId}
+        currentGameweek={waiverStatus?.gameweek || 0}
+        onClose={() => setPlayerCardId(null)}
+      />
     </View>
   );
 }
@@ -1882,6 +1924,32 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     padding: appSpacing.lg,
   },
+
+  assetPlayerLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+
+  assetPlayerLineRight: {
+    justifyContent: 'flex-end',
+  },
+
+  assetPlayerName: {
+    flexShrink: 1,
+  },
+
+  assetInfoButton: {
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: appColors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
+  },
+
   modalOverlayMobile: { justifyContent: 'flex-start', alignItems: 'stretch', padding: 0 },
 
   tradeModalContent: {
