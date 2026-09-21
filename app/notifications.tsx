@@ -86,7 +86,7 @@ export default function NotificationCentreScreen() {
   }), [appColors]);
   const router = useRouter();
   const { settings: settingsParam } = useLocalSearchParams<{ settings?: string | string[] }>();
-  const { currentUserId } = useAppSession();
+  const { currentUserId, activeLeagueId, selectActiveLeague } = useAppSession();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<InboxFilter>('ALL');
   const [loading, setLoading] = useState(true);
@@ -159,7 +159,14 @@ export default function NotificationCentreScreen() {
       setNotifications(current => current.map(notification => notification.id === item.id ? { ...notification, read_at: readAt } : notification));
       await supabase.from('user_notifications').update({ read_at: readAt }).eq('id', item.id).eq('user_id', currentUserId || '');
     }
-    if (item.route && item.route !== '/notifications') router.push(item.route as any);
+    try {
+      if (item.league_id && item.league_id !== activeLeagueId) {
+        await selectActiveLeague(item.league_id);
+      }
+      if (item.route && item.route !== '/notifications') router.push(item.route as any);
+    } catch (error: any) {
+      Alert.alert('League unavailable', error?.message || 'You are no longer a member of this league.');
+    }
   };
 
   const markAllRead = async () => {

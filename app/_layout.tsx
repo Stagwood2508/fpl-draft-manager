@@ -27,7 +27,7 @@ import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { installGlobalErrorReporting } from '@/utils/errorReporting';
 import AppLaunchScreen from '@/components/AppLaunchScreen';
-import { configurePushPresentation, notificationRoute, refreshPushRegistration } from '@/features/notifications/services/pushNotifications';
+import { configurePushPresentation, notificationDestination, refreshPushRegistration } from '@/features/notifications/services/pushNotifications';
 import { supabase } from '@/utils/supabase';
 
 configurePushPresentation();
@@ -51,7 +51,7 @@ function RootLayoutContent() {
   const globalParams = useGlobalSearchParams<{ inviteCode?: string }>();
   const pathname = usePathname();
   const router = useRouter();
-  const [pendingNotificationRoute, setPendingNotificationRoute] = useState<string | null>(null);
+  const [pendingNotificationDestination, setPendingNotificationDestination] = useState<{ route: string; leagueId: string | null } | null>(null);
   const handledNotificationIdsRef = useRef(new Set<string>());
 
   const {
@@ -59,6 +59,8 @@ function RootLayoutContent() {
     sessionActive,
     hasLeague,
     currentUserId,
+    activeLeagueId,
+    selectActiveLeague,
   } = useAppSession();
 
   const [fontsLoaded, fontError] = useFonts({
@@ -111,10 +113,10 @@ function RootLayoutContent() {
     const queueNotificationRoute = (notification: Notifications.Notification) => {
       const notificationId = notification.request.identifier;
       if (handledNotificationIdsRef.current.has(notificationId)) return;
-      const route = notificationRoute(notification);
-      if (!route) return;
+      const destination = notificationDestination(notification);
+      if (!destination) return;
       handledNotificationIdsRef.current.add(notificationId);
-      setPendingNotificationRoute(route);
+      setPendingNotificationDestination(destination);
     };
     const initialResponse = Notifications.getLastNotificationResponse();
     if (initialResponse?.notification) {
@@ -129,17 +131,40 @@ function RootLayoutContent() {
   }, []);
 
   // A notification can wake the app before authentication, league membership and
-  // tab navigation are ready. Defer the route until all of those are settled so
-  // it cannot race the global route guard or leave a stale screen on the stack.
+  // tab navigation are ready. It can also belong to another one of the user's
+  // leagues, so switch that context before navigating. This keeps every screen
+  // in the destination tree aligned with the notification's league.
   useEffect(() => {
     if (!appReady || !sessionActive || !hasLeague) return;
-    const route = pendingNotificationRoute;
-    if (!route) return;
+    const destination = pendingNotificationDestination;
+    if (!destination) return;
 
-    setPendingNotificationRoute(null);
-    const navigationFrame = requestAnimationFrame(() => router.replace(route as any));
-    return () => cancelAnimationFrame(navigationFrame);
-  }, [appReady, hasLeague, pendingNotificationRoute, router, sessionActive]);
+    let cancelled = false;
+    let navigationFrame: ReturnType<typeof requestAnimationFrame> | null = null;
+
+    const navigateFromNotification = async () => {
+      try {
+        if (destination.leagueId && destination.leagueId !== activeLeagueId) {
+          await selectActiveLeague(destination.leagueId);
+        }
+
+        if (cancelled) return;
+        setPendingNotificationDestination(null);
+        navigationFrame = requestAnimationFrame(() => router.replace(destination.route as any));
+      } catch (error) {
+        // A stale membership must not leave navigation wedged or surface as a
+        // rendering failure. The user remains safely in their current league.
+        console.warn('[NOTIFICATION NAVIGATION] Unable to open destination', error);
+        if (!cancelled) setPendingNotificationDestination(null);
+      }
+    };
+
+    void navigateFromNotification();
+    return () => {
+      cancelled = true;
+      if (navigationFrame) cancelAnimationFrame(navigationFrame);
+    };
+  }, [activeLeagueId, appReady, hasLeague, pendingNotificationDestination, router, selectActiveLeague, sessionActive]);
 
   useEffect(() => installGlobalErrorReporting(() => pathname), [pathname]);
 

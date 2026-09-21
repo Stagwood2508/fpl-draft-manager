@@ -24,6 +24,10 @@ interface PushTokenRow {
   expo_push_token: string;
 }
 
+interface LeagueRow {
+  name: string | null;
+}
+
 const expoHeaders = () => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -100,15 +104,21 @@ Deno.serve(async (request) => {
       return Response.json({ success: true, skipped: 'CHRONICLE_PUSH_DISABLED' });
     }
 
-    const [{ data: preferences }, { data: tokens, error: tokenError }] = await Promise.all([
+    const [{ data: preferences }, { data: tokens, error: tokenError }, leagueResponse] = await Promise.all([
       admin.from('notification_preferences')
         .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, own_player_events_enabled, opponent_player_events_enabled, draft_enabled')
         .eq('user_id', notification.user_id).maybeSingle(),
       admin.from('push_device_tokens')
         .select('id, expo_push_token')
         .eq('user_id', notification.user_id).eq('enabled', true),
+      notification.league_id
+        ? admin.from('leagues').select('name').eq('id', notification.league_id).maybeSingle<LeagueRow>()
+        : Promise.resolve({ data: null, error: null }),
     ]);
     if (tokenError) throw tokenError;
+
+    if (leagueResponse.error) throw leagueResponse.error;
+    const leagueName = leagueResponse.data?.name?.trim() || null;
 
     const categoryEnabled = notification.category === 'ANNOUNCEMENT'
       ? preferences?.announcements_enabled !== false
@@ -150,7 +160,7 @@ Deno.serve(async (request) => {
       headers: expoHeaders(),
       body: JSON.stringify(pendingTokens.map(token => ({
         to: token.expo_push_token,
-        title: notification.title,
+        title: leagueName ? `${leagueName} · ${notification.title}` : notification.title,
         body: notification.body,
         sound: 'default',
         priority: 'high',

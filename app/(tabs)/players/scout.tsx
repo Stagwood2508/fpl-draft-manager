@@ -692,6 +692,15 @@ export default function PlayerPoolScreen() {
             <Text style={styles.pointsLabelText}>{selectedSort.shortLabel}</Text>
           </View>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.playerInfoButton}
+          onPress={() => openPlayerDetails(item.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${item.web_name} player information`}
+        >
+          <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+        </TouchableOpacity>
         
         <TouchableOpacity style={[styles.watchlistBtn, isSaved && styles.watchlistBtnActive]} onPress={() => handleWatchlistToggle(item.id)}>
           <Ionicons name={isSaved ? "star" : "star-outline"} size={14} color={isSaved ? colors.black : colors.accent} />
@@ -1024,6 +1033,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   availablePillText: { color: colors.accent },
   playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingRight: 8, borderRadius: 4, marginBottom: 4 },
   playerCardMainTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },
+  playerInfoButton: { minWidth: 28, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
   playerMeta: { flex: 1, marginLeft: 2, paddingRight: 4, justifyContent: 'center' },
   playerRowFlow: { flexDirection: 'row', alignItems: 'center' },
   playerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '800', marginRight: 8 },

@@ -72,9 +72,17 @@ export async function refreshPushRegistration(currentUserId: string | null) {
   await enablePushNotifications(false);
 }
 
-export const notificationRoute = (notification: Notifications.Notification) => {
-  const route = notification.request.content.data?.url;
-  if (typeof route !== 'string' || !route.startsWith('/') || route.startsWith('//') || route.length > 300) return null;
-  return route;
+export type NotificationDestination = {
+  route: string;
+  leagueId: string | null;
 };
 
+export const notificationDestination = (notification: Notifications.Notification): NotificationDestination | null => {
+  const data = notification.request.content.data;
+  const route = data?.url;
+  if (typeof route !== 'string' || !route.startsWith('/') || route.startsWith('//') || route.length > 300) return null;
+  const leagueId = typeof data?.leagueId === 'string' && data.leagueId.trim().length > 0
+    ? data.leagueId
+    : null;
+  return { route, leagueId };
+};

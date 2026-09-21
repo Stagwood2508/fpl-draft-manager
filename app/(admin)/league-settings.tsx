@@ -522,32 +522,19 @@ export default function UnifiedLeagueSettingsScreen() {
 
       const draftStartTime = draftScheduleEnabled ? selectedDraftDate.toISOString() : null;
 
-      // 1. Update LEAGUES table directly with roster_type
-      const { error: leagueErr } = await supabase
-        .from('leagues')
-        .update({ roster_type: rosterType })
-        .eq('id', leagueId);
-
-      if (leagueErr) {
-        console.error('Leagues Table Update Error:', leagueErr);
-        throw new Error(`Failed to save roster settings: ${leagueErr.message}`);
-      }
-
-      // 2. Upsert LEAGUE_SETTINGS table
       const payload = {
-        league_id: leagueId,
         ...settings,
         roster_type: rosterType,
         draft_start_time: draftStartTime,
         defcon_thresholds_def: serialiseDefconTiers(defTiers),
         defcon_thresholds_mid: serialiseDefconTiers(midTiers),
         defcon_thresholds_fwd: serialiseDefconTiers(fwdTiers),
-        updated_at: new Date().toISOString()
       };
 
-      const { error: settingsErr } = await supabase
-        .from('league_settings')
-        .upsert(payload, { onConflict: 'league_id' });
+      const { error: settingsErr } = await supabase.rpc('save_league_settings', {
+        p_league_id: leagueId,
+        p_settings: payload,
+      });
 
       if (settingsErr) {
         console.error('League Settings Upsert Error:', settingsErr);

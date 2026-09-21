@@ -420,12 +420,15 @@ export default function PlayerCardModal({
           setHistory(formattedHistory);
         }
 
-        // 3. Fetch Upcoming Schedule (FDR)
+        // 3. Fetch Upcoming Schedule (FDR). A gameweek can remain the
+        // "current" gameweek after its fixtures have finished, so its numeric
+        // value is not a reliable boundary for upcoming matches. Fixture
+        // completion is the source of truth.
         const { data: fixtureData } = await supabase
           .from('fixtures')
           .select('*')
           .or(`home_team_id.eq.${playerData.team_id},away_team_id.eq.${playerData.team_id}`)
-          .gt('gameweek', currentGameweek)
+          .eq('is_finished', false)
           .order('gameweek', { ascending: true })
           .limit(6);
 
