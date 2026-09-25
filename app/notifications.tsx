@@ -154,22 +154,30 @@ export default function NotificationCentreScreen() {
   );
 
   const markRead = async (item: NotificationItem) => {
-    if (!item.read_at) {
-      const readAt = new Date().toISOString();
-      setNotifications(current => current.map(notification => notification.id === item.id ? { ...notification, read_at: readAt } : notification));
-      await supabase.from('user_notifications').update({ read_at: readAt }).eq('id', item.id).eq('user_id', currentUserId || '');
-    }
     try {
+      if (!item.read_at) {
+        const readAt = new Date().toISOString();
+        setNotifications(current => current.map(notification => notification.id === item.id ? { ...notification, read_at: readAt } : notification));
+        const { error } = await supabase
+          .from('user_notifications')
+          .update({ read_at: readAt })
+          .eq('id', item.id)
+          .eq('user_id', currentUserId || '');
+        if (error) throw error;
+      }
+
       if (item.league_id && item.league_id !== activeLeagueId) {
         await selectActiveLeague(item.league_id);
       }
 
       if (item.route && item.route !== '/notifications') {
-        // Changing league context remounts data-driven tab screens. Let that
-        // context update commit before replacing this stack screen, otherwise
-        // a tab press immediately afterwards can render against stale state.
+        // Notifications are a root-stack screen while their destinations live
+        // inside the tab navigator. Clear the root stack first so navigating
+        // to a nested route cannot create a second, stale tab state.
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-        router.replace(item.route as any);
+        router.dismissAll();
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        router.navigate(item.route as any);
       }
     } catch (error: any) {
       Alert.alert('League unavailable', error?.message || 'You are no longer a member of this league.');

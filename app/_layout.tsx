@@ -150,7 +150,9 @@ function RootLayoutContent() {
 
         if (cancelled) return;
         setPendingNotificationDestination(null);
-        navigationFrame = requestAnimationFrame(() => router.replace(destination.route as any));
+        // navigate reuses the existing tab navigator. replace can instead
+        // mount a second tab tree when a notification opens a nested screen.
+        navigationFrame = requestAnimationFrame(() => router.navigate(destination.route as any));
       } catch (error) {
         // A stale membership must not leave navigation wedged or surface as a
         // rendering failure. The user remains safely in their current league.
