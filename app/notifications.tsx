@@ -163,7 +163,14 @@ export default function NotificationCentreScreen() {
       if (item.league_id && item.league_id !== activeLeagueId) {
         await selectActiveLeague(item.league_id);
       }
-      if (item.route && item.route !== '/notifications') router.push(item.route as any);
+
+      if (item.route && item.route !== '/notifications') {
+        // Changing league context remounts data-driven tab screens. Let that
+        // context update commit before replacing this stack screen, otherwise
+        // a tab press immediately afterwards can render against stale state.
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        router.replace(item.route as any);
+      }
     } catch (error: any) {
       Alert.alert('League unavailable', error?.message || 'You are no longer a member of this league.');
     }
