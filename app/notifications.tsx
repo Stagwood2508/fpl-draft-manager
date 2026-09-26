@@ -101,6 +101,7 @@ export default function NotificationCentreScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [pushChanging, setPushChanging] = useState(false);
@@ -166,6 +167,7 @@ export default function NotificationCentreScreen() {
   }, [currentUserId, loadNotifications]);
 
   const unreadCount = notifications.filter(item => !item.read_at).length;
+  const activeFilterCount = Number(filter !== 'ALL') + Number(categoryFilter !== 'ALL') + Number(leagueFilter !== 'ALL');
   const visibleNotifications = useMemo(() => notifications.filter(item => {
     if (filter === 'UNREAD' && item.read_at) return false;
     if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
@@ -287,25 +289,11 @@ export default function NotificationCentreScreen() {
       </View>
 
       <View style={styles.toolbar}>
-        <View style={styles.filters}>
-          {(['ALL', 'UNREAD'] as InboxFilter[]).map(item => <TouchableOpacity key={item} style={[styles.filterButton, filter === item && styles.filterButtonActive]} onPress={() => setFilter(item)}><Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}{item === 'UNREAD' && unreadCount ? ` ${unreadCount}` : ''}</Text></TouchableOpacity>)}
-        </View>
+        <TouchableOpacity style={[styles.inboxFilterButton, activeFilterCount > 0 && styles.inboxFilterButtonActive]} onPress={() => setFiltersOpen(true)} accessibilityLabel="Filter notifications">
+          <Ionicons name="filter-outline" size={15} color={activeFilterCount > 0 ? appColors.accentForeground : appColors.accent} />
+          <Text style={[styles.inboxFilterButtonText, activeFilterCount > 0 && styles.inboxFilterButtonTextActive]}>FILTERS{activeFilterCount ? ` · ${activeFilterCount}` : ''}</Text>
+        </TouchableOpacity>
         <TouchableOpacity disabled={unreadCount === 0} onPress={() => void markAllRead()}><Text style={[styles.toolbarAction, unreadCount === 0 && styles.toolbarActionDisabled]}>MARK ALL READ</Text></TouchableOpacity>
-      </View>
-
-      <View style={styles.filterPanel}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterStrip}>
-          {(['ALL', 'ANNOUNCEMENT', 'TRADE', 'WAIVER', 'MATCH', 'SYSTEM'] as CategoryFilter[]).map(item => {
-            const label = item === 'ALL' ? 'ALL TYPES' : categoryMeta[item].label;
-            return <TouchableOpacity key={item} style={[styles.filterButton, categoryFilter === item && styles.filterButtonActive]} onPress={() => setCategoryFilter(item)}><Text style={[styles.filterText, categoryFilter === item && styles.filterTextActive]}>{label}</Text></TouchableOpacity>;
-          })}
-        </ScrollView>
-        {memberLeagues.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterStrip}>
-            <TouchableOpacity style={[styles.filterButton, leagueFilter === 'ALL' && styles.filterButtonActive]} onPress={() => setLeagueFilter('ALL')}><Text style={[styles.filterText, leagueFilter === 'ALL' && styles.filterTextActive]}>ALL LEAGUES</Text></TouchableOpacity>
-            {memberLeagues.map(league => <TouchableOpacity key={league.id} style={[styles.filterButton, leagueFilter === league.id && styles.filterButtonActive]} onPress={() => setLeagueFilter(league.id)}><Text style={[styles.filterText, leagueFilter === league.id && styles.filterTextActive]} numberOfLines={1}>{league.name}</Text></TouchableOpacity>)}
-          </ScrollView>
-        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadNotifications(true)} tintColor={appColors.accent} />}>
@@ -364,6 +352,51 @@ export default function NotificationCentreScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={filtersOpen} transparent animationType="fade" presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => setFiltersOpen(false)}>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(safeArea.top, appSpacing.md), paddingBottom: Math.max(safeArea.bottom, appSpacing.md) }]}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalEyebrow}>INBOX FILTERS</Text>
+            <Text style={styles.modalTitle}>Show notifications for</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.filterModalContent}>
+              <Text style={styles.filterSectionTitle}>Read status</Text>
+              {(['ALL', 'UNREAD'] as InboxFilter[]).map(item => (
+                <TouchableOpacity key={item} style={[styles.filterOptionRow, filter === item && styles.filterOptionRowSelected]} onPress={() => setFilter(item)}>
+                  <View style={styles.filterOptionIcon}><Ionicons name={item === 'ALL' ? 'notifications-outline' : 'mail-unread-outline'} size={18} color={appColors.accent} /></View>
+                  <View style={styles.preferenceCopy}><Text style={styles.preferenceLabel}>{item === 'ALL' ? 'All notifications' : `Unread only${unreadCount ? ` · ${unreadCount}` : ''}`}</Text><Text style={styles.preferenceDescription}>{item === 'ALL' ? 'Show your full inbox' : 'Only items that still need your attention'}</Text></View>
+                  {filter === item && <Ionicons name="checkmark-circle" size={20} color={appColors.accent} />}
+                </TouchableOpacity>
+              ))}
+              <Text style={styles.filterSectionTitle}>Notification type</Text>
+              {(['ALL', 'ANNOUNCEMENT', 'TRADE', 'WAIVER', 'MATCH', 'SYSTEM'] as CategoryFilter[]).map(item => {
+                const meta = item === 'ALL' ? { icon: 'notifications-outline' as const, color: appColors.accent, label: 'All notification types' } : categoryMeta[item];
+                return <TouchableOpacity key={item} style={[styles.filterOptionRow, categoryFilter === item && styles.filterOptionRowSelected]} onPress={() => setCategoryFilter(item)}>
+                  <View style={styles.filterOptionIcon}><Ionicons name={meta.icon} size={18} color={meta.color} /></View>
+                  <Text style={[styles.preferenceLabel, { flex: 1 }]}>{meta.label}</Text>
+                  {categoryFilter === item && <Ionicons name="checkmark-circle" size={20} color={appColors.accent} />}
+                </TouchableOpacity>;
+              })}
+              {memberLeagues.length > 0 && <>
+                <Text style={styles.filterSectionTitle}>League</Text>
+                <TouchableOpacity style={[styles.filterOptionRow, leagueFilter === 'ALL' && styles.filterOptionRowSelected]} onPress={() => setLeagueFilter('ALL')}>
+                  <View style={styles.filterOptionIcon}><Ionicons name="trophy-outline" size={18} color={appColors.accent} /></View>
+                  <Text style={[styles.preferenceLabel, { flex: 1 }]}>All leagues</Text>
+                  {leagueFilter === 'ALL' && <Ionicons name="checkmark-circle" size={20} color={appColors.accent} />}
+                </TouchableOpacity>
+                {memberLeagues.map(league => <TouchableOpacity key={league.id} style={[styles.filterOptionRow, leagueFilter === league.id && styles.filterOptionRowSelected]} onPress={() => setLeagueFilter(league.id)}>
+                  <View style={styles.filterOptionIcon}><Ionicons name="shield-outline" size={18} color={appColors.accent} /></View>
+                  <Text style={[styles.preferenceLabel, { flex: 1 }]} numberOfLines={1}>{league.name}</Text>
+                  {leagueFilter === league.id && <Ionicons name="checkmark-circle" size={20} color={appColors.accent} />}
+                </TouchableOpacity>)}
+              </>}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => { setFilter('ALL'); setCategoryFilter('ALL'); setLeagueFilter('ALL'); }}><Text style={styles.cancelText}>CLEAR</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={() => setFiltersOpen(false)}><Text style={styles.saveText}>SHOW RESULTS</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -378,15 +411,12 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   headerTitle: { ...appTypography.screenTitle, color: appColors.textPrimary, fontSize: 17 },
   headerMeta: { ...appTypography.metadata, color: appColors.textMuted },
   toolbar: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: appSpacing.sm, paddingHorizontal: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderBottomWidth: 1, borderBottomColor: appColors.border },
-  filters: { flexDirection: 'row', gap: 6 },
-  filterButton: { minHeight: 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 11, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.pill },
-  filterButtonActive: { backgroundColor: appColors.accentSoft, borderColor: appColors.accentBorder },
-  filterText: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
-  filterTextActive: { color: appColors.accent },
+  inboxFilterButton: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.pill },
+  inboxFilterButtonActive: { backgroundColor: appColors.accentFill, borderColor: appColors.accent },
+  inboxFilterButtonText: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
+  inboxFilterButtonTextActive: { color: appColors.accentForeground },
   toolbarAction: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
   toolbarActionDisabled: { color: appColors.textDisabled },
-  filterPanel: { gap: 6, paddingVertical: 7, backgroundColor: appColors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: appColors.border },
-  filterStrip: { gap: 6, paddingHorizontal: appSpacing.md },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: appSpacing.sm, padding: appSpacing.md, paddingBottom: 40 },
   emptyState: { alignItems: 'center', gap: appSpacing.sm, padding: 40, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
   emptyTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary },
@@ -416,6 +446,11 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   preferenceCopy: { flex: 1 },
   preferenceLabel: { color: appColors.textPrimary, fontSize: 12, fontWeight: '800' },
   preferenceDescription: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 2 },
+  filterModalContent: { paddingBottom: appSpacing.xs },
+  filterSectionTitle: { ...appTypography.label, color: appColors.textMuted, marginTop: appSpacing.md, marginBottom: 3 },
+  filterOptionRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: appSpacing.sm, borderTopWidth: 1, borderTopColor: appColors.borderSubtle },
+  filterOptionRowSelected: { backgroundColor: appColors.accentSoft },
+  filterOptionIcon: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderRadius: appRadius.small },
   modalActions: { flexDirection: 'row', gap: appSpacing.sm, marginTop: appSpacing.md },
   cancelButton: { minHeight: 40, flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surfaceMuted, borderRadius: appRadius.small },
   cancelText: { ...appTypography.label, color: appColors.textSecondary },
