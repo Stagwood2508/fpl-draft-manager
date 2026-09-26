@@ -686,7 +686,6 @@ export default function PlayerPoolScreen() {
                   <Text style={[styles.availabilityBadgeText, { color: availabilityMarker.foregroundColor }]}>{availabilityMarker.label}</Text>
                 </View>
               )}
-              <Text style={styles.playerName} numberOfLines={1}>{item.web_name}</Text>
               <Ionicons
                 name="information-circle-outline"
                 size={16}
@@ -694,6 +693,7 @@ export default function PlayerPoolScreen() {
                 style={styles.playerNameInfoIcon}
                 accessibilityLabel={`View ${item.web_name} player information`}
               />
+              <Text style={styles.playerName} numberOfLines={1}>{item.web_name}</Text>
               <Text style={styles.playerClubShort}>{getShortTeamCode(item)}</Text>
               <View style={[styles.positionBadgeChip, { backgroundColor: mappedPositionColor }]}>
                 <Text style={styles.positionChipText}>{item.element_type}</Text>
