@@ -24,6 +24,12 @@ import { disablePushNotifications, enablePushNotifications } from '@/features/no
 
 type NotificationCategory = 'ANNOUNCEMENT' | 'TRADE' | 'WAIVER' | 'MATCH' | 'SYSTEM';
 type InboxFilter = 'ALL' | 'UNREAD';
+type CategoryFilter = 'ALL' | NotificationCategory;
+
+interface LeagueFilterOption {
+  id: string;
+  name: string;
+}
 
 interface NotificationItem {
   id: number;
@@ -89,6 +95,9 @@ export default function NotificationCentreScreen() {
   const { currentUserId, activeLeagueId, selectActiveLeague } = useAppSession();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<InboxFilter>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
+  const [leagueFilter, setLeagueFilter] = useState<string>('ALL');
+  const [memberLeagues, setMemberLeagues] = useState<LeagueFilterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
@@ -112,7 +121,7 @@ export default function NotificationCentreScreen() {
     if (asRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [notificationResponse, preferenceResponse] = await Promise.all([
+      const [notificationResponse, preferenceResponse, membershipResponse] = await Promise.all([
         supabase
           .from('user_notifications')
           .select('id, league_id, category, title, body, route, read_at, created_at, leagues(name)')
@@ -124,11 +133,20 @@ export default function NotificationCentreScreen() {
           .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, own_player_events_enabled, opponent_player_events_enabled, draft_enabled')
           .eq('user_id', currentUserId)
           .maybeSingle(),
+        supabase
+          .from('league_members')
+          .select('league_id, leagues(name)')
+          .eq('user_id', currentUserId),
       ]);
       if (notificationResponse.error) throw notificationResponse.error;
       if (preferenceResponse.error) throw preferenceResponse.error;
+      if (membershipResponse.error) throw membershipResponse.error;
       setNotifications((notificationResponse.data || []) as NotificationItem[]);
       setPreferences(preferenceResponse.data || DEFAULT_PREFERENCES);
+      setMemberLeagues((membershipResponse.data || []).map((membership: any) => ({
+        id: String(membership.league_id),
+        name: firstRelation<{ name?: string | null }>(membership.leagues)?.name?.trim() || 'Unnamed league',
+      })).sort((left, right) => left.name.localeCompare(right.name)));
     } catch (error: any) {
       Alert.alert('Notifications unavailable', error?.message || 'Please try again.');
     } finally {
@@ -148,10 +166,12 @@ export default function NotificationCentreScreen() {
   }, [currentUserId, loadNotifications]);
 
   const unreadCount = notifications.filter(item => !item.read_at).length;
-  const visibleNotifications = useMemo(
-    () => filter === 'UNREAD' ? notifications.filter(item => !item.read_at) : notifications,
-    [filter, notifications]
-  );
+  const visibleNotifications = useMemo(() => notifications.filter(item => {
+    if (filter === 'UNREAD' && item.read_at) return false;
+    if (categoryFilter !== 'ALL' && item.category !== categoryFilter) return false;
+    if (leagueFilter !== 'ALL' && item.league_id !== leagueFilter) return false;
+    return true;
+  }), [categoryFilter, filter, leagueFilter, notifications]);
 
   const markRead = async (item: NotificationItem) => {
     try {
@@ -273,9 +293,24 @@ export default function NotificationCentreScreen() {
         <TouchableOpacity disabled={unreadCount === 0} onPress={() => void markAllRead()}><Text style={[styles.toolbarAction, unreadCount === 0 && styles.toolbarActionDisabled]}>MARK ALL READ</Text></TouchableOpacity>
       </View>
 
+      <View style={styles.filterPanel}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterStrip}>
+          {(['ALL', 'ANNOUNCEMENT', 'TRADE', 'WAIVER', 'MATCH', 'SYSTEM'] as CategoryFilter[]).map(item => {
+            const label = item === 'ALL' ? 'ALL TYPES' : categoryMeta[item].label;
+            return <TouchableOpacity key={item} style={[styles.filterButton, categoryFilter === item && styles.filterButtonActive]} onPress={() => setCategoryFilter(item)}><Text style={[styles.filterText, categoryFilter === item && styles.filterTextActive]}>{label}</Text></TouchableOpacity>;
+          })}
+        </ScrollView>
+        {memberLeagues.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterStrip}>
+            <TouchableOpacity style={[styles.filterButton, leagueFilter === 'ALL' && styles.filterButtonActive]} onPress={() => setLeagueFilter('ALL')}><Text style={[styles.filterText, leagueFilter === 'ALL' && styles.filterTextActive]}>ALL LEAGUES</Text></TouchableOpacity>
+            {memberLeagues.map(league => <TouchableOpacity key={league.id} style={[styles.filterButton, leagueFilter === league.id && styles.filterButtonActive]} onPress={() => setLeagueFilter(league.id)}><Text style={[styles.filterText, leagueFilter === league.id && styles.filterTextActive]} numberOfLines={1}>{league.name}</Text></TouchableOpacity>)}
+          </ScrollView>
+        )}
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadNotifications(true)} tintColor={appColors.accent} />}>
         {visibleNotifications.length === 0 ? (
-          <View style={styles.emptyState}><Ionicons name="notifications-off-outline" size={28} color={appColors.textDisabled} /><Text style={styles.emptyTitle}>{filter === 'UNREAD' ? 'You are all caught up' : 'No notifications yet'}</Text><Text style={styles.emptyBody}>League announcements, trade activity and waiver outcomes will appear here.</Text></View>
+          <View style={styles.emptyState}><Ionicons name="notifications-off-outline" size={28} color={appColors.textDisabled} /><Text style={styles.emptyTitle}>{filter === 'UNREAD' && categoryFilter === 'ALL' && leagueFilter === 'ALL' ? 'You are all caught up' : 'No notifications match these filters'}</Text><Text style={styles.emptyBody}>Change a filter to see notifications from another category or league.</Text></View>
         ) : visibleNotifications.map(item => {
           const meta = categoryMeta[item.category] || categoryMeta.SYSTEM;
           const league = firstRelation<{ name?: string | null }>(item.leagues);
@@ -350,6 +385,8 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   filterTextActive: { color: appColors.accent },
   toolbarAction: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
   toolbarActionDisabled: { color: appColors.textDisabled },
+  filterPanel: { gap: 6, paddingVertical: 7, backgroundColor: appColors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: appColors.border },
+  filterStrip: { gap: 6, paddingHorizontal: appSpacing.md },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: appSpacing.sm, padding: appSpacing.md, paddingBottom: 40 },
   emptyState: { alignItems: 'center', gap: appSpacing.sm, padding: 40, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
   emptyTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary },
