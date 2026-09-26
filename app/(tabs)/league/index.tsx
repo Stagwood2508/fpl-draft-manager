@@ -307,12 +307,18 @@ export default function StandingsScreen() {
             const isTopSpot = displayRank === 1;
 
             return (
-              <View
+              <TouchableOpacity
                 style={[
                   styles.tableBodyRow,
                   index % 2 === 1 && styles.rowAlternate,
                   isTopSpot && styles.rowTopSpot,
                 ]}
+                onPress={() => router.push({
+                  pathname: '/(tabs)/squad',
+                  params: { managerId: item.user_id },
+                })}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${item.team_name || 'FC Manager'} squad`}
               >
                 <View style={styles.colRank}>
                   <Text style={[styles.tdText, isTopSpot && styles.rankGold]}>{displayRank}</Text>
@@ -340,7 +346,7 @@ export default function StandingsScreen() {
                     {item.points ?? 0}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           }}
         />

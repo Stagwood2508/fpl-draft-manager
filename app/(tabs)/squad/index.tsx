@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from 'expo-router/react-navigation';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import PlayerHeadshot from '@/components/PlayerHeadshot';
 import PlayerCardModal from '@/components/PlayerCardModal';
@@ -161,6 +161,10 @@ export default function SquadScreen() {
   const isCompact = width < 640;
   const isDesktop = width >= 900;
   const { currentUserId, activeLeagueId } = useAppSession();
+  const { managerId } = useLocalSearchParams<{ managerId?: string | string[] }>();
+  const requestedManagerId = Array.isArray(managerId) ? managerId[0] : managerId;
+  const squadOwnerId = requestedManagerId || currentUserId;
+  const viewingOtherTeam = Boolean(requestedManagerId && requestedManagerId !== currentUserId);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -191,7 +195,7 @@ export default function SquadScreen() {
 
   const loadGameweekScores = useCallback(async (gameweekOverride?: number) => {
     const gameweek = gameweekOverride || currentGameweek;
-    if (!activeLeagueId || gameweek <= 0) {
+    if (viewingOtherTeam || !activeLeagueId || gameweek <= 0) {
       setGameweekScores({});
       return;
     }
@@ -219,10 +223,10 @@ export default function SquadScreen() {
     } finally {
       setScoresLoading(false);
     }
-  }, [activeLeagueId, currentGameweek]);
+  }, [activeLeagueId, currentGameweek, viewingOtherTeam]);
 
   const loadSquad = useCallback(async (asRefresh = false) => {
-    if (!currentUserId || !activeLeagueId) {
+    if (!squadOwnerId || !activeLeagueId) {
       setLoading(false);
       return;
     }
@@ -236,12 +240,12 @@ export default function SquadScreen() {
           .from('rosters')
           .select('id, player_id, is_starting, is_gk, bench_order, is_transfer_listed, trade_note, players(*)')
           .eq('league_id', activeLeagueId)
-          .eq('user_id', currentUserId),
+          .eq('user_id', squadOwnerId),
         supabase
           .from('league_members')
           .select('team_name')
           .eq('league_id', activeLeagueId)
-          .eq('user_id', currentUserId)
+          .eq('user_id', squadOwnerId)
           .maybeSingle(),
         supabase
           .from('leagues')
@@ -256,14 +260,16 @@ export default function SquadScreen() {
           .order('gameweek', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from('lineup_change_audit')
-          .select('created_at')
-          .eq('league_id', activeLeagueId)
-          .eq('user_id', currentUserId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        viewingOtherTeam
+          ? Promise.resolve({ data: null, error: null })
+          : supabase
+              .from('lineup_change_audit')
+              .select('created_at')
+              .eq('league_id', activeLeagueId)
+              .eq('user_id', squadOwnerId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
         supabase
           .from('fixtures')
           .select('gameweek, home_team_id, away_team_id, home_team_short, away_team_short, kickoff_time, is_finished')
@@ -318,18 +324,18 @@ export default function SquadScreen() {
             .from('gameweek_lineup_snapshots')
             .select('status, starting_player_ids, bench_player_ids, effective_starting_player_ids, effective_bench_player_ids')
             .eq('league_id', activeLeagueId)
-            .eq('user_id', currentUserId)
+            .eq('user_id', squadOwnerId)
             .eq('gameweek', resolvedGameweek)
             .maybeSingle(),
           supabase
             .from('gameweek_autosub_audit')
             .select('id, action_type, subbed_out_player_id, subbed_in_player_id, bench_priority, explanation, created_at')
             .eq('league_id', activeLeagueId)
-            .eq('user_id', currentUserId)
+            .eq('user_id', squadOwnerId)
             .eq('gameweek', resolvedGameweek)
             .order('created_at', { ascending: true }),
         ]);
-        if (snapshotResponse.error) throw snapshotResponse.error;
+        if (snapshotResponse.error && !viewingOtherTeam) throw snapshotResponse.error;
         const snapshot = snapshotResponse.data as any;
         resolvedSnapshotStatus = snapshot?.status || null;
         resolvedAutosubAudit = (autosubResponse.data || []) as AutoSubAuditItem[];
@@ -419,11 +425,18 @@ export default function SquadScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeLeagueId, currentUserId, loadGameweekScores]);
+  }, [activeLeagueId, loadGameweekScores, squadOwnerId, viewingOtherTeam]);
 
   useEffect(() => {
     if (isFocused) void loadSquad();
   }, [isFocused, loadSquad]);
+
+  useEffect(() => {
+    if (!viewingOtherTeam) return;
+    setDisplayMode('fixtures');
+    setIsEditing(false);
+    setSelectedRosterId(null);
+  }, [viewingOtherTeam]);
 
   useEffect(() => {
     if (!notice) return;
@@ -486,6 +499,7 @@ export default function SquadScreen() {
   );
 
   const enterEditMode = () => {
+    if (viewingOtherTeam) return;
     if (lineupLocked) {
       Alert.alert(
         'Lineup locked',
@@ -574,7 +588,7 @@ export default function SquadScreen() {
   };
 
   const saveLineup = async () => {
-    if (!activeLeagueId || saving) return;
+    if (viewingOtherTeam || !activeLeagueId || saving) return;
     if (formationErrors.length > 0) {
       Alert.alert('Lineup cannot be saved', formationErrors[0]);
       return;
@@ -620,7 +634,7 @@ export default function SquadScreen() {
   };
 
   const updateTransferListing = async (isListed: boolean, note: string | null) => {
-    if (!activeLeagueId || !currentUserId || !inspectingRosterItem || listingSaving) return;
+    if (viewingOtherTeam || !activeLeagueId || !currentUserId || !inspectingRosterItem || listingSaving) return;
 
     setListingSaving(true);
     try {
@@ -745,11 +759,15 @@ export default function SquadScreen() {
         <Text style={styles.title}>{teamName}</Text>
         {!isCompact && (
           <Text style={styles.subtitle}>
-            {isEditing ? 'Select a starter and substitute, then confirm the bench order.' : 'Review your squad, player status and upcoming fixtures.'}
+            {isEditing
+              ? 'Select a starter and substitute, then confirm the bench order.'
+              : viewingOtherTeam
+                ? 'Read-only squad view.'
+                : 'Review your squad, player status and upcoming fixtures.'}
           </Text>
         )}
       </View>
-      {!isEditing ? (
+      {!viewingOtherTeam && (!isEditing ? (
         <TouchableOpacity
           style={[styles.editButton, sidebar && styles.sidebarAction, lineupLocked && styles.editButtonDisabled]}
           onPress={enterEditMode}
@@ -768,7 +786,7 @@ export default function SquadScreen() {
             <Text style={styles.saveButtonText}>SAVE</Text>
           </TouchableOpacity>
         </View>
-      )}
+      ))}
     </View>
   );
 
@@ -802,7 +820,9 @@ export default function SquadScreen() {
           );
         })}
         <Text style={[styles.lastSavedText, sidebar && styles.lastSavedSidebar]}>
-          {lastSavedAt ? `Last saved ${new Date(lastSavedAt).toLocaleString()}` : 'No lineup changes saved yet'}
+          {viewingOtherTeam
+            ? 'Read-only squad view'
+            : lastSavedAt ? `Last saved ${new Date(lastSavedAt).toLocaleString()}` : 'No lineup changes saved yet'}
         </Text>
       </View>
 
@@ -931,10 +951,12 @@ export default function SquadScreen() {
         <TouchableOpacity style={styles.mobileIconButton} onPress={() => setDetailsExpanded(true)} accessibilityLabel="Open squad details">
           <Ionicons name="information-circle-outline" size={19} color={appColors.accent} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.mobileIconButton} onPress={() => router.push('/(tabs)/market/waiver-history')} accessibilityLabel="Open transaction history">
-          <Ionicons name="receipt-outline" size={18} color={appColors.accent} />
-        </TouchableOpacity>
-        {!isEditing ? (
+        {!viewingOtherTeam && (
+          <TouchableOpacity style={styles.mobileIconButton} onPress={() => router.push('/(tabs)/market/waiver-history')} accessibilityLabel="Open transaction history">
+            <Ionicons name="receipt-outline" size={18} color={appColors.accent} />
+          </TouchableOpacity>
+        )}
+        {!viewingOtherTeam && (!isEditing ? (
           <TouchableOpacity
             style={[styles.mobileEditButton, lineupLocked && styles.editButtonDisabled]}
             onPress={enterEditMode}
@@ -952,7 +974,7 @@ export default function SquadScreen() {
               {saving ? <ActivityIndicator size="small" color={appColors.accentForeground} /> : <Ionicons name="checkmark" size={19} color={appColors.accentForeground} />}
             </TouchableOpacity>
           </>
-        )}
+        ))}
       </View>
     </View>
   );
@@ -977,7 +999,7 @@ export default function SquadScreen() {
           <View style={[styles.infoRail, isDesktop && styles.infoRailDesktop]}>
             {isDesktop ? renderHero(true) : renderMobileCommandBar()}
             {isDesktop && renderSummary(true)}
-            {isDesktop && renderTransactionShortcut(true)}
+            {isDesktop && !viewingOtherTeam && renderTransactionShortcut(true)}
             {isDesktop && renderStatus()}
 
         {notice && (
@@ -1029,7 +1051,7 @@ export default function SquadScreen() {
                 <Ionicons name="calendar-outline" size={12} color={displayMode === 'fixtures' ? appColors.accentForeground : appColors.textMuted} />
                 <Text style={[styles.scoreModeText, displayMode === 'fixtures' && styles.scoreModeTextActive]}>FIXTURES</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              {!viewingOtherTeam && <TouchableOpacity
                 style={[styles.scoreModeButton, displayMode === 'points' && styles.scoreModeButtonActive]}
                 onPress={() => {
                   setDisplayMode('points');
@@ -1045,7 +1067,7 @@ export default function SquadScreen() {
                   <Ionicons name="stats-chart" size={12} color={displayMode === 'points' ? appColors.accentForeground : appColors.textMuted} />
                 )}
                 <Text style={[styles.scoreModeText, displayMode === 'points' && styles.scoreModeTextActive]}>GW POINTS</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>}
             </View>
           )}
         </View>
@@ -1106,7 +1128,7 @@ export default function SquadScreen() {
           <View style={styles.mobileDetailsSheet}>
             <View style={styles.mobileDetailsHeader}>
               <View>
-                <Text style={styles.sectionEyebrow}>MY SQUAD</Text>
+                <Text style={styles.sectionEyebrow}>{viewingOtherTeam ? 'TEAM SQUAD' : 'MY SQUAD'}</Text>
                 <Text style={styles.mobileDetailsTitle}>Squad details</Text>
               </View>
               <TouchableOpacity style={styles.mobileDetailsClose} onPress={() => setDetailsExpanded(false)} accessibilityLabel="Close squad details">
@@ -1127,7 +1149,7 @@ export default function SquadScreen() {
         leagueId={activeLeagueId}
         currentGameweek={currentGameweek}
         statsMode="CURRENT"
-        transferListing={inspectingRosterItem ? {
+        transferListing={inspectingRosterItem && !viewingOtherTeam ? {
           isListed: inspectingRosterItem.is_transfer_listed,
           note: inspectingRosterItem.trade_note,
           saving: listingSaving,
