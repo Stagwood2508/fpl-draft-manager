@@ -201,29 +201,44 @@ export default function PlayerCardModal({
 
       if (pErr) throw pErr;
 
+      // Show the identity of the player as soon as the core record arrives.
+      // Previously the modal held the entire card behind a spinner while it
+      // waited for ownership, aggregates, history and fixtures in turn. That
+      // made opening a card feel like a blank intermediate screen, especially
+      // on mobile connections.
+      const initialPlayer: PlayerDetails = {
+        ...playerData,
+        team_short_name: playerData.team_short_name || (playerData.team_name ? playerData.team_name.slice(0, 3).toUpperCase() : 'PL'),
+        owner_name: null,
+      };
+      setPlayer(initialPlayer);
+
       let ownerDisplayName: string | null = null;
       let effectivePosition = playerData.element_type;
 
       if (activeLid) {
-        // Fetch positional override for active league
-        const { data: overrideData } = await supabase
-          .from('league_player_overrides')
-          .select('custom_position')
-          .eq('league_id', activeLid)
-          .eq('player_id', playerId)
-          .maybeSingle();
+        // These are independent lookups, so do not make the card wait for one
+        // network round trip before starting the next one.
+        const [overrideResult, rosterResult] = await Promise.all([
+          supabase
+            .from('league_player_overrides')
+            .select('custom_position')
+            .eq('league_id', activeLid)
+            .eq('player_id', playerId)
+            .maybeSingle(),
+          supabase
+            .from('rosters')
+            .select('user_id')
+            .eq('league_id', activeLid)
+            .eq('player_id', Number(playerId))
+            .maybeSingle(),
+        ]);
+        const overrideData = overrideResult.data;
+        const rosterData = rosterResult.data;
 
         if (overrideData?.custom_position) {
           effectivePosition = overrideData.custom_position;
         }
-
-        // Fetch ownership in active league
-        const { data: rosterData } = await supabase
-          .from('rosters')
-          .select('user_id')
-          .eq('league_id', activeLid)
-          .eq('player_id', Number(playerId))
-          .maybeSingle();
 
         if (rosterData?.user_id) {
           const { data: memberData } = await supabase
@@ -331,6 +346,10 @@ export default function PlayerCardModal({
           points_per_game: appearances > 0 ? (currentTotal / appearances).toFixed(1) : '0.0',
         });
       }
+
+      // The overview can now be used. History and fixtures continue to load
+      // below and populate their own tabs without holding this screen back.
+      setLoading(false);
 
       if (statsMode === 'CURRENT') {
         // 2. Fetch scoring history using the resolved league. On native the
