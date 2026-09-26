@@ -731,6 +731,16 @@ export default function PlayerPoolScreen() {
       <View style={styles.searchBoxRow}>
         <Ionicons name="search" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
         <TextInput style={styles.searchInputField} placeholder="Search player name..." placeholderTextColor={colors.textMuted} value={searchQuery} onChangeText={setSearchQuery} />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            style={styles.clearSearchButton}
+            onPress={() => setSearchQuery('')}
+            accessibilityRole="button"
+            accessibilityLabel="Clear player search"
+          >
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]} onPress={() => setFiltersVisible(true)}>
           <Ionicons name="options-outline" size={15} color={activeFilterCount > 0 ? colors.black : colors.accent} />
           <Text style={[styles.filterButtonText, activeFilterCount > 0 && styles.filterButtonTextActive]}>SORT & FILTER</Text>
@@ -1020,6 +1030,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   searchBoxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, paddingLeft: 12, paddingRight: 5, marginHorizontal: 16, marginTop: 12, marginBottom: 8, borderRadius: 6, height: 44 },
   searchInputField: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  clearSearchButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   filterButton: { height: 32, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surfaceRaised },
   filterButtonActive: { backgroundColor: colors.accentFill, borderColor: colors.accent },
   filterButtonText: { color: colors.accent, fontSize: 8, fontWeight: '900', marginLeft: 4 },
