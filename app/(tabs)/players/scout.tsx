@@ -661,7 +661,13 @@ export default function PlayerPoolScreen() {
 
     return (
       <View style={styles.playerRow}>
-        <TouchableOpacity style={styles.playerCardMainTrigger} onPress={() => openPlayerDetails(item.id)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.playerCardMainTrigger}
+          onPress={() => openPlayerDetails(item.id)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${item.web_name} player information`}
+        >
           <View style={styles.playerMeta}>
             <View style={styles.playerRowFlow}>
               {availabilityMarker && (
@@ -681,6 +687,13 @@ export default function PlayerPoolScreen() {
                 </View>
               )}
               <Text style={styles.playerName} numberOfLines={1}>{item.web_name}</Text>
+              <Ionicons
+                name="information-circle-outline"
+                size={16}
+                color={colors.accent}
+                style={styles.playerNameInfoIcon}
+                accessibilityLabel={`View ${item.web_name} player information`}
+              />
               <Text style={styles.playerClubShort}>{getShortTeamCode(item)}</Text>
               <View style={[styles.positionBadgeChip, { backgroundColor: mappedPositionColor }]}>
                 <Text style={styles.positionChipText}>{item.element_type}</Text>
@@ -693,15 +706,6 @@ export default function PlayerPoolScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.playerInfoButton}
-          onPress={() => openPlayerDetails(item.id)}
-          accessibilityRole="button"
-          accessibilityLabel={`View ${item.web_name} player information`}
-        >
-          <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-        </TouchableOpacity>
-        
         <TouchableOpacity style={[styles.watchlistBtn, isSaved && styles.watchlistBtnActive]} onPress={() => handleWatchlistToggle(item.id)}>
           <Ionicons name={isSaved ? "star" : "star-outline"} size={14} color={isSaved ? colors.black : colors.accent} />
         </TouchableOpacity>
@@ -1033,10 +1037,10 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   availablePillText: { color: colors.accent },
   playerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingRight: 8, borderRadius: 4, marginBottom: 4 },
   playerCardMainTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },
-  playerInfoButton: { minWidth: 28, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
   playerMeta: { flex: 1, marginLeft: 2, paddingRight: 4, justifyContent: 'center' },
   playerRowFlow: { flexDirection: 'row', alignItems: 'center' },
   playerName: { color: colors.textPrimary, fontSize: 14, fontWeight: '800', marginRight: 8 },
+  playerNameInfoIcon: { marginRight: 8 },
   playerClubShort: { color: colors.textMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginRight: 8 },
   positionBadgeChip: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 2, justifyContent: 'center', alignItems: 'center' },
   positionChipText: { color: colors.black, fontSize: 8, fontWeight: '900', letterSpacing: 0.1 },
