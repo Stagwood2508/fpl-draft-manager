@@ -16,5 +16,13 @@
       "environment": "production",
       "channel": "production"
     }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "alpha",
+        "releaseStatus": "completed"
+      }
+    }
   }
 }
