@@ -216,6 +216,19 @@ router.replace({
           <Text style={styles.btnText}>ENTER LEAGUE</Text>
         )}
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => router.replace({
+          pathname: '/(auth)/onboarding',
+          params: inviteCode ? { inviteCode } : {},
+        })}
+        disabled={loading}
+        accessibilityRole="button"
+        accessibilityLabel="Back to league setup"
+      >
+        <Text style={styles.backButtonText}>BACK TO LEAGUE SETUP</Text>
+      </TouchableOpacity>
     </AuthScreenFrame>
   );
 }
@@ -234,4 +247,6 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   btn: { backgroundColor: colors.accentFill, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 13 },
+  backButton: { alignItems: 'center', minHeight: 44, justifyContent: 'center', marginTop: 10 },
+  backButtonText: { color: colors.textSecondary, fontWeight: '800', fontSize: 11, textDecorationLine: 'underline' },
 });

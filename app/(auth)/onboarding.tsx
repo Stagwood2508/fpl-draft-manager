@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
@@ -12,6 +12,23 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ inviteCode?: string }>();
   const inviteCode = String(params.inviteCode || '').trim().toUpperCase();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+
+    try {
+      setSigningOut(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      const message = error?.message || 'Your account could not be signed out. Please try again.';
+      if (Platform.OS === 'web') window.alert(`Sign out failed\n\n${message}`);
+      else Alert.alert('Sign out failed', message);
+      setSigningOut(false);
+    }
+  };
 
   // 🛡️ Auto-forward if user is already assigned to a league
   useEffect(() => {
@@ -61,6 +78,23 @@ const { data: member } = await supabase
             : 'Enter an invite code provided by your league commissioner.'}
         </Text>
       </TouchableOpacity>
+
+      <View style={styles.exitSection}>
+        <Text style={styles.exitHint}>Not ready to join a league yet?</Text>
+        <TouchableOpacity
+          style={[styles.signOutButton, signingOut && styles.signOutButtonDisabled]}
+          onPress={() => void handleSignOut()}
+          disabled={signingOut}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
+          {signingOut ? (
+            <ActivityIndicator size="small" color={colors.textSecondary} />
+          ) : (
+            <Text style={styles.signOutText}>SIGN OUT</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </AuthScreenFrame>
   );
 }
@@ -71,5 +105,10 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   subtitle: { fontSize: 13, color: colors.accent, marginBottom: 40, fontWeight: '600' },
   choiceCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent, padding: 20, borderRadius: 4, marginBottom: 16 },
   cardTitle: { color: colors.accent, fontSize: 16, fontWeight: '900' },
-  cardSub: { color: colors.textSecondary, fontSize: 12, marginTop: 6, lineHeight: 18 }
+  cardSub: { color: colors.textSecondary, fontSize: 12, marginTop: 6, lineHeight: 18 },
+  exitSection: { alignItems: 'center', marginTop: 12 },
+  exitHint: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  signOutButton: { minHeight: 44, minWidth: 130, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 18 },
+  signOutButtonDisabled: { opacity: 0.6 },
+  signOutText: { color: colors.textSecondary, fontSize: 12, fontWeight: '900', textDecorationLine: 'underline' },
 });

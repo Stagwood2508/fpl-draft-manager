@@ -175,6 +175,16 @@ const handleEnterDashboard = async () => {
               <Text style={styles.btnText}>GENERATE LEAGUE</Text>
             )}
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.replace('/(auth)/onboarding')}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Back to league setup"
+          >
+            <Text style={styles.backButtonText}>BACK TO LEAGUE SETUP</Text>
+          </TouchableOpacity>
         </>
       ) : (
         <View style={styles.codeContainer}>
@@ -219,6 +229,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   btn: { backgroundColor: colors.accentFill, padding: 16, alignItems: 'center', borderRadius: 2, marginTop: 10 },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: colors.accentForeground, fontWeight: '900', fontSize: 13 },
+  backButton: { alignItems: 'center', minHeight: 44, justifyContent: 'center', marginTop: 10 },
+  backButtonText: { color: colors.textSecondary, fontWeight: '800', fontSize: 11, textDecorationLine: 'underline' },
   codeContainer: { alignItems: 'center', backgroundColor: colors.surface, padding: 24, borderWidth: 1, borderColor: colors.accent },
   successText: { color: colors.textPrimary, fontWeight: '800', fontSize: 16, marginBottom: 16 },
   codeLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '800' },
