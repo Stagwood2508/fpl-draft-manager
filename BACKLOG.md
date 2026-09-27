@@ -16,7 +16,7 @@ _Last reconciled with the codebase: 30 August 2026._
 The planned V1 product is feature-complete for a **controlled beta**. Drafting,
 rosters, lineups, waivers, free agents, trades, fixtures, live scoring and the
 manager-facing Home/League/Market/Squad workflows are implemented. The remaining
-launch gates are deployment verification and realistic multi-manager rehearsals,
+launch gates are deployment verification and realistic multi-manager testing,
 not major missing feature screens.
 
 ### Completed since the previous backlog refresh
@@ -31,11 +31,6 @@ not major missing feature screens.
   - Password reset works on web and installed builds through the recovery deep link.
   - Crash/error reports and tester feedback are recorded with account-scoped access.
   - Privacy information and permanent account deletion are available in Settings.
-- [x] Add a controlled Gameweek rehearsal harness with one-tap restoration.
-  - Commissioners can start, advance, inspect and roll back a rehearsal.
-  - The report includes scoring integrity, waiver processing and reconciliation results.
-  - Later fixes align rehearsal waiver deadlines, preserve the correct open window,
-    process waivers before free agency, rerun totals after autosubs and repair rollback state.
 - [x] Harden waiver creation and management.
   - Managers can create conditional claims for the same target player with different drops.
   - Claim uniqueness is scoped to the league, manager and Gameweek rather than the target alone.
@@ -75,7 +70,6 @@ not major missing feature screens.
 - [ ] Produce one fresh Android preview build after the final mobile, trade, player-card and splash changes.
 - [ ] Run one final realistic draft rehearsal with concurrent managers through all 15 rounds.
   - Verify snake order, timeout/away auto-picks, reconnects, completion, legal 15-player rosters and fixture creation.
-- [ ] Run a complete controlled Gameweek rehearsal from pre-deadline through finalisation.
   - Cover lineup locking, live points, provisional/final bonus, DEFCON, autosubs, waiver processing,
     free-agent availability, trades, standings, fixture totals and rollback reconciliation.
 - [ ] Repeat fixture checks with at least one even-manager and one odd-manager league.

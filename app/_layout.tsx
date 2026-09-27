@@ -327,7 +327,6 @@ function RootLayoutContent() {
           <Stack.Screen name="(auth)/reset-password" options={{ title: 'RESET PASSWORD' }} />
           <Stack.Screen name="(admin)/league-announcements" options={{ headerShown: false }} />
           <Stack.Screen name="(admin)/cup-wizard" options={{ title: 'CREATE CUP' }} />
-          <Stack.Screen name="(admin)/gameweek-simulator" options={{ title: 'GAMEWEEK REHEARSAL' }} />
           <Stack.Screen name="draft-room/index" options={{ headerShown: false }} />
         </Stack>
 

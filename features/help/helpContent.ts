@@ -145,13 +145,12 @@ export const HELP_SECTIONS: HelpSection[] = [
     title: 'Commissioner controls',
     summary: 'Configure league rules, run the draft and manage season operations.',
     icon: 'settings-outline',
-    keywords: ['commissioner', 'settings', 'rules', 'reset', 'rehearsal', 'announcement'],
+    keywords: ['commissioner', 'settings', 'rules', 'reset', 'announcement'],
     items: [
       { title: 'League configuration', body: 'Before the draft, the commissioner can configure the schedule, draft clock, roster type, waiver rules, trade cutoff, dropped-player treatment, scoring and DEFCON tiers.' },
       { title: 'Settings lock', body: 'Core rules lock when an official draft begins, protecting every manager from mid-season rule changes. Recovery controls exist for accidental or test drafts, but resets should be used with care.' },
       { title: 'Draft controls', body: 'Commissioner controls include setting or randomising draft order and operational recovery tools such as pausing, resuming, extending or resolving a current turn where supported.' },
       { title: 'Announcements', body: 'League announcements appear within the app and can generate notifications for managers who have enabled them.' },
-      { title: 'Gameweek rehearsal', body: 'The controlled rehearsal tool is intended for test data. It exercises deadlines, scoring, autosubs and transaction processing with rollback and reconciliation reporting; it is not a substitute for normal live processing.' },
     ],
   },
   {

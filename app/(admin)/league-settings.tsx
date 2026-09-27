@@ -574,20 +574,24 @@ export default function UnifiedLeagueSettingsScreen() {
 
     try {
       setSavingPositionId(playerId);
-      const { error } = await supabase
-        .from('league_player_overrides')
-        .upsert(
-          { league_id: leagueId, player_id: parseInt(playerId, 10), custom_position: targetPosition },
-          { onConflict: 'league_id,player_id' }
-        );
+      const { data, error } = await supabase.rpc('save_league_player_position_override', {
+        p_league_id: leagueId,
+        p_player_id: parseInt(playerId, 10),
+        p_custom_position: targetPosition,
+      });
 
       if (error) throw error;
-      setPositionOverrides(prev => ({ ...prev, [playerId]: targetPosition }));
+      if (data?.success === false) {
+        throw new Error(data.error || 'The position override could not be saved.');
+      }
+
+      const savedPosition = data?.position || targetPosition;
+      setPositionOverrides(prev => ({ ...prev, [playerId]: savedPosition }));
 
       if (selectedWorkbenchPlayer && selectedWorkbenchPlayer.id === playerId) {
-        setSelectedWorkbenchPlayer({ ...selectedWorkbenchPlayer, element_type: targetPosition });
+        setSelectedWorkbenchPlayer({ ...selectedWorkbenchPlayer, element_type: savedPosition });
       }
-      Alert.alert('Position Overridden 🎯', `Updated position to ${targetPosition}.`);
+      Alert.alert('Position Overridden 🎯', `Updated position to ${savedPosition}.`);
     } catch (err: any) {
       Alert.alert('Override Interrupted', err.message);
     } finally {

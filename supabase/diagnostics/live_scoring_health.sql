@@ -79,13 +79,6 @@ order by start_time desc
 limit 10;
 
 select
-  count(*) filter (where status = 'ACTIVE' and expires_at > pg_catalog.now())
-    as active_simulation_locks,
-  pg_catalog.max(expires_at) filter (where status = 'ACTIVE')
-    as latest_active_expiry
-from public.gameweek_simulation_runs;
-
-select
   id,
   status_code,
   created,

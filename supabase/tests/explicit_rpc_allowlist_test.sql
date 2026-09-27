@@ -5,24 +5,29 @@ declare
   v_expected_name text;
   v_expected_names constant text[] := array[
     'accept_trade_transaction', 'cancel_waiver_claim', 'can_view_profile',
-    'create_league_atomic', 'delete_my_account',
-    'claim_free_agent_with_history', 'commissioner_assign_current_pick',
-    'commissioner_control_draft', 'commissioner_correct_gameweek_lineup',
-    'commissioner_correct_latest_pick', 'commissioner_reorder_draft',
-    'commissioner_restart_draft', 'counter_trade_package',
-    'create_trade_package', 'execute_draft_pick', 'submit_draft_pick',
+    'change_my_team_name', 'claim_free_agent_with_history',
+    'commissioner_assign_current_pick', 'commissioner_control_draft',
+    'commissioner_correct_gameweek_lineup', 'commissioner_correct_latest_pick',
+    'commissioner_reorder_draft', 'commissioner_restart_draft',
+    'commissioner_undo_latest_pick', 'counter_trade_package',
+    'create_league_atomic', 'create_single_knockout_cup',
+    'create_test_push_notification', 'create_trade_package', 'delete_my_account',
+    'disable_my_push_devices', 'get_cup_fixture_board',
+    'get_gameweek_provisional_bonus_rankings',
     'get_league_gameweek_player_scores', 'get_league_live_fixture_scores',
-    'get_league_luck_standings', 'get_league_scoring_guide', 'get_league_standings_v2',
+    'get_league_luck_standings', 'get_league_scoring_guide',
+    'get_league_standings_v2', 'get_league_stats_dashboard',
     'get_manager_h2h_matrix', 'get_manager_squad_breakdown',
-    'get_manager_trends_data', 'get_my_waiver_status',
-    'get_gameweek_simulation_status', 'get_gameweek_simulation_players',
-    'get_gameweek_simulation_integrity', 'get_gameweek_simulation_waiver_results',
-    'start_gameweek_simulation',
-    'advance_gameweek_simulation', 'set_gameweek_simulation_player_stats',
-    'reset_gameweek_simulation',
+    'get_manager_stats_profile', 'get_manager_trends_data',
+    'get_my_squad_gameweek_scores', 'get_my_waiver_status',
+    'get_player_gameweek_history', 'get_player_pool_current_stats',
+    'get_trade_impact', 'is_current_league_member',
     'join_league_with_validation', 'mark_draft_manager_present',
-    'reorder_waiver_claims', 'reorder_watchlist', 'save_manager_lineup',
-    'set_draft_room_ready', 'set_transfer_listing', 'submit_waiver_claim',
+    'register_push_device', 'remove_lounge_message', 'reorder_waiver_claims',
+    'reorder_watchlist', 'resolve_lounge_message_reports',
+    'save_league_player_position_override', 'save_league_settings',
+    'save_manager_lineup', 'set_draft_room_ready', 'set_lounge_message_pinned',
+    'set_transfer_listing', 'submit_draft_pick', 'submit_waiver_claim',
     'update_trade_package_status'
   ];
 begin
@@ -88,18 +93,6 @@ begin
        'EXECUTE'
      ) then
     raise exception 'authenticated can execute the internal draft engine';
-  end if;
-
-  if pg_catalog.has_function_privilege(
-       'authenticated',
-       'public.restore_gameweek_simulation_internal(uuid,text)',
-       'EXECUTE'
-     ) or pg_catalog.has_function_privilege(
-       'authenticated',
-       'public.expire_gameweek_simulations()',
-       'EXECUTE'
-     ) then
-    raise exception 'authenticated can execute an internal simulation restore routine';
   end if;
 
   if pg_catalog.to_regprocedure(

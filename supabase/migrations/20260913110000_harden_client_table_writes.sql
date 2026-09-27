@@ -99,6 +99,63 @@ $$;
 revoke all on function public.save_league_settings(uuid, jsonb) from public, anon;
 grant execute on function public.save_league_settings(uuid, jsonb) to authenticated, service_role;
 
+create or replace function public.save_league_player_position_override(
+  p_league_id uuid,
+  p_player_id integer,
+  p_custom_position text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_draft_status text;
+  v_position text := upper(trim(coalesce(p_custom_position, '')));
+begin
+  if v_actor_id is null then
+    return jsonb_build_object('success', false, 'error', 'AUTH_REQUIRED');
+  end if;
+
+  select upper(coalesce(league.draft_status, league.status, 'PRE_DRAFT'))
+  into v_draft_status
+  from public.leagues league
+  where league.id = p_league_id
+    and league.commissioner_id = v_actor_id
+  for update;
+
+  if not found then
+    return jsonb_build_object('success', false, 'error', 'COMMISSIONER_REQUIRED');
+  end if;
+
+  if v_draft_status not in ('PRE_DRAFT', 'WAITING_ROOM', 'NOT_STARTED', 'WAITING') then
+    return jsonb_build_object('success', false, 'error', 'DRAFT_ALREADY_STARTED');
+  end if;
+
+  if p_player_id is null or p_player_id <= 0
+     or not exists (select 1 from public.players player where player.id = p_player_id) then
+    return jsonb_build_object('success', false, 'error', 'PLAYER_NOT_FOUND');
+  end if;
+
+  if v_position not in ('GKP', 'DEF', 'MID', 'FWD') then
+    return jsonb_build_object('success', false, 'error', 'INVALID_POSITION');
+  end if;
+
+  insert into public.league_player_overrides (league_id, player_id, custom_position)
+  values (p_league_id, p_player_id, v_position)
+  on conflict (league_id, player_id)
+  do update set custom_position = excluded.custom_position;
+
+  return jsonb_build_object('success', true, 'position', v_position);
+end;
+$$;
+
+revoke all on function public.save_league_player_position_override(uuid, integer, text)
+  from public, anon;
+grant execute on function public.save_league_player_position_override(uuid, integer, text)
+  to authenticated, service_role;
+
 -- Remove every unconditional write policy discovered by the production audit.
 drop policy if exists "Allow authenticated users to submit draft choices" on public.draft_picks;
 drop policy if exists "Allow authenticated users to manage draft room sessions" on public.draft_sessions;

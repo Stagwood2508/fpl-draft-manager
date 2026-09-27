@@ -184,20 +184,6 @@ export default function SettingsDropdown() {
             </TouchableOpacity>
           )}
 
-          {isCommish && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuOpen(false);
-                router.push('/(admin)/gameweek-simulator');
-              }}
-            >
-              <Text style={[styles.menuItemText, styles.simulatorText]}>
-                Gameweek Rehearsal
-              </Text>
-            </TouchableOpacity>
-          )}
-
           <TouchableOpacity
             style={[styles.menuItem, styles.lastMenuItem]}
             onPress={handleSignOut}
@@ -301,10 +287,6 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
 
   commissionerText: {
     color: colors.accent,
-  },
-
-  simulatorText: {
-    color: colors.warning,
   },
 
   signOutText: {
