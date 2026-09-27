@@ -954,14 +954,17 @@ if (!userId || !leagueId) {
 
   const renderSideBySideTradePackage = (pkg: GroupedTradePackage) => {
     const maxRows = Math.max(pkg.playersIn.length, pkg.playersOut.length);
+    const sentByMe = pkg.sender_id === userId;
+    const requestedLabel = sentByMe ? 'You requested' : `${pkg.sender_display_name} offered you`;
+    const offeredLabel = sentByMe ? 'You offered' : `${pkg.sender_display_name} requested from you`;
 
     return (
       <View style={styles.stackedBlockContainer}>
         {/* 2-Column Asset Header Labels */}
         <View style={styles.assetHeaderRow}>
-          <Text style={[styles.assetHeaderLabel, styles.colLeft]}>Requested Asset(s)</Text>
+          <Text style={[styles.assetHeaderLabel, styles.colLeft]} numberOfLines={1}>{requestedLabel}</Text>
           <View style={styles.arrowSpacer} />
-          <Text style={[styles.assetHeaderLabel, styles.colRight, styles.textRight]}>Offered Asset(s)</Text>
+          <Text style={[styles.assetHeaderLabel, styles.colRight, styles.textRight]} numberOfLines={1}>{offeredLabel}</Text>
         </View>
 
         {/* Dual-Column Grid Rows */}
@@ -1178,11 +1181,14 @@ if (!userId || !leagueId) {
             ) : (
               activeOffersList.map(pkg => {
                 const isOutgoingPending = pkg.sender_id === userId;
-                const displayTitle = isOutgoingPending ? `TO: ${pkg.receiver_display_name}` : `FROM: ${pkg.sender_display_name}`;
+                const displayTitle = isOutgoingPending ? `YOUR OFFER TO: ${pkg.receiver_display_name}` : `OFFER FROM: ${pkg.sender_display_name}`;
+                const offerDirection = isOutgoingPending
+                  ? `You sent this proposal to ${pkg.receiver_display_name}.`
+                  : `${pkg.sender_display_name} sent you this proposal.`;
 
                 return (
                   <View key={pkg.batchKey} style={styles.ledgerCardSlim}>
-                    <View style={styles.ledgerRowMetaSlim}>
+                      <View style={styles.ledgerRowMetaSlim}>
                       <Text style={styles.ledgerTypeTextSlim} numberOfLines={1}>{displayTitle}</Text>
                       <Text style={styles.ledgerTimeTextSlim}>
                         {pkg.valid_gameweek ? `GW${pkg.valid_gameweek} · ` : ''}{new Date(pkg.created_at).toLocaleDateString()}
@@ -1191,6 +1197,7 @@ if (!userId || !leagueId) {
                         <Text style={styles.statusTextSlim}>{pkg.status}</Text>
                       </View>
                     </View>
+                    <Text style={styles.offerDirectionText}>{offerDirection}</Text>
                     
                     {/* Render Side-by-Side 2-Column Asset Grid */}
                     {renderSideBySideTradePackage(pkg)}
@@ -1230,7 +1237,8 @@ if (!userId || !leagueId) {
               <Text style={styles.emptyLedgerText}>No historical trade records logged in this segment.</Text>
             ) : (
               historicalLogsList.map(pkg => {
-                const displayTitle = pkg.sender_id === userId ? `TO: ${pkg.receiver_display_name}` : `FROM: ${pkg.sender_display_name}`;
+                const sentByMe = pkg.sender_id === userId;
+                const displayTitle = sentByMe ? `YOUR OFFER TO: ${pkg.receiver_display_name}` : `OFFER FROM: ${pkg.sender_display_name}`;
 
                 return (
                   <View key={pkg.batchKey} style={styles.ledgerCardSlim}>
@@ -1959,6 +1967,12 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
 
   assetPlayerName: {
     flexShrink: 1,
+  },
+
+  offerDirectionText: {
+    ...appTypography.metadata,
+    color: appColors.textMuted,
+    marginBottom: appSpacing.sm,
   },
 
   tradePlayerAvatar: {
