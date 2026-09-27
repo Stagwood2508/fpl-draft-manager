@@ -401,15 +401,6 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
               return (
                 <View key={item.id} style={styles.cleanRowSlim}>
                   <TouchableOpacity
-                    style={styles.publicPlayerNameTrigger}
-                    activeOpacity={0.7}
-                    onPress={() => handleOpenDetailModal(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View trade details for ${player.web_name}`}
-                  >
-                    <Text style={styles.cleanPlayerNameSlim} numberOfLines={1}>{player.web_name}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
                     style={styles.playerInfoButton}
                     activeOpacity={0.7}
                     onPress={() => setPlayerCardId(player.id)}
@@ -417,6 +408,15 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
                     accessibilityLabel={`View ${player.web_name} player information`}
                   >
                     <Text style={styles.playerInfoButtonText}>i</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.publicPlayerNameTrigger}
+                    activeOpacity={0.7}
+                    onPress={() => handleOpenDetailModal(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View trade details for ${player.web_name}`}
+                  >
+                    <Text style={styles.cleanPlayerNameSlim} numberOfLines={1}>{player.web_name}</Text>
                   </TouchableOpacity>
                   <View style={styles.publicPlayerMeta}>
                     <Text style={styles.cleanMetaTextSlim}>{getShortTeamCode(player.team_name)}</Text>
@@ -716,7 +716,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     borderColor: appColors.textMuted,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: appSpacing.xs,
+    marginRight: appSpacing.xs,
   },
 
   playerInfoButtonText: {
