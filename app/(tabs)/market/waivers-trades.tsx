@@ -114,12 +114,53 @@ interface TradeImpactData {
   players: TradeImpactPlayer[];
 }
 
+interface TradeComparisonStats {
+  total_points: number;
+  recent_form: number;
+  minutes: number;
+  starts: number;
+  appearances: number;
+  goals_scored: number;
+  assists: number;
+  expected_goals: number;
+  expected_assists: number;
+  expected_goal_involvements: number;
+}
+
+interface TradeFixturePreview {
+  gameweek: number;
+  opponent: string;
+  isHome: boolean;
+  difficulty: number;
+}
+
+interface TradeComparisonData {
+  batchKey: string;
+  statsByPlayerId: Record<number, TradeComparisonStats>;
+  fixturesByPlayerId: Record<number, TradeFixturePreview[]>;
+}
+
 const POSITION_COLORS: Record<string, string> = {
   GKP: '#FFC107',
   DEF: '#00A2FF',
   MID: '#00FF87',
   FWD: '#FF0055',
 };
+
+const EMPTY_TRADE_COMPARISON_STATS: TradeComparisonStats = {
+  total_points: 0,
+  recent_form: 0,
+  minutes: 0,
+  starts: 0,
+  appearances: 0,
+  goals_scored: 0,
+  assists: 0,
+  expected_goals: 0,
+  expected_assists: 0,
+  expected_goal_involvements: 0,
+};
+
+const asNumber = (value: unknown) => Number(value || 0);
 
 export default function TransactionsScreen() {
   const isFocused = useIsFocused();
@@ -172,6 +213,11 @@ export default function TransactionsScreen() {
   const [tradeImpactLoading, setTradeImpactLoading] = useState(false);
   const [tradeImpactPeriod, setTradeImpactPeriod] = useState<'BEFORE' | 'SINCE'>('SINCE');
   const [playerCardId, setPlayerCardId] = useState<number | null>(null);
+  const [expandedComparisonKey, setExpandedComparisonKey] = useState<string | null>(null);
+  const [tradeComparison, setTradeComparison] = useState<TradeComparisonData | null>(null);
+  const [tradeComparisonLoading, setTradeComparisonLoading] = useState(false);
+  const [tradeComparisonError, setTradeComparisonError] = useState<string | null>(null);
+  const [comparisonSelection, setComparisonSelection] = useState<Record<string, { incomingId: number; outgoingId: number }>>({});
 
   const confirmAction = (
   title: string,
@@ -952,6 +998,191 @@ if (!userId || !leagueId) {
     }
   };
 
+  const toggleTradeComparison = async (pkg: GroupedTradePackage) => {
+    if (expandedComparisonKey === pkg.batchKey) {
+      setExpandedComparisonKey(null);
+      return;
+    }
+
+    setExpandedComparisonKey(pkg.batchKey);
+    setComparisonSelection(current => ({
+      ...current,
+      [pkg.batchKey]: current[pkg.batchKey] || {
+        incomingId: pkg.playersIn[0]?.id,
+        outgoingId: pkg.playersOut[0]?.id,
+      },
+    }));
+
+    if (tradeComparison?.batchKey === pkg.batchKey) return;
+
+    const players = [...pkg.playersIn, ...pkg.playersOut];
+    const playerIds = [...new Set(players.map(player => player.id))];
+    const teamIds = [...new Set(players.map(player => Number(player.team_id)).filter(Boolean))];
+    if (playerIds.length === 0) return;
+
+    setTradeComparisonLoading(true);
+    setTradeComparisonError(null);
+    setTradeComparison(null);
+
+    try {
+      const throughGameweek = Math.max(Number(waiverStatus?.gameweek || 1), 1);
+      const fixtureFilter = teamIds.length
+        ? `home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`
+        : '';
+      const [statsResult, fixturesResult] = await Promise.all([
+        supabase.rpc('get_player_pool_current_stats', { p_through_gameweek: throughGameweek }),
+        fixtureFilter
+          ? supabase
+            .from('fixtures')
+            .select('gameweek, home_team_id, away_team_id, home_team_short, away_team_short, home_difficulty, away_difficulty')
+            .or(fixtureFilter)
+            .eq('is_finished', false)
+            .order('gameweek', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (statsResult.error) throw statsResult.error;
+      if (fixturesResult.error) throw fixturesResult.error;
+
+      const statsByPlayerId: Record<number, TradeComparisonStats> = {};
+      (statsResult.data || []).forEach((row: any) => {
+        const id = Number(row.player_id);
+        if (!playerIds.includes(id)) return;
+        statsByPlayerId[id] = {
+          total_points: asNumber(row.total_points),
+          recent_form: asNumber(row.recent_form),
+          minutes: asNumber(row.minutes),
+          starts: asNumber(row.starts),
+          appearances: asNumber(row.appearances ?? row.starts),
+          goals_scored: asNumber(row.goals_scored),
+          assists: asNumber(row.assists),
+          expected_goals: asNumber(row.expected_goals),
+          expected_assists: asNumber(row.expected_assists),
+          expected_goal_involvements: asNumber(row.expected_goal_involvements),
+        };
+      });
+
+      const fixturesByPlayerId: Record<number, TradeFixturePreview[]> = {};
+      players.forEach(player => {
+        const teamId = Number(player.team_id);
+        fixturesByPlayerId[player.id] = (fixturesResult.data || [])
+          .filter((fixture: any) => Number(fixture.home_team_id) === teamId || Number(fixture.away_team_id) === teamId)
+          .slice(0, 5)
+          .map((fixture: any) => {
+            const isHome = Number(fixture.home_team_id) === teamId;
+            return {
+              gameweek: Number(fixture.gameweek),
+              opponent: (isHome ? fixture.away_team_short : fixture.home_team_short) || 'OPP',
+              isHome,
+              difficulty: Number(isHome ? fixture.home_difficulty : fixture.away_difficulty) || 3,
+            };
+          });
+      });
+
+      setTradeComparison({ batchKey: pkg.batchKey, statsByPlayerId, fixturesByPlayerId });
+    } catch (error: any) {
+      setTradeComparisonError(error?.message || 'The comparison could not be loaded.');
+    } finally {
+      setTradeComparisonLoading(false);
+    }
+  };
+
+  const getComparisonStats = (playerId: number) => tradeComparison?.statsByPlayerId[playerId] || EMPTY_TRADE_COMPARISON_STATS;
+
+  const fixtureTone = (difficulty: number) => {
+    if (difficulty <= 2) return { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder, color: colors.accent };
+    if (difficulty >= 4) return { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder, color: colors.danger };
+    return { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.textPrimary };
+  };
+
+  const renderTradeComparison = (pkg: GroupedTradePackage) => {
+    if (expandedComparisonKey !== pkg.batchKey) return null;
+
+    const selection = comparisonSelection[pkg.batchKey] || {
+      incomingId: pkg.playersIn[0]?.id,
+      outgoingId: pkg.playersOut[0]?.id,
+    };
+    const incomingPlayer = pkg.playersIn.find(player => player.id === selection.incomingId) || pkg.playersIn[0];
+    const outgoingPlayer = pkg.playersOut.find(player => player.id === selection.outgoingId) || pkg.playersOut[0];
+    const isReady = tradeComparison?.batchKey === pkg.batchKey;
+    const packageSummary = (players: PlayerAsset[]) => {
+      const stats = players.map(player => getComparisonStats(player.id));
+      const fixtures = players.flatMap(player => tradeComparison?.fixturesByPlayerId[player.id] || []);
+      const total = (key: keyof TradeComparisonStats) => stats.reduce((sum, value) => sum + Number(value[key] || 0), 0);
+      return {
+        points: total('total_points'),
+        minutes: total('minutes'),
+        goalInvolvements: total('goals_scored') + total('assists'),
+        xgi: total('expected_goal_involvements') || total('expected_goals') + total('expected_assists'),
+        form: stats.length ? stats.reduce((sum, value) => sum + value.recent_form, 0) / stats.length : 0,
+        fixtureDifficulty: fixtures.length ? fixtures.reduce((sum, fixture) => sum + fixture.difficulty, 0) / fixtures.length : 0,
+      };
+    };
+    const incomingSummary = packageSummary(pkg.playersIn);
+    const outgoingSummary = packageSummary(pkg.playersOut);
+    const directRows: Array<[string, string, string]> = incomingPlayer && outgoingPlayer ? (() => {
+      const incoming = getComparisonStats(incomingPlayer.id);
+      const outgoing = getComparisonStats(outgoingPlayer.id);
+      const giIncoming = incoming.goals_scored + incoming.assists;
+      const giOutgoing = outgoing.goals_scored + outgoing.assists;
+      const xgiIncoming = incoming.expected_goal_involvements || incoming.expected_goals + incoming.expected_assists;
+      const xgiOutgoing = outgoing.expected_goal_involvements || outgoing.expected_goals + outgoing.expected_assists;
+      return [
+        ['PTS', String(incoming.total_points), String(outgoing.total_points)],
+        ['FORM', incoming.recent_form.toFixed(1), outgoing.recent_form.toFixed(1)],
+        ['MINS', String(incoming.minutes), String(outgoing.minutes)],
+        ['STARTS', String(incoming.starts), String(outgoing.starts)],
+        ['G / xG', `${incoming.goals_scored} / ${incoming.expected_goals.toFixed(2)}`, `${outgoing.goals_scored} / ${outgoing.expected_goals.toFixed(2)}`],
+        ['A / xA', `${incoming.assists} / ${incoming.expected_assists.toFixed(2)}`, `${outgoing.assists} / ${outgoing.expected_assists.toFixed(2)}`],
+        ['GI / xGI', `${giIncoming} / ${xgiIncoming.toFixed(2)}`, `${giOutgoing} / ${xgiOutgoing.toFixed(2)}`],
+      ];
+    })() : [];
+
+    const renderPlayerFixtures = (player: PlayerAsset, side: 'incoming' | 'outgoing') => {
+      const fixtures = tradeComparison?.fixturesByPlayerId[player.id] || [];
+      return (
+        <View key={player.id} style={styles.comparisonPlayerFixtures}>
+          <View style={styles.comparisonFixturePlayerHeader}>
+            <Text style={[styles.comparisonFixturePlayerName, side === 'incoming' ? styles.playerTextRequested : styles.playerTextOffered]} numberOfLines={1}>{player.web_name}</Text>
+            <Text style={styles.comparisonFixturePlayerMeta}>{getShortTeamCode(player.team_name)} · {player.element_type}</Text>
+          </View>
+          <View style={styles.fixtureStrip}>
+            {fixtures.length ? fixtures.map(fixture => {
+              const tone = fixtureTone(fixture.difficulty);
+              return <View key={`${player.id}-${fixture.gameweek}-${fixture.opponent}`} style={[styles.fixtureChip, tone]}><Text style={styles.fixtureChipGw}>GW{fixture.gameweek}</Text><Text style={[styles.fixtureChipOpponent, { color: tone.color }]}>{fixture.isHome ? 'vs ' : '@ '}{fixture.opponent}</Text><Text style={styles.fixtureChipFdr}>FDR {fixture.difficulty}</Text></View>;
+            }) : <Text style={styles.comparisonEmptyFixtures}>No upcoming fixtures</Text>}
+          </View>
+        </View>
+      );
+    };
+
+    return (
+      <View style={styles.tradeComparisonPanel}>
+        <View style={styles.comparisonPanelHeading}>
+          <View><Text style={styles.comparisonPanelTitle}>PACKAGE COMPARISON</Text><Text style={styles.comparisonPanelSubtitle}>Current output and next five fixtures</Text></View>
+          <TouchableOpacity onPress={() => setExpandedComparisonKey(null)} accessibilityLabel="Close trade comparison"><Ionicons name="chevron-up" size={18} color={colors.textMuted} /></TouchableOpacity>
+        </View>
+        {tradeComparisonLoading ? <View style={styles.comparisonLoading}><ActivityIndicator size="small" color={colors.accent} /><Text style={styles.comparisonLoadingText}>Loading comparison</Text></View> : tradeComparisonError ? <Text style={styles.comparisonError}>{tradeComparisonError}</Text> : isReady && <>
+          <View style={styles.packageSummaryGrid}>
+            <View style={[styles.packageSummaryCard, styles.packageSummaryIncoming]}><Text style={styles.packageSummarySide}>YOU RECEIVE</Text><Text style={styles.packageSummaryValue}>{incomingSummary.points} PTS</Text><Text style={styles.packageSummaryMeta}>{incomingSummary.form.toFixed(1)} form · {incomingSummary.minutes} mins</Text><Text style={styles.packageSummaryMeta}>{incomingSummary.goalInvolvements} GI · {incomingSummary.xgi.toFixed(2)} xGI</Text><Text style={styles.packageSummaryMeta}>Next 5 FDR {incomingSummary.fixtureDifficulty ? incomingSummary.fixtureDifficulty.toFixed(1) : '—'}</Text></View>
+            <View style={[styles.packageSummaryCard, styles.packageSummaryOutgoing]}><Text style={[styles.packageSummarySide, styles.textRight]}>YOU GIVE</Text><Text style={[styles.packageSummaryValue, styles.textRight]}>{outgoingSummary.points} PTS</Text><Text style={[styles.packageSummaryMeta, styles.textRight]}>{outgoingSummary.form.toFixed(1)} form · {outgoingSummary.minutes} mins</Text><Text style={[styles.packageSummaryMeta, styles.textRight]}>{outgoingSummary.goalInvolvements} GI · {outgoingSummary.xgi.toFixed(2)} xGI</Text><Text style={[styles.packageSummaryMeta, styles.textRight]}>Next 5 FDR {outgoingSummary.fixtureDifficulty ? outgoingSummary.fixtureDifficulty.toFixed(1) : '—'}</Text></View>
+          </View>
+          <Text style={styles.comparisonSectionTitle}>NEXT FIVE FIXTURES</Text>
+          <View style={styles.packageFixtureColumns}><View style={styles.comparisonFixtureColumn}>{pkg.playersIn.map(player => renderPlayerFixtures(player, 'incoming'))}</View><View style={styles.comparisonFixtureColumn}>{pkg.playersOut.map(player => renderPlayerFixtures(player, 'outgoing'))}</View></View>
+          {incomingPlayer && outgoingPlayer && <>
+            <Text style={styles.comparisonSectionTitle}>PLAYER VS PLAYER</Text>
+            <View style={styles.comparisonPickerRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.comparisonPickerList}>{pkg.playersIn.map(player => <TouchableOpacity key={player.id} onPress={() => setComparisonSelection(current => ({ ...current, [pkg.batchKey]: { ...selection, incomingId: player.id } }))} style={[styles.comparisonPickerChip, selection.incomingId === player.id && styles.comparisonPickerChipIncoming]}><Text style={styles.comparisonPickerText}>{player.web_name}</Text></TouchableOpacity>)}</ScrollView>
+              <Text style={styles.comparisonVsText}>VS</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.comparisonPickerList}>{pkg.playersOut.map(player => <TouchableOpacity key={player.id} onPress={() => setComparisonSelection(current => ({ ...current, [pkg.batchKey]: { ...selection, outgoingId: player.id } }))} style={[styles.comparisonPickerChip, selection.outgoingId === player.id && styles.comparisonPickerChipOutgoing]}><Text style={styles.comparisonPickerText}>{player.web_name}</Text></TouchableOpacity>)}</ScrollView>
+            </View>
+            <View style={styles.directComparisonCard}><View style={styles.directComparisonHeader}><Text style={styles.directComparisonName} numberOfLines={1}>{incomingPlayer.web_name}</Text><Text style={styles.directComparisonVs}>VS</Text><Text style={[styles.directComparisonName, styles.textRight]} numberOfLines={1}>{outgoingPlayer.web_name}</Text></View>{directRows.map(([label, incoming, outgoing]) => <View key={label} style={styles.directComparisonRow}><Text style={styles.directComparisonValue}>{incoming}</Text><Text style={styles.directComparisonLabel}>{label}</Text><Text style={[styles.directComparisonValue, styles.textRight]}>{outgoing}</Text></View>)}</View>
+          </>}
+        </>}
+      </View>
+    );
+  };
+
   const renderSideBySideTradePackage = (pkg: GroupedTradePackage) => {
     const maxRows = Math.max(pkg.playersIn.length, pkg.playersOut.length);
     const sentByMe = pkg.sender_id === userId;
@@ -1201,6 +1432,16 @@ if (!userId || !leagueId) {
                     
                     {/* Render Side-by-Side 2-Column Asset Grid */}
                     {renderSideBySideTradePackage(pkg)}
+                    <TouchableOpacity
+                      style={[styles.tradeCompareButton, expandedComparisonKey === pkg.batchKey && styles.tradeCompareButtonActive]}
+                      onPress={() => void toggleTradeComparison(pkg)}
+                      accessibilityRole="button"
+                      accessibilityLabel={expandedComparisonKey === pkg.batchKey ? 'Close trade comparison' : 'Compare trade packages'}
+                    >
+                      <Ionicons name="git-compare-outline" size={15} color={expandedComparisonKey === pkg.batchKey ? colors.accentForeground : colors.accent} />
+                      <Text style={[styles.tradeCompareButtonText, expandedComparisonKey === pkg.batchKey && styles.tradeCompareButtonTextActive]}>{expandedComparisonKey === pkg.batchKey ? 'HIDE COMPARISON' : 'VS · COMPARE'}</Text>
+                    </TouchableOpacity>
+                    {renderTradeComparison(pkg)}
                     
                     {pkg.receiver_id === userId && (
                       <View style={styles.interactiveRowBarSlim}>
@@ -1986,6 +2227,305 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     backgroundColor: appColors.surfaceMuted,
     borderWidth: 1,
     borderColor: appColors.border,
+  },
+
+  tradeCompareButton: {
+    minHeight: 36,
+    marginTop: appSpacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: appColors.accentSoft,
+    borderWidth: 1,
+    borderColor: appColors.accentBorder,
+    borderRadius: appRadius.small,
+  },
+
+  tradeCompareButtonActive: {
+    backgroundColor: appColors.accentFill,
+  },
+
+  tradeCompareButtonText: {
+    color: appColors.accent,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+
+  tradeCompareButtonTextActive: {
+    color: appColors.accentForeground,
+  },
+
+  tradeComparisonPanel: {
+    marginTop: appSpacing.sm,
+    padding: appSpacing.md,
+    backgroundColor: appColors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: appColors.accentBorder,
+    borderRadius: appRadius.medium,
+  },
+
+  comparisonPanelHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: appSpacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.borderSubtle,
+  },
+
+  comparisonPanelTitle: {
+    color: appColors.textPrimary,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  comparisonPanelSubtitle: {
+    color: appColors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  comparisonLoading: {
+    minHeight: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  comparisonLoadingText: {
+    color: appColors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  comparisonError: {
+    color: appColors.danger,
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingVertical: appSpacing.lg,
+  },
+
+  packageSummaryGrid: {
+    flexDirection: 'row',
+    gap: appSpacing.sm,
+    marginTop: appSpacing.md,
+  },
+
+  packageSummaryCard: {
+    flex: 1,
+    padding: appSpacing.sm,
+    backgroundColor: appColors.surface,
+    borderWidth: 1,
+    borderRadius: appRadius.small,
+  },
+
+  packageSummaryIncoming: {
+    borderColor: appColors.accentBorder,
+  },
+
+  packageSummaryOutgoing: {
+    borderColor: appColors.dangerBorder,
+  },
+
+  packageSummarySide: {
+    color: appColors.textMuted,
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  packageSummaryValue: {
+    color: appColors.textPrimary,
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+
+  packageSummaryMeta: {
+    color: appColors.textSecondary,
+    fontSize: 8,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  comparisonSectionTitle: {
+    color: appColors.textMuted,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    marginTop: appSpacing.md,
+    marginBottom: appSpacing.xs,
+  },
+
+  packageFixtureColumns: {
+    flexDirection: 'row',
+    gap: appSpacing.sm,
+  },
+
+  comparisonFixtureColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: appSpacing.sm,
+  },
+
+  comparisonPlayerFixtures: {
+    padding: appSpacing.sm,
+    backgroundColor: appColors.surface,
+    borderWidth: 1,
+    borderColor: appColors.border,
+    borderRadius: appRadius.small,
+  },
+
+  comparisonFixturePlayerHeader: {
+    marginBottom: 6,
+  },
+
+  comparisonFixturePlayerName: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  comparisonFixturePlayerMeta: {
+    color: appColors.textMuted,
+    fontSize: 7,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+
+  fixtureStrip: {
+    gap: 4,
+  },
+
+  fixtureChip: {
+    paddingHorizontal: 5,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderRadius: 4,
+  },
+
+  fixtureChipGw: {
+    color: appColors.textMuted,
+    fontSize: 6,
+    fontWeight: '900',
+  },
+
+  fixtureChipOpponent: {
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 1,
+  },
+
+  fixtureChipFdr: {
+    color: appColors.textMuted,
+    fontSize: 6,
+    fontWeight: '800',
+    marginTop: 1,
+  },
+
+  comparisonEmptyFixtures: {
+    color: appColors.textMuted,
+    fontSize: 8,
+    fontStyle: 'italic',
+  },
+
+  comparisonPickerRow: {
+    gap: 5,
+  },
+
+  comparisonPickerList: {
+    gap: 5,
+    paddingRight: 4,
+  },
+
+  comparisonPickerChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: appColors.surface,
+    borderWidth: 1,
+    borderColor: appColors.border,
+    borderRadius: appRadius.pill,
+  },
+
+  comparisonPickerChipIncoming: {
+    backgroundColor: appColors.accentSoft,
+    borderColor: appColors.accentBorder,
+  },
+
+  comparisonPickerChipOutgoing: {
+    backgroundColor: appColors.dangerSoft,
+    borderColor: appColors.dangerBorder,
+  },
+
+  comparisonPickerText: {
+    color: appColors.textPrimary,
+    fontSize: 8,
+    fontWeight: '800',
+  },
+
+  comparisonVsText: {
+    color: appColors.textMuted,
+    fontSize: 8,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  directComparisonCard: {
+    marginTop: appSpacing.sm,
+    padding: appSpacing.sm,
+    backgroundColor: appColors.surface,
+    borderWidth: 1,
+    borderColor: appColors.border,
+    borderRadius: appRadius.small,
+  },
+
+  directComparisonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.borderSubtle,
+  },
+
+  directComparisonName: {
+    flex: 1,
+    color: appColors.textPrimary,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  directComparisonVs: {
+    color: appColors.accent,
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+  directComparisonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 26,
+    borderBottomWidth: 1,
+    borderBottomColor: appColors.borderSubtle,
+  },
+
+  directComparisonValue: {
+    flex: 1,
+    color: appColors.textPrimary,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+
+  directComparisonLabel: {
+    width: 52,
+    color: appColors.textMuted,
+    fontSize: 7,
+    fontWeight: '900',
+    textAlign: 'center',
   },
 
   tradePlayerPhoto: {
