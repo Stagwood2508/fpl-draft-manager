@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused } from 'expo-router/react-navigation';
 import { supabase } from '@/utils/supabase';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
+import PlayerCardModal from '@/components/PlayerCardModal';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import {
   AppColors,
@@ -104,6 +105,7 @@ const leagueId = activeLeagueId;
   const [isTradeModalVisible, setIsTradeModalVisible] = useState(false);
   const [tradeTargetPlayer, setTradeTargetPlayer] = useState<PlayerAsset | null>(null);
   const [tradeOwnerInfo, setTradeOwnerInfo] = useState<OwnershipInfo | null>(null);
+  const [playerCardId, setPlayerCardId] = useState<number | null>(null);
 
 useEffect(() => {
   if (isFocused && userId && leagueId) {
@@ -397,19 +399,42 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
               const mappedPositionColor = POSITION_COLORS[player.element_type] || '#222';
 
               return (
-                <TouchableOpacity key={item.id} style={styles.cleanRowSlim} activeOpacity={0.7} onPress={() => handleOpenDetailModal(item)}>
-                  <View style={styles.cleanInfoColSlim}>
+                <View key={item.id} style={styles.cleanRowSlim}>
+                  <TouchableOpacity
+                    style={styles.publicPlayerNameTrigger}
+                    activeOpacity={0.7}
+                    onPress={() => handleOpenDetailModal(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View trade details for ${player.web_name}`}
+                  >
                     <Text style={styles.cleanPlayerNameSlim} numberOfLines={1}>{player.web_name}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.playerInfoButton}
+                    activeOpacity={0.7}
+                    onPress={() => setPlayerCardId(player.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${player.web_name} player information`}
+                  >
+                    <Text style={styles.playerInfoButtonText}>i</Text>
+                  </TouchableOpacity>
+                  <View style={styles.publicPlayerMeta}>
                     <Text style={styles.cleanMetaTextSlim}>{getShortTeamCode(player.team_name)}</Text>
                     <View style={[styles.miniPosBadgeCompact, { backgroundColor: mappedPositionColor }]}>
                       <Text style={styles.miniPosTextCompact}>{player.element_type}</Text>
                     </View>
                   </View>
-                  <View style={styles.cleanPointsColSlim}>
+                  <TouchableOpacity
+                    style={styles.cleanPointsColSlim}
+                    activeOpacity={0.7}
+                    onPress={() => handleOpenDetailModal(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View trade details for ${player.web_name}`}
+                  >
                     <Text style={styles.cleanPointsValueSlim}>{player.total_points}</Text>
                     <Text style={styles.cleanPointsLabelSlim}>PTS</Text>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
               );
             })
           )}
@@ -505,6 +530,14 @@ if (!data?.success) throw new Error(data?.error || 'The transfer listing could n
         leagueId={leagueId}
         currentUserId={userId}
         onSuccess={syncMarketDataEngine}
+      />
+
+      <PlayerCardModal
+        visible={playerCardId !== null}
+        playerId={playerCardId}
+        leagueId={leagueId}
+        currentGameweek={0}
+        onClose={() => setPlayerCardId(null)}
       />
 
     </View>
@@ -642,11 +675,15 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     marginBottom: appSpacing.sm,
   },
 
-  cleanInfoColSlim: {
+  publicPlayerNameTrigger: {
     flex: 1,
+    minWidth: 0,
+  },
+
+  publicPlayerMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 0,
+    marginLeft: appSpacing.sm,
   },
 
   cleanPlayerNameSlim: {
@@ -669,6 +706,24 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     justifyContent: 'center',
     minWidth: 42,
     marginLeft: appSpacing.sm,
+  },
+
+  playerInfoButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: appColors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: appSpacing.xs,
+  },
+
+  playerInfoButtonText: {
+    color: appColors.textPrimary,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 16,
   },
 
   cleanPointsValueSlim: {
