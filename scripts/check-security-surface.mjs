@@ -13,6 +13,9 @@ mustContain('supabase/functions/fpl-proxy/index.ts', 'isSupportedEndpoint');
 mustContain('supabase/functions/sync-live-stats/index.ts', 'LIVE_STATS_CRON_SECRET');
 mustContain('supabase/functions/sync-fpl-player-pool/index.ts', 'APP_OWNER_USER_ID');
 mustContain('supabase/functions/send-push-notification/index.ts', 'PUSH_WEBHOOK_SECRET');
+mustContain('supabase/functions/send-push-notification/index.ts', "categoryId: 'tradeoffer'");
+mustContain('features/notifications/services/tradeNotificationActions.ts', 'isAuthenticationRequired: true');
+mustContain('features/notifications/services/tradeNotificationActions.ts', 'accept_trade_transaction');
 mustContain('supabase/migrations/20260927150000_harden_network_surface.sql', 'revoke all on all functions in schema net');
 mustContain('supabase/tests/network_surface_security_test.sql', 'Browser roles must not execute a public pg_net wrapper');
 

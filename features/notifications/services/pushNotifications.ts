@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 
 import { supabase } from '@/utils/supabase';
+import { configureTradeNotificationActions } from './tradeNotificationActions';
 
 export type PushRegistrationResult =
   | { status: 'ENABLED'; token: string }
@@ -38,6 +39,8 @@ export async function enablePushNotifications(requestPermission = true): Promise
         sound: 'default',
       });
     }
+
+    await configureTradeNotificationActions();
 
     let permission = await Notifications.getPermissionsAsync();
     if (permission.status !== 'granted' && requestPermission) permission = await Notifications.requestPermissionsAsync();

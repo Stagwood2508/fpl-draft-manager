@@ -28,6 +28,11 @@ import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { installGlobalErrorReporting } from '@/utils/errorReporting';
 import AppLaunchScreen from '@/components/AppLaunchScreen';
 import { configurePushPresentation, notificationDestination, refreshPushRegistration } from '@/features/notifications/services/pushNotifications';
+import {
+  configureTradeNotificationActions,
+  handleTradeNotificationAction,
+  isTradeNotificationAction,
+} from '@/features/notifications/services/tradeNotificationActions';
 import { supabase } from '@/utils/supabase';
 
 configurePushPresentation();
@@ -110,6 +115,10 @@ function RootLayoutContent() {
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
+    void configureTradeNotificationActions().catch(error => {
+      console.warn('[TRADE NOTIFICATION ACTIONS] Setup failed', error);
+    });
+
     const queueNotificationRoute = (notification: Notifications.Notification) => {
       const notificationId = notification.request.identifier;
       if (handledNotificationIdsRef.current.has(notificationId)) return;
@@ -118,14 +127,21 @@ function RootLayoutContent() {
       handledNotificationIdsRef.current.add(notificationId);
       setPendingNotificationDestination(destination);
     };
-    const initialResponse = Notifications.getLastNotificationResponse();
-    if (initialResponse?.notification) {
-      queueNotificationRoute(initialResponse.notification);
-      Notifications.clearLastNotificationResponse();
-    }
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+    const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+      if (isTradeNotificationAction(response)) {
+        void handleTradeNotificationAction(response);
+        Notifications.clearLastNotificationResponse();
+        return;
+      }
       queueNotificationRoute(response.notification);
       Notifications.clearLastNotificationResponse();
+    };
+    const initialResponse = Notifications.getLastNotificationResponse();
+    if (initialResponse?.notification) {
+      handleNotificationResponse(initialResponse);
+    }
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      handleNotificationResponse(response);
     });
     return () => subscription.remove();
   }, []);

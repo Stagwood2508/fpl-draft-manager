@@ -28,6 +28,14 @@ interface LeagueRow {
   name: string | null;
 }
 
+const actionableTradePackageId = (notification: NotificationRecord) => {
+  if (notification.category !== 'TRADE') return null;
+  const match = notification.dedupe_key?.match(
+    /^trade:([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}):PENDING$/i,
+  );
+  return match?.[1] || null;
+};
+
 const expoHeaders = () => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -150,6 +158,7 @@ Deno.serve(async (request) => {
       .map(item => item.token_id));
     const pendingTokens = activeTokens.filter(token => !completedTokenIds.has(token.id));
     if (!pendingTokens.length) return Response.json({ success: true, skipped: 'ALREADY_SENT' });
+    const tradePackageId = actionableTradePackageId(notification);
 
     await admin.from('push_delivery_attempts').upsert(pendingTokens.map(token => ({
       notification_id: notification.id, token_id: token.id, status: 'SENDING', updated_at: new Date().toISOString(),
@@ -165,11 +174,13 @@ Deno.serve(async (request) => {
         sound: 'default',
         priority: 'high',
         channelId: 'league-events',
+        ...(tradePackageId ? { categoryId: 'tradeoffer' } : {}),
         data: {
           url: notification.route || '/notifications',
           notificationId: notification.id,
           category: notification.category,
           leagueId: notification.league_id,
+          ...(tradePackageId ? { tradePackageId } : {}),
         },
       }))),
     });
