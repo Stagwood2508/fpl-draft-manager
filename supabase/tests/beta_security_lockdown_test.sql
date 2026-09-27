@@ -53,6 +53,57 @@ begin
     raise exception 'authenticated cannot execute league joins';
   end if;
 
+  if exists (
+    select 1
+    from pg_catalog.unnest(array[
+      'public.league_members'::regclass,
+      'public.rosters'::regclass,
+      'public.waiver_claims'::regclass,
+      'public.transactions'::regclass
+    ]) locked_table
+    where pg_catalog.has_table_privilege('anon', locked_table, 'INSERT,UPDATE,DELETE')
+       or pg_catalog.has_table_privilege('authenticated', locked_table, 'INSERT,UPDATE,DELETE')
+  ) then
+    raise exception 'a manager mutation table still permits direct browser writes';
+  end if;
+
+  if pg_catalog.has_table_privilege('anon', 'public.watchlists', 'SELECT,INSERT,UPDATE,DELETE')
+     or pg_catalog.has_table_privilege('authenticated', 'public.watchlists', 'UPDATE') then
+    raise exception 'watchlists have an unsafe browser grant';
+  end if;
+
+  if pg_catalog.has_table_privilege('anon', 'public.league_announcements', 'SELECT,INSERT,UPDATE,DELETE')
+     or pg_catalog.has_table_privilege('authenticated', 'public.league_announcements', 'INSERT,UPDATE,DELETE') then
+    raise exception 'announcements still permit direct browser writes';
+  end if;
+
+  if not pg_catalog.has_function_privilege(
+       'authenticated', 'public.submit_waiver_claim(uuid,integer,integer,integer)', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.reorder_waiver_claims(uuid,uuid[])', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.cancel_waiver_claim(uuid)', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.save_manager_lineup(uuid,integer[],integer[])', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.create_trade_package(uuid,uuid,integer[],integer[])', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.accept_trade_transaction(uuid)', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.save_league_announcement(uuid,uuid,text,text,text,boolean,timestamp with time zone)', 'EXECUTE'
+     )
+     or not pg_catalog.has_function_privilege(
+       'authenticated', 'public.delete_league_announcement(uuid,uuid)', 'EXECUTE'
+     ) then
+    raise exception 'a required manager mutation RPC is blocked';
+  end if;
+
   if not exists (
     select 1
     from pg_catalog.pg_class c

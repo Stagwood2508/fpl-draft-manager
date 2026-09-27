@@ -130,28 +130,23 @@ export default function LeagueAnnouncementsScreen() {
       return;
     }
     const expiryOption = EXPIRY_OPTIONS.find(option => option.id === expiryChoice);
-    const publishedAt = new Date();
     const expiresAt = expiryOption?.hours
-      ? new Date(publishedAt.getTime() + expiryOption.hours * 3_600_000).toISOString()
+      ? new Date(Date.now() + expiryOption.hours * 3_600_000).toISOString()
       : null;
-    const payload = {
-      league_id: leagueId,
-      author_id: currentUserId,
-      title: title.trim(),
-      body: body.trim(),
-      priority,
-      is_pinned: isPinned,
-      published_at: publishedAt.toISOString(),
-      expires_at: expiresAt,
-      updated_at: publishedAt.toISOString(),
-    };
 
     setSaving(true);
     try {
-      const response = editingId
-        ? await supabase.from('league_announcements').update(payload).eq('id', editingId).eq('league_id', leagueId)
-        : await supabase.from('league_announcements').insert(payload);
-      if (response.error) throw response.error;
+      const { data, error } = await supabase.rpc('save_league_announcement', {
+        p_league_id: leagueId,
+        p_announcement_id: editingId,
+        p_title: title.trim(),
+        p_body: body.trim(),
+        p_priority: priority,
+        p_is_pinned: isPinned,
+        p_expires_at: expiresAt,
+      });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data.error || 'The announcement could not be saved.');
       setEditorOpen(false);
       await loadAnnouncements(true);
     } catch (error: any) {
@@ -168,8 +163,13 @@ export default function LeagueAnnouncementsScreen() {
         text: 'Remove',
         style: 'destructive',
         onPress: async () => {
-          const { error } = await supabase.from('league_announcements').delete().eq('id', announcement.id).eq('league_id', leagueId || '');
+          if (!leagueId) return;
+          const { data, error } = await supabase.rpc('delete_league_announcement', {
+            p_league_id: leagueId,
+            p_announcement_id: announcement.id,
+          });
           if (error) Alert.alert('Announcement not removed', error.message);
+          else if (data?.success === false) Alert.alert('Announcement not removed', data.error || 'Please try again.');
           else await loadAnnouncements(true);
         },
       },

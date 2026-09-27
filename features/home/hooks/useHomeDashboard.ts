@@ -306,6 +306,9 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
       if (standingsResponse.error) throw standingsResponse.error;
       if (fixtureResponse.error) throw fixtureResponse.error;
       if (rosterResponse.error) throw rosterResponse.error;
+      if (pendingTradeResponse.error) {
+        console.warn('[HOME DASHBOARD] Pending trade count unavailable:', pendingTradeResponse.error.message);
+      }
       if (announcementResponse.error) throw announcementResponse.error;
       if (chronicleResponse.error && chronicleResponse.error.code !== '42P01') {
         console.warn('[HOME DASHBOARD] Chronicle teaser unavailable:', chronicleResponse.error.message);
@@ -388,7 +391,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           ).length,
           marketStatus: waiverData.market_status || gameweek?.status || null,
         },
-        pendingTrades: pendingTradeResponse.count || 0,
+        pendingTrades: pendingTradeResponse.error ? 0 : pendingTradeResponse.count || 0,
         recentActivity: recentActivity.slice(0, 5),
         announcement: announcementResponse.data ? {
           id: String(announcementResponse.data.id),

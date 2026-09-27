@@ -5,6 +5,7 @@ declare
   v_expected_name text;
   v_expected_names constant text[] := array[
     'accept_trade_transaction', 'cancel_waiver_claim', 'can_view_profile',
+    'can_view_trade_transaction',
     'change_my_team_name', 'claim_free_agent_with_history',
     'commissioner_assign_current_pick', 'commissioner_control_draft',
     'commissioner_correct_gameweek_lineup', 'commissioner_correct_latest_pick',
@@ -12,6 +13,7 @@ declare
     'commissioner_undo_latest_pick', 'counter_trade_package',
     'create_league_atomic', 'create_single_knockout_cup',
     'create_test_push_notification', 'create_trade_package', 'delete_my_account',
+    'delete_league_announcement',
     'disable_my_push_devices', 'get_cup_fixture_board',
     'get_gameweek_provisional_bonus_rankings',
     'get_league_gameweek_player_scores', 'get_league_live_fixture_scores',
@@ -26,6 +28,7 @@ declare
     'register_push_device', 'remove_lounge_message', 'reorder_waiver_claims',
     'reorder_watchlist', 'resolve_lounge_message_reports',
     'save_league_player_position_override', 'save_league_settings',
+    'save_league_announcement',
     'save_manager_lineup', 'set_draft_room_ready', 'set_lounge_message_pinned',
     'set_transfer_listing', 'submit_draft_pick', 'submit_waiver_claim',
     'update_trade_package_status'
