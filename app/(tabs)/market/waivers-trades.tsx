@@ -19,6 +19,7 @@ import { supabase } from '@/utils/supabase';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import PlayerCardModal from '@/components/PlayerCardModal';
+import PlayerHeadshot from '@/components/PlayerHeadshot';
 import {
   AppColors,
   appRadius,
@@ -33,6 +34,9 @@ interface PlayerAsset {
   web_name: string;
   element_type: string;
   team_name: string;
+  code?: number | null;
+  photo_code?: number | null;
+  team_id?: number | null;
 }
 
 interface TransactionRecord {
@@ -972,6 +976,15 @@ if (!userId || !leagueId) {
                 <View style={styles.colLeft}>
                   {req ? (
                     <View style={styles.assetPlayerLine}>
+                      <View style={styles.tradePlayerAvatar}>
+                        <PlayerHeadshot
+                          code={req.code}
+                          photoCode={req.photo_code}
+                          teamId={req.team_id}
+                          style={styles.tradePlayerPhoto}
+                          fallbackSize={22}
+                        />
+                      </View>
                       <Text style={[styles.playerTextRequested, styles.assetPlayerName]} numberOfLines={1}>
                         {req.web_name}{' '}
                         <Text style={styles.metaText}>
@@ -1016,6 +1029,15 @@ if (!userId || !leagueId) {
                           ({getShortTeamCode(off.team_name)} · {off.element_type})
                         </Text>
                       </Text>
+                      <View style={styles.tradePlayerAvatar}>
+                        <PlayerHeadshot
+                          code={off.code}
+                          photoCode={off.photo_code}
+                          teamId={off.team_id}
+                          style={styles.tradePlayerPhoto}
+                          fallbackSize={22}
+                        />
+                      </View>
                     </View>
                   ) : (
                     <Text style={[styles.emptyAssetText, styles.textRight]}>—</Text>
@@ -1937,6 +1959,24 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
 
   assetPlayerName: {
     flexShrink: 1,
+  },
+
+  tradePlayerAvatar: {
+    width: 24,
+    height: 24,
+    marginHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderRadius: 12,
+    backgroundColor: appColors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: appColors.border,
+  },
+
+  tradePlayerPhoto: {
+    width: 24,
+    height: 24,
   },
 
   assetInfoButton: {
