@@ -204,7 +204,13 @@ public final class TradeActionReceiver extends BroadcastReceiver {
   }
 
   private static String failureMessage(String response) {
-    String error = new JSONObject(response).optString("error", "ACTION_UNAVAILABLE");
+    String error = "ACTION_UNAVAILABLE";
+    try {
+      error = new JSONObject(response).optString("error", error);
+    } catch (Exception ignored) {
+      // A non-JSON error body must not prevent the notification action from
+      // completing or crash the receiver. Keep the safe generic message.
+    }
     if ("ACTION_EXPIRED".equals(error)) return "This trade action has expired";
     if ("TRADE_IS_NO_LONGER_PENDING".equals(error) || "TRANSACTION_NOT_FOUND".equals(error)) return "This trade is no longer pending";
     if ("ONLY_RECEIVER_CAN_ACCEPT".equals(error) || "NOT_AUTHORIZED_FOR_TRADE_ACTION".equals(error)) return "This action is not assigned to this manager";
