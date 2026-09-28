@@ -28,12 +28,35 @@ interface LeagueRow {
   name: string | null;
 }
 
+interface TradePlayerRow {
+  web_name: string | null;
+}
+
+interface TradePackageRow {
+  player_out: TradePlayerRow | TradePlayerRow[] | null;
+  player_in: TradePlayerRow | TradePlayerRow[] | null;
+}
+
 const actionableTradePackageId = (notification: NotificationRecord) => {
   if (notification.category !== 'TRADE') return null;
   const match = notification.dedupe_key?.match(
     /^trade:([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}):PENDING$/i,
   );
   return match?.[1] || null;
+};
+
+const relation = <T>(value: T | T[] | null | undefined): T | null =>
+  Array.isArray(value) ? value[0] || null : value || null;
+
+const tradePlayerName = (player: TradePlayerRow | TradePlayerRow[] | null) =>
+  relation(player)?.web_name?.trim() || 'Unknown player';
+
+const tradeOfferBody = (rows: TradePackageRow[]) => {
+  const offered = rows.map(row => tradePlayerName(row.player_out));
+  const requested = rows.map(row => tradePlayerName(row.player_in));
+  if (!offered.length || !requested.length) return null;
+  // Line breaks make the offer scannable in Android's expanded notification.
+  return `Offers: ${offered.join(', ')}\nRequests: ${requested.join(', ')}`;
 };
 
 const expoHeaders = () => {
@@ -112,7 +135,8 @@ Deno.serve(async (request) => {
       return Response.json({ success: true, skipped: 'CHRONICLE_PUSH_DISABLED' });
     }
 
-    const [{ data: preferences }, { data: tokens, error: tokenError }, leagueResponse] = await Promise.all([
+    const tradePackageId = actionableTradePackageId(notification);
+    const [{ data: preferences }, { data: tokens, error: tokenError }, leagueResponse, tradePackageResponse] = await Promise.all([
       admin.from('notification_preferences')
         .select('push_enabled, announcements_enabled, trades_enabled, waivers_enabled, match_updates_enabled, own_player_events_enabled, opponent_player_events_enabled, draft_enabled')
         .eq('user_id', notification.user_id).maybeSingle(),
@@ -122,11 +146,21 @@ Deno.serve(async (request) => {
       notification.league_id
         ? admin.from('leagues').select('name').eq('id', notification.league_id).maybeSingle<LeagueRow>()
         : Promise.resolve({ data: null, error: null }),
+      tradePackageId
+        ? admin.from('transactions').select(`
+            player_out:players!transactions_player_out_id_fkey (web_name),
+            player_in:players!transactions_player_in_id_fkey (web_name)
+          `).eq('parent_transaction_id', tradePackageId).eq('type', 'TRADE').eq('status', 'PENDING')
+        : Promise.resolve({ data: null, error: null }),
     ]);
     if (tokenError) throw tokenError;
 
     if (leagueResponse.error) throw leagueResponse.error;
+    if (tradePackageResponse.error) throw tradePackageResponse.error;
     const leagueName = leagueResponse.data?.name?.trim() || null;
+    const tradeBody = tradePackageId
+      ? tradeOfferBody((tradePackageResponse.data || []) as TradePackageRow[])
+      : null;
 
     const categoryEnabled = notification.category === 'ANNOUNCEMENT'
       ? preferences?.announcements_enabled !== false
@@ -158,8 +192,6 @@ Deno.serve(async (request) => {
       .map(item => item.token_id));
     const pendingTokens = activeTokens.filter(token => !completedTokenIds.has(token.id));
     if (!pendingTokens.length) return Response.json({ success: true, skipped: 'ALREADY_SENT' });
-    const tradePackageId = actionableTradePackageId(notification);
-
     await admin.from('push_delivery_attempts').upsert(pendingTokens.map(token => ({
       notification_id: notification.id, token_id: token.id, status: 'SENDING', updated_at: new Date().toISOString(),
     })), { onConflict: 'notification_id,token_id' });
@@ -170,7 +202,7 @@ Deno.serve(async (request) => {
       body: JSON.stringify(pendingTokens.map(token => ({
         to: token.expo_push_token,
         title: leagueName ? `${leagueName} · ${notification.title}` : notification.title,
-        body: notification.body,
+        body: tradeBody || notification.body,
         sound: 'default',
         priority: 'high',
         channelId: 'league-events',
