@@ -161,7 +161,7 @@ public final class TradeActionReceiver extends BroadcastReceiver {
     final String token = intent.getStringExtra("token");
     final String action = intent.getStringExtra("action");
     EXECUTOR.execute(() -> {
-      String message;
+      String message = "Could not update the trade";
       try {
         if (endpoint == null || token == null || !endpoint.startsWith("https://")) throw new IllegalArgumentException();
         HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
