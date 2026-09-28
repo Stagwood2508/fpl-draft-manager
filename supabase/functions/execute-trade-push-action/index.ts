@@ -23,10 +23,15 @@ Deno.serve(async request => {
     const { data, error } = await admin.rpc('execute_trade_push_action', { p_token_hash: await sha256(token) });
     if (error) throw error;
 
-    // A caller learns only whether the action completed; no trade, roster or
-    // manager data is returned to a device holding an expired token.
+    const actionError = typeof data?.error === 'string' ? data.error : 'ACTION_UNAVAILABLE';
+    if (data?.success !== true) {
+      // The token holder learns only the outcome code for its own one-time
+      // action. This is enough for Android to give a truthful response while
+      // exposing no roster, manager or trade details.
+      console.warn('[TRADE PUSH ACTION REJECTED]', actionError);
+    }
     return Response.json(
-      { success: data?.success === true, error: data?.success === true ? undefined : 'ACTION_UNAVAILABLE' },
+      { success: data?.success === true, error: data?.success === true ? undefined : actionError },
       { status: data?.success === true ? 200 : 409, headers: jsonHeaders },
     );
   } catch (error) {

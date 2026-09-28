@@ -145,9 +145,11 @@ import android.os.Looper;
 import android.widget.Toast;
 import org.json.JSONObject;
 import java.io.OutputStream;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -173,9 +175,13 @@ public final class TradeActionReceiver extends BroadcastReceiver {
         byte[] payload = new JSONObject().put("token", token).toString().getBytes(StandardCharsets.UTF_8);
         try (OutputStream output = connection.getOutputStream()) { output.write(payload); }
         int status = connection.getResponseCode();
-        message = status >= 200 && status < 300
+        String response = readBody(status >= 200 && status < 300
+          ? connection.getInputStream() : connection.getErrorStream());
+        boolean completed = status >= 200 && status < 300
+          && new JSONObject(response).optBoolean("success", false);
+        message = completed
           ? "ACCEPT".equals(action) ? "Trade accepted" : "Trade rejected"
-          : "This trade is no longer available";
+          : failureMessage(response);
         connection.disconnect();
       } catch (Exception ignored) {
         message = "Could not update the trade";
@@ -185,6 +191,25 @@ public final class TradeActionReceiver extends BroadcastReceiver {
         pending.finish();
       }
     });
+  }
+
+  private static String readBody(InputStream stream) throws Exception {
+    if (stream == null) return "";
+    try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+      byte[] buffer = new byte[1024];
+      int read;
+      while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+      return output.toString(StandardCharsets.UTF_8.name());
+    }
+  }
+
+  private static String failureMessage(String response) {
+    String error = new JSONObject(response).optString("error", "ACTION_UNAVAILABLE");
+    if ("ACTION_EXPIRED".equals(error)) return "This trade action has expired";
+    if ("TRADE_IS_NO_LONGER_PENDING".equals(error) || "TRANSACTION_NOT_FOUND".equals(error)) return "This trade is no longer pending";
+    if ("ONLY_RECEIVER_CAN_ACCEPT".equals(error) || "NOT_AUTHORIZED_FOR_TRADE_ACTION".equals(error)) return "This action is not assigned to this manager";
+    if (error.startsWith("TRADE_WOULD_CREATE_INVALID")) return "Trade would leave an invalid squad";
+    return "Trade update failed: " + error;
   }
 }`;
 }
