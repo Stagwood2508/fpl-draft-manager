@@ -1,5 +1,6 @@
 const {
   withAndroidManifest,
+  withAppBuildGradle,
   withDangerousMod,
   createRunOncePlugin,
 } = require('@expo/config-plugins');
@@ -10,6 +11,17 @@ const SERVICE_CLASS = '.tradeactions.TradeActionMessagingService';
 const RECEIVER_CLASS = '.tradeactions.TradeActionReceiver';
 
 const withTradePushActions = config => {
+  config = withAppBuildGradle(config, configWithGradle => {
+    const dependency = "implementation 'com.google.firebase:firebase-messaging:25.0.1'";
+    if (!configWithGradle.modResults.contents.includes('com.google.firebase:firebase-messaging')) {
+      configWithGradle.modResults.contents = configWithGradle.modResults.contents.replace(
+        /dependencies\s*\{/,
+        match => `${match}\n    ${dependency}`,
+      );
+    }
+    return configWithGradle;
+  });
+
   config = withAndroidManifest(config, configWithManifest => {
     const application = configWithManifest.modResults.manifest.application?.[0];
     if (!application) return configWithManifest;
