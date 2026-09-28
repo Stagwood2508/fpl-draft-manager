@@ -373,8 +373,8 @@ const currentLeagueId = leagueId;
           .from('waiver_claims')
           .select(`
             id, priority_order,
-            add_player:player_to_add (id, first_name, second_name, web_name, team_name, element_type),
-            drop_player:player_to_drop (id, first_name, second_name, web_name, team_name, element_type)
+            add_player:player_to_add (id, first_name, second_name, web_name, team_name, element_type, code, photo_code, team_id),
+            drop_player:player_to_drop (id, first_name, second_name, web_name, team_name, element_type, code, photo_code, team_id)
           `)
           .eq('user_id', userId)
           .eq('league_id', currentLeagueId)
@@ -1372,19 +1372,23 @@ if (!userId || !leagueId) {
                       <Text style={styles.priorityText}>#{item.priority_order}</Text>
                     </View>
 
-                    <View style={styles.waiverSwapFlexContainer}>
-                      <View style={styles.playerUnitLeft}>
-                        <Text style={styles.playerNameCompact} numberOfLines={1}>{item.add_player?.web_name}</Text>
-                        <Text style={styles.teamCodeText}>{getShortTeamCode(item.add_player?.team_name)}</Text>
-                      </View>
+                      <View style={styles.waiverSwapFlexContainer}>
+                        <View style={styles.playerUnitLeft}>
+                          <View style={styles.waiverPlayerLine}>
+                            <View style={styles.waiverPlayerPhoto}><PlayerHeadshot code={item.add_player?.code} photoCode={item.add_player?.photo_code} teamId={item.add_player?.team_id} style={styles.waiverPlayerPhotoImage} fallbackSize={19} /></View>
+                            <View style={styles.waiverPlayerText}><Text style={styles.playerNameCompact} numberOfLines={1}>{item.add_player?.web_name}</Text><Text style={styles.teamCodeText}>{getShortTeamCode(item.add_player?.team_name)}</Text></View>
+                          </View>
+                        </View>
                       <View style={styles.arrowStackColumn}>
                         <Text style={styles.greenArrow}>▲</Text>
                         <Text style={styles.redArrow}>▼</Text>
                       </View>
-                      <View style={styles.playerUnitRight}>
-                        <Text style={styles.playerNameCompact} numberOfLines={1}>{item.drop_player?.web_name}</Text>
-                        <Text style={styles.teamCodeText}>{getShortTeamCode(item.drop_player?.team_name)}</Text>
-                      </View>
+                        <View style={styles.playerUnitRight}>
+                          <View style={styles.waiverPlayerLine}>
+                            <View style={styles.waiverPlayerPhoto}><PlayerHeadshot code={item.drop_player?.code} photoCode={item.drop_player?.photo_code} teamId={item.drop_player?.team_id} style={styles.waiverPlayerPhotoImage} fallbackSize={19} /></View>
+                            <View style={styles.waiverPlayerText}><Text style={styles.playerNameCompact} numberOfLines={1}>{item.drop_player?.web_name}</Text><Text style={styles.teamCodeText}>{getShortTeamCode(item.drop_player?.team_name)}</Text></View>
+                          </View>
+                        </View>
                     </View>
 
                     <TouchableOpacity
@@ -1892,6 +1896,33 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     flex: 1,
     alignItems: 'flex-start',
     paddingLeft: appSpacing.sm,
+  },
+
+  waiverPlayerLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+  },
+
+  waiverPlayerPhoto: {
+    width: 23,
+    height: 23,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: appColors.background,
+    borderWidth: 1,
+    borderColor: appColors.border,
+  },
+
+  waiverPlayerPhotoImage: {
+    width: 23,
+    height: 23,
+  },
+
+  waiverPlayerText: {
+    minWidth: 0,
+    flexShrink: 1,
   },
 
   playerNameCompact: {

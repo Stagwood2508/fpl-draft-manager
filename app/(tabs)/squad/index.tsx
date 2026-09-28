@@ -18,6 +18,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import PlayerHeadshot from '@/components/PlayerHeadshot';
 import PlayerCardModal from '@/components/PlayerCardModal';
+import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import {
   AppColors,
   appRadius,
@@ -188,6 +189,8 @@ export default function SquadScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedRosterId, setSelectedRosterId] = useState<string | null>(null);
   const [inspectingPlayerId, setInspectingPlayerId] = useState<number | null>(null);
+  const [tradeTargetPlayer, setTradeTargetPlayer] = useState<PlayerData | null>(null);
+  const [tradeModalVisible, setTradeModalVisible] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<'fixtures' | 'points'>('fixtures');
   const [gameweekScores, setGameweekScores] = useState<Record<number, SquadGameweekScore>>({});
@@ -497,6 +500,13 @@ export default function SquadScreen() {
     () => roster.find(item => item.player_id === inspectingPlayerId) || null,
     [inspectingPlayerId, roster]
   );
+
+  const startTradeOffer = () => {
+    if (!viewingOtherTeam || !inspectingRosterItem || !requestedManagerId) return;
+    setTradeTargetPlayer(inspectingRosterItem.players);
+    setInspectingPlayerId(null);
+    setTradeModalVisible(true);
+  };
 
   const enterEditMode = () => {
     if (viewingOtherTeam) return;
@@ -1156,7 +1166,31 @@ export default function SquadScreen() {
           onSave: note => updateTransferListing(true, note),
           onRemove: () => updateTransferListing(false, null),
         } : undefined}
+        tradeOfferAction={viewingOtherTeam && inspectingRosterItem ? {
+          label: `MAKE OFFER TO ${teamName.toUpperCase()}`,
+          onPress: startTradeOffer,
+        } : undefined}
         onClose={() => setInspectingPlayerId(null)}
+      />
+      <TradeDeskModal
+        visible={tradeModalVisible}
+        onClose={() => setTradeModalVisible(false)}
+        targetPlayer={tradeTargetPlayer ? {
+          id: tradeTargetPlayer.id,
+          first_name: tradeTargetPlayer.first_name || '',
+          second_name: tradeTargetPlayer.second_name || '',
+          web_name: tradeTargetPlayer.web_name,
+          element_type: tradeTargetPlayer.element_type,
+          team_name: tradeTargetPlayer.team_name,
+        } : null}
+        tradePartner={viewingOtherTeam && requestedManagerId ? { userId: requestedManagerId, display_name: teamName } : null}
+        leagueId={activeLeagueId}
+        currentUserId={currentUserId}
+        currentGameweek={currentGameweek}
+        onSuccess={() => {
+          setTradeModalVisible(false);
+          void loadSquad(true);
+        }}
       />
     </View>
   );

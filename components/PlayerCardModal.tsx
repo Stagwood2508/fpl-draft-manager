@@ -106,6 +106,10 @@ interface PlayerCardModalProps {
     onSave: (note: string | null) => void | Promise<void>;
     onRemove: () => void | Promise<void>;
   };
+  tradeOfferAction?: {
+    label: string;
+    onPress: () => void;
+  };
   onClose: () => void;
 }
 
@@ -143,6 +147,7 @@ export default function PlayerCardModal({
   statsMode = 'CURRENT',
   seasonLabel,
   transferListing,
+  tradeOfferAction,
   onClose,
 }: PlayerCardModalProps) {
   const { colors } = useAppTheme();
@@ -520,6 +525,19 @@ export default function PlayerCardModal({
                 <Text style={styles.positionBadgeText}>{player.element_type}</Text>
               </View>
             </View>
+          )}
+
+          {player && tradeOfferAction && statsMode === 'CURRENT' && (
+            <TouchableOpacity
+              style={styles.tradeOfferButton}
+              onPress={tradeOfferAction.onPress}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel={`Start a trade offer for ${player.web_name}`}
+            >
+              <Ionicons name="swap-horizontal" size={16} color={colors.accentForeground} />
+              <Text style={styles.tradeOfferButtonText}>{tradeOfferAction.label}</Text>
+            </TouchableOpacity>
           )}
 
           {player && availabilityMarker && (
@@ -1150,6 +1168,18 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     letterSpacing: 0.7,
     marginLeft: 7,
   },
+  tradeOfferButton: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    backgroundColor: colors.accentFill,
+    borderRadius: 7,
+  },
+  tradeOfferButtonText: { color: colors.accentForeground, fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
 
   loaderBox: { height: 260, justifyContent: 'center', alignItems: 'center' },
   bodyContainer: { minHeight: 280, maxHeight: 380 },
