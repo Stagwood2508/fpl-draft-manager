@@ -278,7 +278,10 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           .eq('status', 'pending'),
         supabase
           .from('transactions')
-          .select('id', { count: 'exact', head: true })
+          // A multi-player offer is stored as one row per player swap. Count
+          // its shared package ID below so the dashboard reports offers, not
+          // the number of players in those offers.
+          .select('id, parent_transaction_id')
           .eq('league_id', activeLeagueId)
           .eq('receiver_id', currentUserId)
           .eq('type', 'TRADE')
@@ -391,7 +394,11 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           ).length,
           marketStatus: waiverData.market_status || gameweek?.status || null,
         },
-        pendingTrades: pendingTradeResponse.error ? 0 : pendingTradeResponse.count || 0,
+        pendingTrades: pendingTradeResponse.error
+          ? 0
+          : new Set((pendingTradeResponse.data || []).map((trade: any) =>
+              String(trade.parent_transaction_id || trade.id)
+            )).size,
         recentActivity: recentActivity.slice(0, 5),
         announcement: announcementResponse.data ? {
           id: String(announcementResponse.data.id),
