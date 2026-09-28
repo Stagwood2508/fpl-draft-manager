@@ -275,7 +275,10 @@ Deno.serve(async (request) => {
 
     if (tradePackageId && directActionTokens.length) {
       const actionTokens: TradeActionTokens = { accept: urlSafeToken(), reject: urlSafeToken() };
-      const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      // A trade can remain pending well beyond the original notification.
+      // Keep its one-time actions available for a day; the database still
+      // rejects them immediately if the offer is withdrawn or resolved.
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const { error: actionError } = await admin.from('trade_push_actions').insert([
         { notification_id: notification.id, user_id: notification.user_id, package_id: tradePackageId, action: 'ACCEPT', token_hash: await sha256(actionTokens.accept), expires_at: expiresAt },
         { notification_id: notification.id, user_id: notification.user_id, package_id: tradePackageId, action: 'REJECT', token_hash: await sha256(actionTokens.reject), expires_at: expiresAt },
