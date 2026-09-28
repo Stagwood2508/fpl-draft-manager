@@ -27,6 +27,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withTradePushActions",
       "@react-native-community/datetimepicker",
       "expo-notifications",
       [

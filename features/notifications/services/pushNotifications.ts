@@ -49,10 +49,18 @@ export async function enablePushNotifications(requestPermission = true): Promise
     const resolvedProjectId = projectId();
     if (!resolvedProjectId) return { status: 'ERROR', message: 'The Expo project ID is not configured.' };
     const token = (await Notifications.getExpoPushTokenAsync({ projectId: resolvedProjectId })).data;
+    // Expo remains the delivery channel for ordinary alerts. Android trade
+    // actions also register the underlying FCM token, which lets the native
+    // receiver render reliable Accept / Reject controls while the app is not
+    // running.
+    const deviceToken = Platform.OS === 'android'
+      ? (await Notifications.getDevicePushTokenAsync()).data
+      : null;
     const { error } = await supabase.rpc('register_push_device', {
       p_expo_push_token: token,
       p_platform: Platform.OS.toUpperCase(),
       p_device_name: Device.deviceName || `${Platform.OS} device`,
+      p_fcm_push_token: typeof deviceToken === 'string' ? deviceToken : null,
     });
     if (error) throw error;
     return { status: 'ENABLED', token };

@@ -438,3 +438,8 @@ entrypoint = "./functions/sync-fpl-player-pool/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-push-notification/index.ts"
+
+[functions.execute-trade-push-action]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/execute-trade-push-action/index.ts"
