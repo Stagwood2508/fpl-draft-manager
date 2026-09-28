@@ -1368,39 +1368,55 @@ if (!userId || !leagueId) {
                     onPress={() => handleSwapWaiverPriority(item.id)}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.priorityBadge}>
-                      <Text style={styles.priorityText}>#{item.priority_order}</Text>
-                    </View>
-
-                      <View style={styles.waiverSwapFlexContainer}>
-                        <View style={styles.playerUnitLeft}>
-                          <View style={styles.waiverPlayerLine}>
-                            <View style={styles.waiverPlayerPhoto}><PlayerHeadshot code={item.add_player?.code} photoCode={item.add_player?.photo_code} teamId={item.add_player?.team_id} style={styles.waiverPlayerPhotoImage} fallbackSize={19} /></View>
-                            <View style={styles.waiverPlayerText}><Text style={styles.playerNameCompact} numberOfLines={1}>{item.add_player?.web_name}</Text><Text style={styles.teamCodeText}>{getShortTeamCode(item.add_player?.team_name)}</Text></View>
-                          </View>
-                        </View>
-                      <View style={styles.arrowStackColumn}>
-                        <Text style={styles.greenArrow}>▲</Text>
-                        <Text style={styles.redArrow}>▼</Text>
+                    <View style={styles.waiverClaimMetaRow}>
+                      <View style={styles.priorityBadge}>
+                        <Text style={styles.priorityText}>#{item.priority_order}</Text>
                       </View>
-                        <View style={styles.playerUnitRight}>
-                          <View style={styles.waiverPlayerLine}>
-                            <View style={styles.waiverPlayerPhoto}><PlayerHeadshot code={item.drop_player?.code} photoCode={item.drop_player?.photo_code} teamId={item.drop_player?.team_id} style={styles.waiverPlayerPhotoImage} fallbackSize={19} /></View>
-                            <View style={styles.waiverPlayerText}><Text style={styles.playerNameCompact} numberOfLines={1}>{item.drop_player?.web_name}</Text><Text style={styles.teamCodeText}>{getShortTeamCode(item.drop_player?.team_name)}</Text></View>
-                          </View>
-                        </View>
+                      <View style={styles.waiverClaimMeta}>
+                        <Text style={styles.waiverClaimMetaTitle}>WAIVER CLAIM · PRIORITY {item.priority_order}</Text>
+                        <Text style={styles.waiverClaimMetaHint}>{isSelected ? 'Select another claim to swap priority' : 'Tap to reorder your claims'}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.cancelButton}
+                        disabled={processing}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          handleCancelWaiverClaim(item.id);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Cancel waiver claim for ${item.add_player?.web_name || 'player'}`}
+                      >
+                        <Ionicons name="close" size={18} color={colors.danger} />
+                      </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      disabled={processing}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        handleCancelWaiverClaim(item.id);
-                      }}
-                    >
-                      <Text style={styles.cancelButtonText}>✕</Text>
-                    </TouchableOpacity>
+                    <View style={styles.waiverAssetBlock}>
+                      <View style={styles.assetHeaderRow}>
+                        <Text style={[styles.assetHeaderLabel, styles.colLeft]} numberOfLines={1}>CLAIM · AVAILABLE</Text>
+                        <View style={styles.arrowSpacer} />
+                        <Text style={[styles.assetHeaderLabel, styles.colRight, styles.textRight]} numberOfLines={1}>RELEASE · YOUR SQUAD</Text>
+                      </View>
+
+                      <View style={styles.assetRow}>
+                        <View style={styles.colLeft}>
+                          <View style={styles.assetPlayerLine}>
+                            <View style={styles.tradePlayerAvatar}><PlayerHeadshot code={item.add_player?.code} photoCode={item.add_player?.photo_code} teamId={item.add_player?.team_id} style={styles.tradePlayerPhoto} fallbackSize={22} /></View>
+                            <Text style={[styles.playerTextRequested, styles.assetPlayerName]} numberOfLines={1}>{item.add_player?.web_name} <Text style={styles.metaText}>({getShortTeamCode(item.add_player?.team_name)} · {item.add_player?.element_type})</Text></Text>
+                            <TouchableOpacity style={styles.assetInfoButton} onPress={(event) => { event.stopPropagation(); setPlayerCardId(item.add_player?.id || null); }} accessibilityRole="button" accessibilityLabel={`View ${item.add_player?.web_name || 'claimed player'} information`}><Ionicons name="information-circle-outline" size={16} color={colors.accent} /></TouchableOpacity>
+                          </View>
+                        </View>
+
+                        <View style={styles.arrowStackContainer}><Text style={styles.arrowIn}>➔</Text><Text style={styles.arrowOut}>⬅</Text></View>
+
+                        <View style={styles.colRight}>
+                          <View style={[styles.assetPlayerLine, styles.assetPlayerLineRight]}>
+                            <TouchableOpacity style={styles.assetInfoButton} onPress={(event) => { event.stopPropagation(); setPlayerCardId(item.drop_player?.id || null); }} accessibilityRole="button" accessibilityLabel={`View ${item.drop_player?.web_name || 'released player'} information`}><Ionicons name="information-circle-outline" size={16} color={colors.accent} /></TouchableOpacity>
+                            <Text style={[styles.playerTextOffered, styles.assetPlayerName, styles.textRight]} numberOfLines={1}>{item.drop_player?.web_name} <Text style={styles.metaText}>({getShortTeamCode(item.drop_player?.team_name)} · {item.drop_player?.element_type})</Text></Text>
+                            <View style={styles.tradePlayerAvatar}><PlayerHeadshot code={item.drop_player?.code} photoCode={item.drop_player?.photo_code} teamId={item.drop_player?.team_id} style={styles.tradePlayerPhoto} fallbackSize={22} /></View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 );
               })
@@ -1845,15 +1861,12 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   },
 
   cleanWaiverRow: {
-    flexDirection: 'row',
     backgroundColor: appColors.surfaceRaised,
     borderWidth: 1,
     borderColor: appColors.border,
     borderRadius: appRadius.medium,
-    paddingVertical: 9,
-    paddingHorizontal: 9,
+    padding: appSpacing.md,
     marginBottom: appSpacing.sm,
-    alignItems: 'center',
   },
 
   rowSelected: {
@@ -1896,6 +1909,38 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
     flex: 1,
     alignItems: 'flex-start',
     paddingLeft: appSpacing.sm,
+  },
+
+  waiverClaimMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: appSpacing.sm,
+  },
+
+  waiverClaimMeta: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: appSpacing.sm,
+  },
+
+  waiverClaimMetaTitle: {
+    ...appTypography.label,
+    color: appColors.textPrimary,
+    fontSize: 9,
+  },
+
+  waiverClaimMetaHint: {
+    ...appTypography.metadata,
+    color: appColors.textMuted,
+    marginTop: 2,
+  },
+
+  waiverAssetBlock: {
+    backgroundColor: appColors.background,
+    borderWidth: 1,
+    borderColor: appColors.border,
+    borderRadius: appRadius.medium,
+    padding: appSpacing.sm,
   },
 
   waiverPlayerLine: {
