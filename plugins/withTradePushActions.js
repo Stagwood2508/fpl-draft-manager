@@ -108,13 +108,14 @@ public final class TradeActionMessagingService extends ExpoFirebaseMessagingServ
       .setAutoCancel(true)
       .setOnlyAlertOnce(false);
     if (contentIntent != null) builder.setContentIntent(contentIntent);
-    builder.addAction(0, "Accept", actionIntent(notificationId, endpoint, acceptToken, "ACCEPT"));
-    builder.addAction(0, "Reject", actionIntent(notificationId + 1, endpoint, rejectToken, "REJECT"));
+    builder.addAction(0, "Accept", actionIntent(notificationId, notificationId, endpoint, acceptToken, "ACCEPT"));
+    builder.addAction(0, "Reject", actionIntent(notificationId + 1, notificationId, endpoint, rejectToken, "REJECT"));
     ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(notificationId, builder.build());
   }
 
-  private PendingIntent actionIntent(int requestCode, String endpoint, String token, String action) {
+  private PendingIntent actionIntent(int requestCode, int notificationId, String endpoint, String token, String action) {
     Intent intent = new Intent(this, TradeActionReceiver.class);
+    intent.putExtra("notificationId", notificationId);
     intent.putExtra("endpoint", endpoint);
     intent.putExtra("token", token);
     intent.putExtra("action", action);
@@ -140,6 +141,7 @@ function actionReceiver(packageName) {
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.app.NotificationManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
@@ -162,8 +164,10 @@ public final class TradeActionReceiver extends BroadcastReceiver {
     final String endpoint = intent.getStringExtra("endpoint");
     final String token = intent.getStringExtra("token");
     final String action = intent.getStringExtra("action");
+    final int notificationId = intent.getIntExtra("notificationId", -1);
     EXECUTOR.execute(() -> {
       String message = "Could not update the trade";
+      boolean completed = false;
       try {
         if (endpoint == null || token == null || !endpoint.startsWith("https://")) throw new IllegalArgumentException();
         HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
@@ -177,7 +181,7 @@ public final class TradeActionReceiver extends BroadcastReceiver {
         int status = connection.getResponseCode();
         String response = readBody(status >= 200 && status < 300
           ? connection.getInputStream() : connection.getErrorStream());
-        boolean completed = status >= 200 && status < 300
+        completed = status >= 200 && status < 300
           && new JSONObject(response).optBoolean("success", false);
         message = completed
           ? "ACCEPT".equals(action) ? "Trade accepted" : "Trade rejected"
@@ -186,6 +190,10 @@ public final class TradeActionReceiver extends BroadcastReceiver {
       } catch (Exception ignored) {
         message = "Could not update the trade";
       } finally {
+        if (completed && notificationId >= 0) {
+          NotificationManager manager = (NotificationManager) appContext.getSystemService(Context.NOTIFICATION_SERVICE);
+          if (manager != null) manager.cancel(notificationId);
+        }
         final String toast = message;
         new Handler(Looper.getMainLooper()).post(() -> Toast.makeText(appContext, toast, Toast.LENGTH_SHORT).show());
         pending.finish();
