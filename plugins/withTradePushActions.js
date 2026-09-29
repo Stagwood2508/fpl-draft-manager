@@ -9,6 +9,7 @@ const path = require('path');
 
 const SERVICE_CLASS = '.tradeactions.TradeActionMessagingService';
 const RECEIVER_CLASS = '.tradeactions.TradeActionReceiver';
+const CONFIRMATION_ACTIVITY_CLASS = '.tradeactions.TradeActionConfirmationActivity';
 
 const withTradePushActions = config => {
   config = withAppBuildGradle(config, configWithGradle => {
@@ -44,6 +45,13 @@ const withTradePushActions = config => {
         $: { 'android:name': RECEIVER_CLASS, 'android:exported': 'false' },
       });
     }
+
+    if (!hasComponent(application.activity, CONFIRMATION_ACTIVITY_CLASS)) {
+      application.activity = application.activity || [];
+      application.activity.push({
+        $: { 'android:name': CONFIRMATION_ACTIVITY_CLASS, 'android:exported': 'false' },
+      });
+    }
     return configWithManifest;
   });
 
@@ -57,6 +65,7 @@ const withTradePushActions = config => {
     fs.mkdirSync(sourceDirectory, { recursive: true });
     fs.writeFileSync(path.join(sourceDirectory, 'TradeActionMessagingService.java'), messagingService(packageName));
     fs.writeFileSync(path.join(sourceDirectory, 'TradeActionReceiver.java'), actionReceiver(packageName));
+    fs.writeFileSync(path.join(sourceDirectory, 'TradeActionConfirmationActivity.java'), confirmationActivity(packageName));
     return configWithAndroid;
   }]);
 };
@@ -159,6 +168,17 @@ public final class TradeActionReceiver extends BroadcastReceiver {
   private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
   @Override public void onReceive(Context context, Intent intent) {
+    if (!intent.getBooleanExtra("confirmed", false)) {
+      Intent confirmation = new Intent(context, TradeActionConfirmationActivity.class);
+      confirmation.putExtra("endpoint", intent.getStringExtra("endpoint"));
+      confirmation.putExtra("token", intent.getStringExtra("token"));
+      confirmation.putExtra("action", intent.getStringExtra("action"));
+      confirmation.putExtra("notificationId", intent.getIntExtra("notificationId", -1));
+      confirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+      context.startActivity(confirmation);
+      return;
+    }
+
     final PendingResult pending = goAsync();
     final Context appContext = context.getApplicationContext();
     final String endpoint = intent.getStringExtra("endpoint");
@@ -224,6 +244,49 @@ public final class TradeActionReceiver extends BroadcastReceiver {
     if ("ONLY_RECEIVER_CAN_ACCEPT".equals(error) || "NOT_AUTHORIZED_FOR_TRADE_ACTION".equals(error)) return "This action is not assigned to this manager";
     if (error.startsWith("TRADE_WOULD_CREATE_INVALID")) return "Trade would leave an invalid squad";
     return "Trade update failed: " + error;
+  }
+}`;
+}
+
+function confirmationActivity(packageName) {
+  return `package ${packageName}.tradeactions;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.os.Bundle;
+
+public final class TradeActionConfirmationActivity extends Activity {
+  @Override protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+
+    final String endpoint = getIntent().getStringExtra("endpoint");
+    final String token = getIntent().getStringExtra("token");
+    final String action = getIntent().getStringExtra("action");
+    final int notificationId = getIntent().getIntExtra("notificationId", -1);
+    if (endpoint == null || token == null || (!"ACCEPT".equals(action) && !"REJECT".equals(action))) {
+      finish();
+      return;
+    }
+
+    final boolean accepting = "ACCEPT".equals(action);
+    final String verb = accepting ? "Accept" : "Reject";
+    new AlertDialog.Builder(this)
+      .setTitle(verb + " trade?")
+      .setMessage("Are you sure you want to " + verb.toLowerCase() + " this trade offer?")
+      .setNegativeButton("Cancel", (dialog, which) -> finish())
+      .setPositiveButton(verb, (dialog, which) -> {
+        Intent confirmed = new Intent(this, TradeActionReceiver.class);
+        confirmed.putExtra("endpoint", endpoint);
+        confirmed.putExtra("token", token);
+        confirmed.putExtra("action", action);
+        confirmed.putExtra("notificationId", notificationId);
+        confirmed.putExtra("confirmed", true);
+        sendBroadcast(confirmed);
+        finish();
+      })
+      .setOnCancelListener(dialog -> finish())
+      .show();
   }
 }`;
 }
