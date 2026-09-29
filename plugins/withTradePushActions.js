@@ -117,18 +117,21 @@ public final class TradeActionMessagingService extends ExpoFirebaseMessagingServ
       .setAutoCancel(true)
       .setOnlyAlertOnce(false);
     if (contentIntent != null) builder.setContentIntent(contentIntent);
-    builder.addAction(0, "Accept", actionIntent(notificationId, notificationId, endpoint, acceptToken, "ACCEPT"));
-    builder.addAction(0, "Reject", actionIntent(notificationId + 1, notificationId, endpoint, rejectToken, "REJECT"));
+    builder.addAction(0, "Accept", confirmationIntent(notificationId, notificationId, endpoint, acceptToken, "ACCEPT"));
+    builder.addAction(0, "Reject", confirmationIntent(notificationId + 1, notificationId, endpoint, rejectToken, "REJECT"));
     ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(notificationId, builder.build());
   }
 
-  private PendingIntent actionIntent(int requestCode, int notificationId, String endpoint, String token, String action) {
-    Intent intent = new Intent(this, TradeActionReceiver.class);
+  private PendingIntent confirmationIntent(int requestCode, int notificationId, String endpoint, String token, String action) {
+    // Notification actions launch this Activity directly. Starting an Activity
+    // from a background BroadcastReceiver is restricted on current Android.
+    Intent intent = new Intent(this, TradeActionConfirmationActivity.class);
     intent.putExtra("notificationId", notificationId);
     intent.putExtra("endpoint", endpoint);
     intent.putExtra("token", token);
     intent.putExtra("action", action);
-    return PendingIntent.getBroadcast(this, requestCode, intent,
+    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    return PendingIntent.getActivity(this, requestCode, intent,
       PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
   }
 
