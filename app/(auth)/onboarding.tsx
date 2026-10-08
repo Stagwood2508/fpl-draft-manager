@@ -5,6 +5,7 @@ import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
 import AuthScreenFrame from '@/components/AuthScreenFrame';
+import AuthHelpButton from '@/components/AuthHelpButton';
 
 export default function OnboardingScreen() {
   const { colors } = useAppTheme();
@@ -53,6 +54,10 @@ const { data: member } = await supabase
 
   return (
     <AuthScreenFrame contentStyle={styles.container}>
+      <AuthHelpButton
+        title="Getting started"
+        message="Choose Create a league if you are setting up a new competition and want to invite other managers. Choose Join a league if a commissioner has given you an invitation code. You can sign out safely if you are not ready yet."
+      />
       <Text style={styles.title}>Ecosystem Setup</Text>
       <Text style={styles.subtitle}>Initialize your draft framework target</Text>
 
@@ -100,7 +105,7 @@ const { data: member } = await supabase
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { justifyContent: 'center', padding: 20, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 20, backgroundColor: colors.background, position: 'relative' },
   title: { fontSize: 24, fontWeight: '900', color: colors.textPrimary, textTransform: 'uppercase' },
   subtitle: { fontSize: 13, color: colors.accent, marginBottom: 40, fontWeight: '600' },
   choiceCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent, padding: 20, borderRadius: 4, marginBottom: 16 },

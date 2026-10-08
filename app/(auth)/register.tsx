@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import AuthScreenFrame from '@/components/AuthScreenFrame';
+import AuthHelpButton from '@/components/AuthHelpButton';
 import type { AppColors } from '@/constants/theme';
 
 // Helper function to render alerts reliably across Web and Mobile
@@ -124,6 +125,10 @@ export default function RegisterScreen() {
 
   return (
     <AuthScreenFrame contentStyle={styles.container}>
+      <AuthHelpButton
+        title="Creating your account"
+        message="Use your real first and last name so league managers can recognise you. Enter an email address you can access, then create a password with at least 8 characters. You may need to confirm your email before signing in."
+      />
       <Text style={styles.title}>Draft FPL Hub</Text>
       <Text style={styles.subtitle}>Create Manager Account</Text>
 
@@ -201,7 +206,7 @@ export default function RegisterScreen() {
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background, position: 'relative' },
   title: { fontSize: 28, fontWeight: '900', color: colors.textPrimary, textAlign: 'center' },
   subtitle: { fontSize: 13, color: colors.accent, textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
   

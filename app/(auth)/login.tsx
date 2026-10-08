@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/utils/supabase';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import AuthScreenFrame from '@/components/AuthScreenFrame';
+import AuthHelpButton from '@/components/AuthHelpButton';
 import type { AppColors } from '@/constants/theme';
 
 // Helper function to render alerts reliably across Web and Mobile
@@ -81,6 +82,10 @@ export default function LoginScreen() {
 
   return (
     <AuthScreenFrame contentStyle={styles.container}>
+      <AuthHelpButton
+        title="Signing in"
+        message="Enter the email address and password you used when creating your manager account. If you have not created an account yet, choose Create one below. Use Forgot your password? if you need to reset it."
+      />
       <Text style={styles.title}>Draft FPL Hub</Text>
       <Text style={styles.subtitle}>Sign In To Squad</Text>
 
@@ -151,7 +156,7 @@ export default function LoginScreen() {
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background },
+  container: { justifyContent: 'center', padding: 24, backgroundColor: colors.background, position: 'relative' },
   title: { fontSize: 28, fontWeight: '900', color: colors.textPrimary, textAlign: 'center' },
   subtitle: { fontSize: 13, color: colors.accent, textAlign: 'center', marginBottom: 30, textTransform: 'uppercase', fontWeight: '700' },
   
