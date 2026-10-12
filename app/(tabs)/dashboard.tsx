@@ -485,6 +485,20 @@ export default function HomeDashboardScreen() {
 
   return (
     <View style={styles.container}>
+      {fixtureIsLive ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={[appColors.backgroundElevated, appColors.backgroundDeep, appColors.background]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.matchdayBackdrop}
+        >
+          <View style={styles.matchdayStadiumArc} />
+          <View style={styles.matchdayStadiumLights}>
+            {[0, 1, 2, 3, 4, 5, 6, 7].map(light => <View key={light} style={styles.matchdayStadiumLight} />)}
+          </View>
+        </LinearGradient>
+      ) : null}
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -493,7 +507,12 @@ export default function HomeDashboardScreen() {
             tintColor={appColors.accent}
           />
         }
-        contentContainerStyle={[styles.scrollContent, !isDesktop && styles.scrollContentMobile]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          !isDesktop && styles.scrollContentMobile,
+          styles.transparentHeaderContent,
+          fixtureIsLive && styles.liveScrollContent,
+        ]}
       >
         <View style={[styles.page, isDesktop ? styles.pageDesktop : styles.pageMobile]}>
           <LinearGradient
@@ -1082,6 +1101,12 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   loadingText: { ...appTypography.body, color: appColors.textMuted },
   scrollContent: { padding: appSpacing.md, paddingBottom: 36 },
   scrollContentMobile: { flexGrow: 1, padding: appSpacing.sm, paddingBottom: appSpacing.sm },
+  transparentHeaderContent: { paddingTop: 76 },
+  liveScrollContent: { paddingTop: 86 },
+  matchdayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 255, overflow: 'hidden' },
+  matchdayStadiumArc: { position: 'absolute', top: -125, left: '-22%', width: '144%', height: 230, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: 260, opacity: 0.75 },
+  matchdayStadiumLights: { position: 'absolute', top: 27, left: 24, right: 24, flexDirection: 'row', justifyContent: 'space-between' },
+  matchdayStadiumLight: { width: 6, height: 6, borderRadius: 3, backgroundColor: appColors.textPrimary, shadowColor: appColors.accent, shadowOpacity: 0.9, shadowRadius: 9, elevation: 4 },
   page: { width: '100%', gap: appSpacing.md },
   pageMobile: { flex: 1, gap: appSpacing.sm },
   pageDesktop: { maxWidth: 1180, alignSelf: 'center', gap: appSpacing.lg },
