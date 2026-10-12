@@ -95,6 +95,7 @@ interface HomeDashboardState {
   gameweek: HomeGameweek | null;
   standings: HomeStanding[];
   fixture: HomeFixture | null;
+  fixtures: HomeFixture[];
   lineup: HomeLineupSummary;
   waiver: HomeWaiverSummary;
   pendingTrades: number;
@@ -111,6 +112,7 @@ const EMPTY_STATE: HomeDashboardState = {
   gameweek: null,
   standings: [],
   fixture: null,
+  fixtures: [],
   lineup: {
     formation: '—',
     rosterCount: 0,
@@ -231,6 +233,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         draftResponse,
         standingsResponse,
         fixtureResponse,
+        fixturesResponse,
         rosterResponse,
         snapshotResponse,
         waiverResponse,
@@ -257,6 +260,12 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           .eq('gameweek', gameweekNumber)
           .or(`home_user_id.eq.${currentUserId},away_user_id.eq.${currentUserId}`)
           .maybeSingle(),
+        supabase
+          .from('league_fixtures')
+          .select('id, gameweek, home_user_id, away_user_id, home_team_name, away_team_name, home_score, away_score, is_finished, is_league_average')
+          .eq('league_id', activeLeagueId)
+          .eq('gameweek', gameweekNumber)
+          .order('home_team_name', { ascending: true }),
         supabase
           .from('rosters')
           .select('is_starting, players(element_type)')
@@ -308,6 +317,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
 
       if (standingsResponse.error) throw standingsResponse.error;
       if (fixtureResponse.error) throw fixtureResponse.error;
+      if (fixturesResponse.error) throw fixturesResponse.error;
       if (rosterResponse.error) throw rosterResponse.error;
       if (pendingTradeResponse.error) {
         console.warn('[HOME DASHBOARD] Pending trade count unavailable:', pendingTradeResponse.error.message);
@@ -317,32 +327,37 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         console.warn('[HOME DASHBOARD] Chronicle teaser unavailable:', chronicleResponse.error.message);
       }
 
-      let fixture: HomeFixture | null = fixtureResponse.data ? {
-        id: String(fixtureResponse.data.id),
-        gameweek: Number(fixtureResponse.data.gameweek),
-        homeUserId: fixtureResponse.data.home_user_id || null,
-        awayUserId: fixtureResponse.data.away_user_id || null,
-        homeTeamName: fixtureResponse.data.home_team_name || 'Home Team',
-        awayTeamName: fixtureResponse.data.away_team_name || 'Away Team',
-        homeScore: Number(fixtureResponse.data.home_score || 0),
-        awayScore: Number(fixtureResponse.data.away_score || 0),
-        isFinished: Boolean(fixtureResponse.data.is_finished),
-        isLeagueAverage: Boolean(fixtureResponse.data.is_league_average),
-      } : null;
+      const mapFixture = (raw: any): HomeFixture => ({
+        id: String(raw.id),
+        gameweek: Number(raw.gameweek),
+        homeUserId: raw.home_user_id || null,
+        awayUserId: raw.away_user_id || null,
+        homeTeamName: raw.home_team_name || 'Home Team',
+        awayTeamName: raw.away_team_name || 'Away Team',
+        homeScore: Number(raw.home_score || 0),
+        awayScore: Number(raw.away_score || 0),
+        isFinished: Boolean(raw.is_finished),
+        isLeagueAverage: Boolean(raw.is_league_average),
+      });
+      let fixtures = (fixturesResponse.data || []).map(mapFixture);
+      let fixture: HomeFixture | null = fixtureResponse.data ? mapFixture(fixtureResponse.data) : null;
 
-      if (fixture && isLive) {
+      if (isLive) {
         const { data: liveScores } = await supabase.rpc('get_league_live_fixture_scores', {
           p_league_id: activeLeagueId,
           p_gameweek: gameweekNumber,
         });
-        const liveFixture = (liveScores || []).find((row: any) => String(row.fixture_id) === fixture?.id);
-        if (liveFixture) {
-          fixture = {
-            ...fixture,
+        const liveScoreByFixture = new Map<string, any>((liveScores || []).map((row: any): [string, any] => [String(row.fixture_id), row]));
+        const applyLiveScore = (item: HomeFixture) => {
+          const liveFixture = liveScoreByFixture.get(item.id);
+          return liveFixture ? {
+            ...item,
             homeScore: Number(liveFixture.home_score || 0),
             awayScore: Number(liveFixture.away_score || 0),
-          };
-        }
+          } : item;
+        };
+        fixtures = fixtures.map(applyLiveScore);
+        fixture = fixture ? applyLiveScore(fixture) : null;
       }
 
       const roster = rosterResponse.data || [];
@@ -378,6 +393,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           pointsFor: Number(row.total_h2h_score || 0),
         })),
         fixture,
+        fixtures,
         lineup: {
           formation,
           rosterCount: roster.length,

@@ -146,6 +146,7 @@ export default function HomeDashboardScreen() {
     gameweek,
     standings,
     fixture,
+    fixtures,
     lineup,
     waiver,
     pendingTrades,
@@ -327,6 +328,59 @@ export default function HomeDashboardScreen() {
     </TouchableOpacity>
   );
 
+  const leagueMatchesLiveCard = fixtureIsLive ? (
+    <View style={styles.liveLeagueMatchesCard}>
+      <View style={styles.liveLeagueMatchesHeading}>
+        <View>
+          <View style={styles.liveTitleRow}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveMatchesEyebrow}>GAMEWEEK {gameweek?.gameweek || '—'} LIVE</Text>
+          </View>
+          <Text style={styles.liveMatchesTitle}>League matches live</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.liveMatchesViewAll}
+          onPress={() => router.push('/(tabs)/league/matches')}
+          accessibilityLabel="View all live league matches"
+        >
+          <Text style={styles.liveMatchesViewAllText}>MATCH CENTRE</Text>
+          <Ionicons name="arrow-forward" size={13} color={appColors.accent} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.liveMatchList}>
+        {fixtures.filter(item => !item.isLeagueAverage).map(item => {
+          const isMyFixture = item.homeUserId === currentUserId || item.awayUserId === currentUserId;
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={[styles.liveMatchRow, isMyFixture && styles.liveMatchRowMine]}
+              onPress={() => router.push({ pathname: '/(tabs)/league/matches', params: { fixtureId: item.id, gameweek: String(item.gameweek) } } as any)}
+              activeOpacity={0.78}
+              accessibilityLabel={`View ${item.homeTeamName} versus ${item.awayTeamName}`}
+            >
+              <View style={styles.liveMatchTeam}>
+                <Text style={[styles.liveMatchTeamName, item.homeUserId === currentUserId && styles.liveMatchTeamNameMine]} numberOfLines={1}>
+                  {item.homeTeamName}
+                </Text>
+              </View>
+              <View style={styles.liveMatchScoreWrap}>
+                <Text style={styles.liveMatchScore}>{item.homeScore}–{item.awayScore}</Text>
+                {isMyFixture ? <Text style={styles.liveMatchYouLabel}>YOUR MATCH</Text> : null}
+              </View>
+              <View style={[styles.liveMatchTeam, styles.liveMatchTeamAway]}>
+                <Text style={[styles.liveMatchTeamName, styles.liveMatchTeamNameAway, item.awayUserId === currentUserId && styles.liveMatchTeamNameMine]} numberOfLines={1}>
+                  {item.awayTeamName}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color={appColors.textDisabled} />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  ) : null;
+
   const deadlineCard = (
     <View style={[styles.deadlineCard, isDesktop && styles.deadlineCardDesktop]}>
       <View style={styles.cardHeadingRow}>
@@ -374,8 +428,21 @@ export default function HomeDashboardScreen() {
   <Ionicons name="chevron-down" size={16} color={appColors.accent} />
 </TouchableOpacity>
               <Text style={styles.leagueMeta}>
-                {myStanding ? `#${myStanding.rank} · ${myStanding.points} league pts` : 'Season overview'}
+                {myStanding ? `${myStanding.played} played · ${myStanding.won} won` : 'Season overview'}
               </Text>
+              {myStanding ? (
+                <View style={styles.leagueMetrics}>
+                  <View style={styles.leagueMetric}>
+                    <Text style={styles.leagueMetricLabel}>POSITION</Text>
+                    <Text style={styles.leagueMetricValue}>#{myStanding.rank}</Text>
+                  </View>
+                  <View style={styles.leagueMetricDivider} />
+                  <View style={styles.leagueMetric}>
+                    <Text style={styles.leagueMetricLabel}>LEAGUE PTS</Text>
+                    <Text style={[styles.leagueMetricValue, styles.leagueMetricValueAccent]}>{myStanding.points}</Text>
+                  </View>
+                </View>
+              ) : null}
             </View>
             <View style={styles.leagueActions}>
                 <TouchableOpacity
@@ -483,6 +550,8 @@ export default function HomeDashboardScreen() {
                 {fixtureCard}
                 {deadlineCard}
               </View>
+
+              {leagueMatchesLiveCard}
 
               <View style={styles.sectionHeadingRow}>
                 <View>
@@ -676,6 +745,8 @@ export default function HomeDashboardScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
+
+                  {leagueMatchesLiveCard}
 
                   <View style={styles.mobileStatusStrip}>
                     <TouchableOpacity style={styles.mobileStatusItem} onPress={() => router.push('/(tabs)/squad')}>
@@ -918,13 +989,19 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   page: { width: '100%', gap: appSpacing.md },
   pageMobile: { flex: 1, gap: appSpacing.sm },
   pageDesktop: { maxWidth: 1180, alignSelf: 'center', gap: appSpacing.lg },
-  leagueBar: { minHeight: 68, flexDirection: 'row', alignItems: 'center', paddingHorizontal: appSpacing.lg, paddingVertical: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
-  leagueBarMobile: { minHeight: 54, paddingHorizontal: appSpacing.md, paddingVertical: appSpacing.sm, borderRadius: appRadius.medium },
+  leagueBar: { minHeight: 88, flexDirection: 'row', alignItems: 'center', paddingHorizontal: appSpacing.lg, paddingVertical: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.large },
+  leagueBarMobile: { minHeight: 78, paddingHorizontal: appSpacing.md, paddingVertical: appSpacing.sm, borderRadius: appRadius.medium },
   leagueIdentity: { flex: 1, minWidth: 0 },
   eyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 9 },
   leagueSelector: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   leagueName: { ...appTypography.screenTitle, flexShrink: 1, color: appColors.textPrimary },
   leagueMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 3 },
+  leagueMetrics: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+  leagueMetric: { gap: 1 },
+  leagueMetricLabel: { ...appTypography.label, color: appColors.textMuted, fontSize: 7 },
+  leagueMetricValue: { color: appColors.textPrimary, fontSize: 14, fontWeight: '900' },
+  leagueMetricValueAccent: { color: appColors.accent },
+  leagueMetricDivider: { width: 1, height: 25, backgroundColor: appColors.border },
   settingsButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.medium },
   settingsText: { ...appTypography.label, color: appColors.accent },
   leagueActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -981,6 +1058,24 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   emptyFixtureMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 3 },
   cardLinkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: appColors.borderSubtle },
   cardLinkText: { ...appTypography.label, color: appColors.accent, fontSize: 9 },
+  liveLeagueMatchesCard: { overflow: 'hidden', padding: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.large },
+  liveLeagueMatchesHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: appSpacing.sm, marginBottom: appSpacing.sm },
+  liveTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveMatchesEyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
+  liveMatchesTitle: { ...appTypography.sectionTitle, color: appColors.textPrimary, fontSize: 16, letterSpacing: 0, marginTop: 2 },
+  liveMatchesViewAll: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 9, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.small },
+  liveMatchesViewAllText: { ...appTypography.label, color: appColors.accent, fontSize: 8 },
+  liveMatchList: { overflow: 'hidden', borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
+  liveMatchRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 9, backgroundColor: appColors.surface, borderBottomWidth: 1, borderBottomColor: appColors.borderSubtle },
+  liveMatchRowMine: { backgroundColor: appColors.accentSoft, borderBottomColor: appColors.accentBorder },
+  liveMatchTeam: { flex: 1, minWidth: 0 },
+  liveMatchTeamAway: { alignItems: 'flex-end' },
+  liveMatchTeamName: { color: appColors.textPrimary, fontSize: 11, fontWeight: '800' },
+  liveMatchTeamNameAway: { textAlign: 'right' },
+  liveMatchTeamNameMine: { color: appColors.accent },
+  liveMatchScoreWrap: { width: 56, alignItems: 'center' },
+  liveMatchScore: { color: appColors.textPrimary, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
+  liveMatchYouLabel: { ...appTypography.label, color: appColors.accent, fontSize: 6, marginTop: 1 },
   deadlineIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
   deadlineStatus: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
   deadlineGameweek: { ...appTypography.label, color: appColors.textSecondary, marginTop: appSpacing.lg },
