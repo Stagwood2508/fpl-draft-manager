@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
+import PlayerHeadshot from '@/components/PlayerHeadshot';
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
@@ -148,6 +149,9 @@ export default function HomeDashboardScreen() {
     standings,
     fixture,
     fixtures,
+    livePlayers,
+    premierLeagueFixtures,
+    nextEvent,
     lineup,
     waiver,
     pendingTrades,
@@ -329,6 +333,30 @@ export default function HomeDashboardScreen() {
     </TouchableOpacity>
   );
 
+  const liveScoreRibbon = fixtureIsLive && premierLeagueFixtures.length > 0 ? (
+    <View style={styles.liveScoreRibbon}>
+      <View style={styles.liveScoreRibbonHeading}>
+        <View style={styles.liveTitleRow}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveMatchesEyebrow}>GAMEWEEK {gameweek?.gameweek || '—'} LIVE</Text>
+        </View>
+        <Text style={styles.liveScoreRibbonMeta}>{premierLeagueFixtures.length} FIXTURES</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScoreRibbonList}>
+        {premierLeagueFixtures.map(item => {
+          const started = item.homeScore !== null || item.awayScore !== null;
+          return (
+            <View key={item.id} style={styles.liveScoreChip}>
+              <Text style={styles.liveScoreTeams}>{item.homeTeam} · {item.awayTeam}</Text>
+              <Text style={styles.liveScoreChipValue}>{started ? `${item.homeScore ?? 0}–${item.awayScore ?? 0}` : 'UP NEXT'}</Text>
+              <Text style={styles.liveScoreChipMeta}>{item.isFinished ? 'FT' : started ? 'LIVE' : item.kickoffTime ? new Date(item.kickoffTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBC'}</Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  ) : null;
+
   const leagueMatchesLiveCard = fixtureIsLive ? (
     <View style={styles.liveLeagueMatchesCard}>
       <View style={styles.liveLeagueMatchesHeading}>
@@ -380,6 +408,57 @@ export default function HomeDashboardScreen() {
         })}
       </View>
     </View>
+  ) : null;
+
+  const livePlayersCard = fixtureIsLive && livePlayers.length > 0 ? (
+    <TouchableOpacity
+      style={styles.livePlayersCard}
+      onPress={() => router.push('/(tabs)/squad')}
+      activeOpacity={0.8}
+      accessibilityLabel="View your live player scores"
+    >
+      <View style={styles.liveLeagueMatchesHeading}>
+        <View>
+          <Text style={styles.liveMatchesEyebrow}>YOUR SQUAD</Text>
+          <Text style={styles.liveMatchesTitle}>Players live</Text>
+        </View>
+        <View style={styles.livePlayersCount}>
+          <Text style={styles.livePlayersCountText}>{livePlayers.length}/11 PLAYING</Text>
+          <Ionicons name="chevron-forward" size={15} color={appColors.textDisabled} />
+        </View>
+      </View>
+      <View style={styles.livePlayerList}>
+        {livePlayers.map(player => (
+          <View key={player.playerId} style={styles.livePlayerRow}>
+            <View style={styles.livePlayerAvatar}>
+              <PlayerHeadshot code={player.code} photoCode={player.photoCode} teamId={player.teamId} style={styles.livePlayerPhoto} fallbackSize={30} />
+            </View>
+            <View style={styles.livePlayerCopy}>
+              <Text style={styles.livePlayerName} numberOfLines={1}>{player.playerName}</Text>
+              <Text style={styles.livePlayerMeta}>{player.clubName} · {player.minutes}'</Text>
+            </View>
+            <View style={styles.livePlayerEvents}>
+              {player.goals > 0 ? <Text style={styles.livePlayerEvent}>⚽ {player.goals}</Text> : null}
+              {player.assists > 0 ? <Text style={styles.livePlayerEvent}>↗ {player.assists}</Text> : null}
+              {player.yellowCards > 0 ? <View style={styles.livePlayerYellow} /> : null}
+            </View>
+            <Text style={styles.livePlayerPoints}>{player.points} PTS</Text>
+          </View>
+        ))}
+      </View>
+    </TouchableOpacity>
+  ) : null;
+
+  const nextEventCard = fixtureIsLive && nextEvent ? (
+    <TouchableOpacity style={styles.nextEventCard} onPress={() => router.push('/(tabs)/squad')} activeOpacity={0.8}>
+      <View style={styles.nextEventIcon}><Ionicons name="time-outline" size={18} color={appColors.accent} /></View>
+      <View style={styles.nextEventCopy}>
+        <Text style={styles.liveMatchesEyebrow}>NEXT EVENT</Text>
+        <Text style={styles.nextEventName}>{nextEvent.playerName} · {nextEvent.opponent}</Text>
+        <Text style={styles.nextEventMeta}>{new Date(nextEvent.kickoffTime).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={17} color={appColors.textDisabled} />
+    </TouchableOpacity>
   ) : null;
 
   const deadlineCard = (
@@ -492,6 +571,8 @@ export default function HomeDashboardScreen() {
             </View>
           </LinearGradient>
 
+          {liveScoreRibbon}
+
           {errorMessage && (
             <TouchableOpacity style={styles.errorBanner} onPress={() => void refresh(false)}>
               <Ionicons name="cloud-offline-outline" size={18} color={appColors.danger} />
@@ -563,6 +644,8 @@ export default function HomeDashboardScreen() {
               </View>
 
               {leagueMatchesLiveCard}
+              {livePlayersCard}
+              {nextEventCard}
 
               <View style={styles.sectionHeadingRow}>
                 <View>
@@ -758,6 +841,8 @@ export default function HomeDashboardScreen() {
                   </View>
 
                   {leagueMatchesLiveCard}
+                  {livePlayersCard}
+                  {nextEventCard}
 
                   <View style={styles.mobileStatusStrip}>
                     <TouchableOpacity style={styles.mobileStatusItem} onPress={() => router.push('/(tabs)/squad')}>
@@ -1091,6 +1176,33 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   liveMatchScoreWrap: { width: 56, alignItems: 'center' },
   liveMatchScore: { color: appColors.textPrimary, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
   liveMatchYouLabel: { ...appTypography.label, color: appColors.accent, fontSize: 6, marginTop: 1 },
+  liveScoreRibbon: { overflow: 'hidden', paddingVertical: 9, backgroundColor: appColors.backgroundDeep, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
+  liveScoreRibbonHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: appSpacing.md, marginBottom: 7 },
+  liveScoreRibbonMeta: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
+  liveScoreRibbonList: { gap: 7, paddingHorizontal: appSpacing.md },
+  liveScoreChip: { width: 112, minHeight: 55, justifyContent: 'center', paddingHorizontal: 9, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.small },
+  liveScoreTeams: { color: appColors.textSecondary, fontSize: 8, fontWeight: '900' },
+  liveScoreChipValue: { color: appColors.textPrimary, fontSize: 17, fontWeight: '900', marginTop: 2 },
+  liveScoreChipMeta: { ...appTypography.label, color: appColors.accent, fontSize: 7, marginTop: 1 },
+  livePlayersCard: { overflow: 'hidden', padding: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
+  livePlayersCount: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  livePlayersCountText: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
+  livePlayerList: { overflow: 'hidden', borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
+  livePlayerRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 8, backgroundColor: appColors.surface, borderBottomWidth: 1, borderBottomColor: appColors.borderSubtle },
+  livePlayerAvatar: { width: 36, height: 42, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: appRadius.small, backgroundColor: appColors.backgroundDeep },
+  livePlayerPhoto: { width: 36, height: 42 },
+  livePlayerCopy: { flex: 1, minWidth: 0 },
+  livePlayerName: { color: appColors.textPrimary, fontSize: 12, fontWeight: '900' },
+  livePlayerMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 2 },
+  livePlayerEvents: { minWidth: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  livePlayerEvent: { color: appColors.accent, fontSize: 10, fontWeight: '900' },
+  livePlayerYellow: { width: 8, height: 12, borderRadius: 1, backgroundColor: '#F6C945' },
+  livePlayerPoints: { minWidth: 48, color: appColors.accent, fontSize: 12, fontWeight: '900', textAlign: 'right' },
+  nextEventCard: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: appSpacing.md, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large },
+  nextEventIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.medium },
+  nextEventCopy: { flex: 1, minWidth: 0 },
+  nextEventName: { color: appColors.textPrimary, fontSize: 13, fontWeight: '900', marginTop: 2 },
+  nextEventMeta: { ...appTypography.metadata, color: appColors.textMuted, marginTop: 2 },
   deadlineIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
   deadlineStatus: { ...appTypography.label, color: appColors.textMuted, fontSize: 8 },
   deadlineGameweek: { ...appTypography.label, color: appColors.textSecondary, marginTop: appSpacing.lg },

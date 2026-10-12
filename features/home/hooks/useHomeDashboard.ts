@@ -55,6 +55,36 @@ export interface HomeFixture {
   isLeagueAverage: boolean;
 }
 
+export interface HomeLivePlayer {
+  playerId: number;
+  playerName: string;
+  clubName: string;
+  minutes: number;
+  points: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  code: number | null;
+  photoCode: number | null;
+  teamId: number | null;
+}
+
+export interface HomePremierLeagueFixture {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  kickoffTime: string | null;
+  isFinished: boolean;
+}
+
+export interface HomeNextEvent {
+  playerName: string;
+  opponent: string;
+  kickoffTime: string;
+}
+
 export interface HomeLineupSummary {
   formation: string;
   rosterCount: number;
@@ -96,6 +126,9 @@ interface HomeDashboardState {
   standings: HomeStanding[];
   fixture: HomeFixture | null;
   fixtures: HomeFixture[];
+  livePlayers: HomeLivePlayer[];
+  premierLeagueFixtures: HomePremierLeagueFixture[];
+  nextEvent: HomeNextEvent | null;
   lineup: HomeLineupSummary;
   waiver: HomeWaiverSummary;
   pendingTrades: number;
@@ -113,6 +146,9 @@ const EMPTY_STATE: HomeDashboardState = {
   standings: [],
   fixture: null,
   fixtures: [],
+  livePlayers: [],
+  premierLeagueFixtures: [],
+  nextEvent: null,
   lineup: {
     formation: '—',
     rosterCount: 0,
@@ -203,7 +239,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
       const premierLeagueFixturesResponse = selectedGameweek
         ? await supabase
             .from('fixtures')
-            .select('is_finished, is_finished_provisional')
+            .select('id, home_team_id, away_team_id, home_team_short, away_team_short, home_score, away_score, kickoff_time, is_finished, is_finished_provisional')
             .eq('gameweek', Number(selectedGameweek.gameweek))
         : { data: [], error: null };
       if (premierLeagueFixturesResponse.error) throw premierLeagueFixturesResponse.error;
@@ -268,7 +304,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
           .order('home_team_name', { ascending: true }),
         supabase
           .from('rosters')
-          .select('is_starting, players(element_type)')
+          .select('is_starting, players(element_type, team_id, web_name)')
           .eq('league_id', activeLeagueId)
           .eq('user_id', currentUserId),
         supabase
@@ -342,6 +378,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
       let fixtures = (fixturesResponse.data || []).map(mapFixture);
       let fixture: HomeFixture | null = fixtureResponse.data ? mapFixture(fixtureResponse.data) : null;
 
+      let livePlayers: HomeLivePlayer[] = [];
       if (isLive) {
         const { data: liveScores } = await supabase.rpc('get_league_live_fixture_scores', {
           p_league_id: activeLeagueId,
@@ -358,6 +395,40 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         };
         fixtures = fixtures.map(applyLiveScore);
         fixture = fixture ? applyLiveScore(fixture) : null;
+
+        const { data: playerScores, error: playerScoresError } = await supabase.rpc('get_league_gameweek_player_scores', {
+          p_league_id: activeLeagueId,
+          p_gameweek: gameweekNumber,
+        });
+        if (playerScoresError) {
+          console.warn('[HOME DASHBOARD] Live player scores unavailable:', playerScoresError.message);
+        } else {
+          const myLiveRows = (playerScores || [])
+            .filter((row: any) => String(row.user_id) === String(currentUserId) && Number(row.minutes || 0) > 0)
+            .sort((a: any, b: any) => Number(b.combined_points || 0) - Number(a.combined_points || 0));
+          const playerIds = myLiveRows.map((row: any) => Number(row.player_id)).filter(Boolean);
+          const { data: playerVisuals, error: playerVisualsError } = playerIds.length > 0
+            ? await supabase.from('players').select('id, code, photo_code, team_id').in('id', playerIds)
+            : { data: [], error: null };
+          if (playerVisualsError) console.warn('[HOME DASHBOARD] Live player visuals unavailable:', playerVisualsError.message);
+          const visualByPlayer = new Map((playerVisuals || []).map((player: any): [number, any] => [Number(player.id), player]));
+          livePlayers = myLiveRows.slice(0, 5).map((row: any) => {
+            const visual = visualByPlayer.get(Number(row.player_id));
+            return {
+              playerId: Number(row.player_id),
+              playerName: row.player_name || 'Player',
+              clubName: row.club_name || '',
+              minutes: Number(row.minutes || 0),
+              points: Number(row.combined_points || 0),
+              goals: Number(row.goal_count || 0),
+              assists: Number(row.assist_count || 0),
+              yellowCards: Number(row.yellow_card_count || 0),
+              code: visual?.code ?? null,
+              photoCode: visual?.photo_code ?? null,
+              teamId: visual?.team_id ?? null,
+            };
+          });
+        }
       }
 
       const roster = rosterResponse.data || [];
@@ -370,6 +441,29 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
       const formation = starters.length === 11
         ? `${starterCounts.DEF || 0}-${starterCounts.MID || 0}-${starterCounts.FWD || 0}`
         : '—';
+      const nextEventFixture = isLive
+        ? (premierLeagueFixturesResponse.data || [])
+          .filter((item: any) => item.kickoff_time && new Date(item.kickoff_time).getTime() > now)
+          .sort((a: any, b: any) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
+          .find((item: any) => starters.some((row: any) => {
+            const player = firstRelation<any>(row.players);
+            const teamId = Number(player?.team_id || 0);
+            return teamId === Number(item.home_team_id) || teamId === Number(item.away_team_id);
+          }))
+        : null;
+      const nextEventPlayer = nextEventFixture
+        ? starters.map((row: any) => firstRelation<any>(row.players)).find((player: any) => {
+            const teamId = Number(player?.team_id || 0);
+            return teamId === Number(nextEventFixture.home_team_id) || teamId === Number(nextEventFixture.away_team_id);
+          })
+        : null;
+      const nextEvent: HomeNextEvent | null = nextEventFixture && nextEventPlayer ? {
+        playerName: nextEventPlayer.web_name || 'Your player',
+        opponent: Number(nextEventPlayer.team_id) === Number(nextEventFixture.home_team_id)
+          ? `${nextEventFixture.away_team_short || 'OPP'} H`
+          : `${nextEventFixture.home_team_short || 'OPP'} A`,
+        kickoffTime: nextEventFixture.kickoff_time,
+      } : null;
 
       const waiverData: any = waiverResponse.data || {};
       const draftStatus = String(draftResponse.data?.draft_status || activeMembership?.league.draftStatus || '');
@@ -394,6 +488,17 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
         })),
         fixture,
         fixtures,
+        livePlayers,
+        premierLeagueFixtures: isLive ? (premierLeagueFixturesResponse.data || []).map((item: any) => ({
+          id: Number(item.id),
+          homeTeam: item.home_team_short || 'HOME',
+          awayTeam: item.away_team_short || 'AWAY',
+          homeScore: item.home_score === null || item.home_score === undefined ? null : Number(item.home_score),
+          awayScore: item.away_score === null || item.away_score === undefined ? null : Number(item.away_score),
+          kickoffTime: item.kickoff_time || null,
+          isFinished: Boolean(item.is_finished),
+        })) : [],
+        nextEvent,
         lineup: {
           formation,
           rosterCount: roster.length,
