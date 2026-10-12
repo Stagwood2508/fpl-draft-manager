@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router/react-navigation';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -416,7 +417,17 @@ export default function HomeDashboardScreen() {
         contentContainerStyle={[styles.scrollContent, !isDesktop && styles.scrollContentMobile]}
       >
         <View style={[styles.page, isDesktop ? styles.pageDesktop : styles.pageMobile]}>
-          <View style={[styles.leagueBar, !isDesktop && styles.leagueBarMobile]}>
+          <LinearGradient
+            colors={[appColors.backgroundElevated, appColors.surface, appColors.backgroundElevated]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.leagueBar, !isDesktop && styles.leagueBarMobile]}
+          >
+            <View pointerEvents="none" style={styles.stadiumGlow} />
+            <View pointerEvents="none" style={styles.stadiumArc} />
+            <View pointerEvents="none" style={styles.stadiumLights}>
+              {[0, 1, 2, 3, 4, 5].map(light => <View key={light} style={styles.stadiumLight} />)}
+            </View>
             <View style={styles.leagueIdentity}>
               <Text style={styles.eyebrow}>ACTIVE LEAGUE</Text>
 <TouchableOpacity
@@ -479,7 +490,7 @@ export default function HomeDashboardScreen() {
                 </>
               )}
             </View>
-          </View>
+          </LinearGradient>
 
           {errorMessage && (
             <TouchableOpacity style={styles.errorBanner} onPress={() => void refresh(false)}>
@@ -989,9 +1000,13 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   page: { width: '100%', gap: appSpacing.md },
   pageMobile: { flex: 1, gap: appSpacing.sm },
   pageDesktop: { maxWidth: 1180, alignSelf: 'center', gap: appSpacing.lg },
-  leagueBar: { minHeight: 88, flexDirection: 'row', alignItems: 'center', paddingHorizontal: appSpacing.lg, paddingVertical: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.large },
-  leagueBarMobile: { minHeight: 78, paddingHorizontal: appSpacing.md, paddingVertical: appSpacing.sm, borderRadius: appRadius.medium },
-  leagueIdentity: { flex: 1, minWidth: 0 },
+  leagueBar: { position: 'relative', minHeight: 112, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', paddingHorizontal: appSpacing.lg, paddingVertical: appSpacing.md, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.large },
+  leagueBarMobile: { minHeight: 98, paddingHorizontal: appSpacing.md, paddingVertical: appSpacing.sm, borderRadius: appRadius.medium },
+  stadiumGlow: { position: 'absolute', width: 260, height: 180, right: -72, top: -76, borderRadius: 130, backgroundColor: appColors.accentSoft, opacity: 0.78 },
+  stadiumArc: { position: 'absolute', width: '118%', height: 115, left: '-9%', top: -87, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: 200, opacity: 0.78 },
+  stadiumLights: { position: 'absolute', top: 8, left: 25, right: 25, flexDirection: 'row', justifyContent: 'space-between', opacity: 0.88 },
+  stadiumLight: { width: 5, height: 5, borderRadius: 3, backgroundColor: appColors.textPrimary, shadowColor: appColors.accent, shadowOpacity: 0.8, shadowRadius: 6, elevation: 3 },
+  leagueIdentity: { flex: 1, minWidth: 0, zIndex: 1 },
   eyebrow: { ...appTypography.label, color: appColors.accent, fontSize: 9 },
   leagueSelector: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   leagueName: { ...appTypography.screenTitle, flexShrink: 1, color: appColors.textPrimary },
@@ -1004,7 +1019,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   leagueMetricDivider: { width: 1, height: 25, backgroundColor: appColors.border },
   settingsButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, backgroundColor: appColors.accentSoft, borderWidth: 1, borderColor: appColors.accentBorder, borderRadius: appRadius.medium },
   settingsText: { ...appTypography.label, color: appColors.accent },
-  leagueActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  leagueActions: { flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 1 },
   headerActionBadge: { position: 'absolute', top: -9, right: -11, minWidth: 17, height: 15, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderRadius: appRadius.pill, backgroundColor: appColors.danger },
   headerActionBadgeText: { color: '#FFFFFF', fontSize: 7, fontWeight: '900' },
   errorBanner: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: appSpacing.md, backgroundColor: appColors.dangerSoft, borderWidth: 1, borderColor: appColors.dangerBorder, borderRadius: appRadius.medium },
@@ -1029,7 +1044,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   draftLiveMeta: { ...appTypography.body, color: appColors.textMuted, marginTop: 5 },
   heroGrid: { gap: appSpacing.md },
   heroGridDesktop: { flexDirection: 'row', alignItems: 'stretch' },
-  fixtureCard: { minHeight: 205, padding: appSpacing.lg, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
+  fixtureCard: { minHeight: 205, padding: appSpacing.lg, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: appRadius.large, shadowColor: '#000000', shadowOpacity: 0.16, shadowRadius: 13, elevation: 2 },
   fixtureCardDesktop: { flex: 1.65 },
   deadlineCard: { minHeight: 190, padding: appSpacing.lg, backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
   deadlineCardDesktop: { flex: 1 },
