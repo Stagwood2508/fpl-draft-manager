@@ -333,12 +333,14 @@ export default function HomeDashboardScreen() {
     </TouchableOpacity>
   );
 
-  const liveScoreRibbon = fixtureIsLive && premierLeagueFixtures.length > 0 ? (
+  const matchdayScoreRibbon = premierLeagueFixtures.length > 0 ? (
     <View style={styles.liveScoreRibbon}>
       <View style={styles.liveScoreRibbonHeading}>
         <View style={styles.liveTitleRow}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveMatchesEyebrow}>GAMEWEEK {gameweek?.gameweek || '—'} LIVE</Text>
+          {fixtureIsLive ? <View style={styles.liveDot} /> : <Ionicons name="calendar-outline" size={13} color={appColors.accent} />}
+          <Text style={styles.liveMatchesEyebrow}>
+            GAMEWEEK {gameweek?.gameweek || '—'} {fixtureIsLive ? 'LIVE' : fixtureAwaitingConfirmation ? 'SCORES CHECKING' : fixture?.isFinished ? 'COMPLETE' : 'NEXT UP'}
+          </Text>
         </View>
         <Text style={styles.liveScoreRibbonMeta}>{premierLeagueFixtures.length} FIXTURES</Text>
       </View>
@@ -485,20 +487,18 @@ export default function HomeDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      {fixtureIsLive ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={[appColors.backgroundElevated, appColors.backgroundDeep, appColors.background]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.matchdayBackdrop}
-        >
-          <View style={styles.matchdayStadiumArc} />
-          <View style={styles.matchdayStadiumLights}>
-            {[0, 1, 2, 3, 4, 5, 6, 7].map(light => <View key={light} style={styles.matchdayStadiumLight} />)}
-          </View>
-        </LinearGradient>
-      ) : null}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[appColors.backgroundElevated, appColors.backgroundDeep, appColors.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.matchdayBackdrop}
+      >
+        <View style={styles.matchdayStadiumArc} />
+        <View style={styles.matchdayStadiumLights}>
+          {[0, 1, 2, 3, 4, 5, 6, 7].map(light => <View key={light} style={styles.matchdayStadiumLight} />)}
+        </View>
+      </LinearGradient>
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -511,10 +511,11 @@ export default function HomeDashboardScreen() {
           styles.scrollContent,
           !isDesktop && styles.scrollContentMobile,
           styles.transparentHeaderContent,
-          fixtureIsLive && styles.liveScrollContent,
+          styles.liveScrollContent,
         ]}
       >
         <View style={[styles.page, isDesktop ? styles.pageDesktop : styles.pageMobile]}>
+          {matchdayScoreRibbon}
           <LinearGradient
             colors={[appColors.backgroundElevated, appColors.surface, appColors.backgroundElevated]}
             start={{ x: 0, y: 0 }}
@@ -589,8 +590,6 @@ export default function HomeDashboardScreen() {
               )}
             </View>
           </LinearGradient>
-
-          {liveScoreRibbon}
 
           {errorMessage && (
             <TouchableOpacity style={styles.errorBanner} onPress={() => void refresh(false)}>
@@ -1103,7 +1102,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   scrollContentMobile: { flexGrow: 1, padding: appSpacing.sm, paddingBottom: appSpacing.sm },
   transparentHeaderContent: { paddingTop: 76 },
   liveScrollContent: { paddingTop: 86 },
-  matchdayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 255, overflow: 'hidden' },
+  matchdayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 310, overflow: 'hidden' },
   matchdayStadiumArc: { position: 'absolute', top: -125, left: '-22%', width: '144%', height: 230, borderWidth: 1, borderColor: appColors.borderStrong, borderRadius: 260, opacity: 0.75 },
   matchdayStadiumLights: { position: 'absolute', top: 27, left: 24, right: 24, flexDirection: 'row', justifyContent: 'space-between' },
   matchdayStadiumLight: { width: 6, height: 6, borderRadius: 3, backgroundColor: appColors.textPrimary, shadowColor: appColors.accent, shadowOpacity: 0.9, shadowRadius: 9, elevation: 4 },
