@@ -134,6 +134,7 @@ export default function HomeDashboardScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 900;
+  const isWeb = Platform.OS === 'web';
   const { currentUserId, activeLeagueId, selectActiveLeague } = useAppSession();
   const [leaguePickerOpen, setLeaguePickerOpen] = useState(false);
   const [shortcutPickerOpen, setShortcutPickerOpen] = useState(false);
@@ -181,7 +182,9 @@ export default function HomeDashboardScreen() {
     [currentUserId, standings]
   );
   const topStandings = standings.slice(0, 3);
-  const mobilePanelLimit = height >= 800 ? 5 : height >= 690 ? 4 : 3;
+  const mobilePanelLimit = isWeb
+    ? 3
+    : height >= 800 ? 5 : height >= 690 ? 4 : 3;
   const mobileStandings = standings.slice(0, mobilePanelLimit);
   const mobileActivity = recentActivity.slice(0, mobilePanelLimit);
   const deadlinePassed = Boolean(
@@ -804,7 +807,7 @@ export default function HomeDashboardScreen() {
               </View>
                 </>
               ) : (
-                <View style={styles.mobileDashboard}>
+                <View style={[styles.mobileDashboard, isWeb && styles.mobileDashboardWeb]}>
                   <View style={styles.mobileMatchCard}>
                     <TouchableOpacity onPress={() => router.push('/(tabs)/league/matches')} activeOpacity={0.8} style={styles.mobileMatchPressArea}>
                     <View style={styles.mobileMatchHeading}>
@@ -871,15 +874,15 @@ export default function HomeDashboardScreen() {
                   {nextEventCard}
 
                   <View style={styles.mobileStatusStrip}>
-                    <TouchableOpacity style={styles.mobileStatusItem} onPress={() => router.push('/(tabs)/squad')}>
+                    <TouchableOpacity style={[styles.mobileStatusItem, isWeb && styles.mobileStatusItemWeb]} onPress={() => router.push('/(tabs)/squad')}>
                       <Ionicons name="shirt-outline" size={16} color={appColors.accent} />
                       <View><Text style={styles.mobileStatusLabel}>LINEUP</Text><Text style={styles.mobileStatusValue}>{lineup.formation === '—' ? `${lineup.starterCount}/11` : lineup.formation}</Text></View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.mobileStatusItem} onPress={() => router.push('/(tabs)/market/waivers-trades?tab=WAIVERS' as any)}>
+                    <TouchableOpacity style={[styles.mobileStatusItem, isWeb && styles.mobileStatusItemWeb]} onPress={() => router.push('/(tabs)/market/waivers-trades?tab=WAIVERS' as any)}>
                       <Ionicons name="swap-vertical-outline" size={16} color={appColors.info} />
                       <View><Text style={styles.mobileStatusLabel}>WAIVERS</Text><Text style={styles.mobileStatusValue}>{waiver.priority ? `#${waiver.priority}` : '—'}</Text></View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.mobileStatusItem, styles.mobileStatusItemLast]} onPress={() => router.push('/(tabs)/market/waivers-trades?tab=OFFERS' as any)}>
+                    <TouchableOpacity style={[styles.mobileStatusItem, styles.mobileStatusItemLast, isWeb && styles.mobileStatusItemWeb]} onPress={() => router.push('/(tabs)/market/waivers-trades?tab=OFFERS' as any)}>
                       <Ionicons name="mail-unread-outline" size={16} color={pendingTrades > 0 ? appColors.warning : appColors.accent} />
                       <View><Text style={styles.mobileStatusLabel}>TRADES</Text><Text style={styles.mobileStatusValue}>{pendingTrades > 0 ? `${pendingTrades} new` : 'Clear'}</Text></View>
                     </TouchableOpacity>
@@ -934,7 +937,7 @@ export default function HomeDashboardScreen() {
                         const shortcut = HOME_SHORTCUTS[shortcutId];
                         const badge = shortcutBadge(shortcutId);
                         return (
-                          <TouchableOpacity key={shortcutId} style={styles.mobileQuickAction} onPress={() => router.push(shortcut.route as any)}>
+                          <TouchableOpacity key={shortcutId} style={[styles.mobileQuickAction, isWeb && styles.mobileQuickActionWeb]} onPress={() => router.push(shortcut.route as any)}>
                             <View style={styles.mobileQuickIcon}>
                               <Ionicons name={shortcut.icon} size={18} color={appColors.accent} />
                               {badge ? <View style={styles.shortcutBadge}><Text style={styles.shortcutBadgeText}>{badge}</Text></View> : null}
@@ -1286,6 +1289,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   activityTime: { ...appTypography.metadata, color: appColors.textMuted, textAlign: 'right' },
   activityEmpty: { minHeight: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderTopWidth: 1, borderTopColor: appColors.borderSubtle },
   mobileDashboard: { flex: 1, gap: appSpacing.sm },
+  mobileDashboardWeb: { gap: 6 },
   mobileMatchCard: { overflow: 'hidden', backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.large },
   mobileMatchPressArea: { backgroundColor: appColors.surface },
   mobileMatchHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: appSpacing.md, paddingTop: appSpacing.md },
@@ -1305,6 +1309,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   mobileEditButtonText: { ...appTypography.label, color: appColors.accentForeground, fontSize: 8 },
   mobileStatusStrip: { flexDirection: 'row', overflow: 'hidden', backgroundColor: appColors.backgroundElevated, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.medium },
   mobileStatusItem: { minHeight: 51, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: appColors.borderSubtle },
+  mobileStatusItemWeb: { minHeight: 46 },
   mobileStatusItemLast: { borderRightWidth: 0 },
   mobileStatusLabel: { ...appTypography.label, color: appColors.textMuted, fontSize: 7 },
   mobileStatusValue: { color: appColors.textPrimary, fontSize: 10, fontWeight: '900', marginTop: 1 },
@@ -1324,6 +1329,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   mobileQuickHeading: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mobileQuickGrid: { flexDirection: 'row', gap: 6 },
   mobileQuickAction: { minHeight: 50, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 3, backgroundColor: appColors.surface, borderWidth: 1, borderColor: appColors.border, borderRadius: appRadius.small },
+  mobileQuickActionWeb: { minHeight: 44 },
   mobileQuickIcon: { position: 'relative' },
   mobileQuickText: { ...appTypography.metadata, color: appColors.textSecondary, fontSize: 8, textAlign: 'center' },
   desktopShortcutIcon: { position: 'relative' },
