@@ -316,6 +316,13 @@ if (rivalDataRes.error) {
         const { data, error } = await supabase.rpc('create_trade_package', tradePayload);
         if (error) throw error;
         if (data && data.success === false) {
+          if (data.error === 'DUPLICATE_TRADE_OFFER') {
+            notifyUser(
+              'Trade Already Pending',
+              'You already have this exact offer awaiting a response from this manager.'
+            );
+            return;
+          }
           throw new Error(data.error || 'The trade package was rejected by the server.');
         }
         
