@@ -1109,7 +1109,9 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   scrollContent: { padding: appSpacing.md, paddingBottom: 36 },
   scrollContentMobile: { flexGrow: 1, padding: appSpacing.sm, paddingBottom: appSpacing.sm },
   transparentHeaderContent: { paddingTop: 76 },
-  webHeaderContent: { paddingTop: appSpacing.sm },
+  // The web tab header is transparent and sits above the scroll view. Reserve
+  // enough space for it without restoring the oversized mobile-style gap.
+  webHeaderContent: { paddingTop: 64 },
   liveScrollContent: { paddingTop: 86 },
   matchdayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 330, overflow: 'hidden', backgroundColor: appColors.backgroundDeep },
   matchdayStadiumImage: { width: '100%', height: '100%' },
