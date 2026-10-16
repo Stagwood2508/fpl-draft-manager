@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from 'expo-router/react-navigation';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -1091,8 +1092,40 @@ export default function SquadScreen() {
             },
           ]}
         >
+          <LinearGradient
+            pointerEvents="none"
+            colors={['#061E18', '#0F4B39', '#082C23']}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.pitchTurf}
+          />
+          <View pointerEvents="none" style={styles.pitchMowingPattern}>
+            {Array.from({ length: 7 }, (_, row) => (
+              <View key={row} style={styles.pitchMowingRow}>
+                {Array.from({ length: 5 }, (_, column) => (
+                  <View
+                    key={column}
+                    style={[
+                      styles.pitchMowingCell,
+                      (row + column) % 2 === 0 ? styles.pitchMowingCellLight : styles.pitchMowingCellDark,
+                    ]}
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(177, 255, 220, 0.12)', 'transparent', 'rgba(0, 0, 0, 0.34)']}
+            locations={[0, 0.32, 1]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.pitchLighting}
+          />
           <View style={styles.pitchLines}>
             <View style={styles.penaltyArea} />
+            <View style={styles.penaltyAreaBottom} />
             <View style={styles.centerLine} />
             <View style={styles.centerCircle} />
           </View>
@@ -1286,10 +1319,18 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   scoreModeButtonActive: { backgroundColor: appColors.accentFill },
   scoreModeText: { color: appColors.textMuted, fontSize: 7, fontWeight: '900' },
   scoreModeTextActive: { color: appColors.accentForeground },
-  pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 8, backgroundColor: appColors.pitch, borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
+  pitch: { position: 'relative', height: 500, justifyContent: 'space-around', paddingVertical: 8, backgroundColor: '#0B392D', borderWidth: 1, borderColor: appColors.pitchBorder, borderRadius: appRadius.large, overflow: 'hidden' },
   pitchCompact: { height: 440, paddingVertical: 5 },
-  pitchLines: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', opacity: 0.2 },
+  pitchTurf: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  pitchMowingPattern: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  pitchMowingRow: { flex: 1, flexDirection: 'row' },
+  pitchMowingCell: { flex: 1 },
+  pitchMowingCellLight: { backgroundColor: 'rgba(112, 195, 132, 0.12)' },
+  pitchMowingCellDark: { backgroundColor: 'rgba(0, 13, 9, 0.09)' },
+  pitchLighting: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  pitchLines: { position: 'absolute', top: 8, right: 8, bottom: 8, left: 8, alignItems: 'center', justifyContent: 'center', opacity: 0.52, borderWidth: 1.5, borderColor: appColors.pitchLine, borderRadius: appRadius.medium },
   penaltyArea: { position: 'absolute', top: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: appColors.pitchLine },
+  penaltyAreaBottom: { position: 'absolute', bottom: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: appColors.pitchLine },
   centerLine: { position: 'absolute', width: '100%', height: 1.5, backgroundColor: appColors.pitchLine },
   centerCircle: { width: 105, height: 105, borderRadius: 53, borderWidth: 1.5, borderColor: appColors.pitchLine },
   pitchRow: { flex: 1, minHeight: 0, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 5, zIndex: 2 },
