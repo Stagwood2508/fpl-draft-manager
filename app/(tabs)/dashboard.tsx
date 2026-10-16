@@ -124,7 +124,7 @@ function SummaryCard({ icon, label, value, meta, tone = 'default', onPress }: Su
 
 export default function HomeDashboardScreen() {
   const safeArea = useSafeAreaInsets();
-  const { colors: appColors } = useAppTheme();
+  const { colors: appColors, resolvedMode } = useAppTheme();
   const styles = useMemo(() => createStyles(appColors), [appColors]);
   const activityMeta = useMemo(() => ({
     WAIVER: { icon: 'swap-vertical' as const, color: '#7967D8', label: 'WAIVER' },
@@ -135,6 +135,7 @@ export default function HomeDashboardScreen() {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 900;
   const isWeb = Platform.OS === 'web';
+  const showStadiumBackdrop = resolvedMode === 'dark';
   const { currentUserId, activeLeagueId, selectActiveLeague } = useAppSession();
   const [leaguePickerOpen, setLeaguePickerOpen] = useState(false);
   const [shortcutPickerOpen, setShortcutPickerOpen] = useState(false);
@@ -496,20 +497,22 @@ export default function HomeDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <View pointerEvents="none" style={styles.matchdayBackdrop}>
-        <Image
-          source={require('../../assets/images/dashboard-stadium.png')}
-          resizeMode="cover"
-          style={styles.matchdayStadiumImage}
-        />
-        <LinearGradient
-          colors={stadiumOverlayColors}
-          locations={[0, 0.58, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.matchdayStadiumOverlay}
-        />
-      </View>
+      {showStadiumBackdrop ? (
+        <View pointerEvents="none" style={styles.matchdayBackdrop}>
+          <Image
+            source={require('../../assets/images/dashboard-stadium.png')}
+            resizeMode="cover"
+            style={styles.matchdayStadiumImage}
+          />
+          <LinearGradient
+            colors={stadiumOverlayColors}
+            locations={[0, 0.58, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.matchdayStadiumOverlay}
+          />
+        </View>
+      ) : null}
       <ScrollView
         refreshControl={
           <RefreshControl
