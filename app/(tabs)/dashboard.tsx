@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  type ColorValue,
   Alert,
   FlatList,
   Image,
@@ -194,7 +195,7 @@ export default function HomeDashboardScreen() {
   const fixtureScoreVisible = Boolean(
     fixture && (fixtureIsLive || fixtureAwaitingConfirmation || fixture.isFinished)
   );
-  const stadiumOverlayColors = Platform.OS === 'web'
+  const stadiumOverlayColors: [ColorValue, ColorValue, ColorValue] = Platform.OS === 'web'
     ? ['rgba(1, 10, 19, 0.04)', 'rgba(1, 10, 19, 0.30)', 'rgba(1, 10, 19, 0.58)']
     : ['rgba(1, 10, 19, 0.18)', 'rgba(1, 10, 19, 0.76)', appColors.background];
 
@@ -503,7 +504,7 @@ export default function HomeDashboardScreen() {
           locations={[0, 0.58, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
+          style={styles.matchdayStadiumOverlay}
         />
       </View>
       <ScrollView
@@ -1111,6 +1112,7 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   liveScrollContent: { paddingTop: 86 },
   matchdayBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 330, overflow: 'hidden', backgroundColor: appColors.backgroundDeep },
   matchdayStadiumImage: { width: '100%', height: '100%' },
+  matchdayStadiumOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   page: { width: '100%', gap: appSpacing.md },
   pageMobile: { flex: 1, gap: appSpacing.sm },
   pageDesktop: { maxWidth: 1180, alignSelf: 'center', gap: appSpacing.lg },
