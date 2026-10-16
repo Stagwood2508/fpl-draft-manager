@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -193,6 +194,9 @@ export default function HomeDashboardScreen() {
   const fixtureScoreVisible = Boolean(
     fixture && (fixtureIsLive || fixtureAwaitingConfirmation || fixture.isFinished)
   );
+  const stadiumOverlayColors = Platform.OS === 'web'
+    ? ['rgba(1, 10, 19, 0.04)', 'rgba(1, 10, 19, 0.30)', 'rgba(1, 10, 19, 0.58)']
+    : ['rgba(1, 10, 19, 0.18)', 'rgba(1, 10, 19, 0.76)', appColors.background];
 
   useEffect(() => {
     if (!fixtureIsLive && !fixtureAwaitingConfirmation) return;
@@ -495,7 +499,7 @@ export default function HomeDashboardScreen() {
           style={styles.matchdayStadiumImage}
         />
         <LinearGradient
-          colors={['rgba(1, 10, 19, 0.18)', 'rgba(1, 10, 19, 0.76)', appColors.background]}
+          colors={stadiumOverlayColors}
           locations={[0, 0.58, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
