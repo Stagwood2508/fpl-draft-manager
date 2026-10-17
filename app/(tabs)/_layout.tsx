@@ -162,7 +162,6 @@ tabBarLabelStyle: {
         name="squad"
         options={{
           title: 'SQUAD',
-          headerTitle: 'MY SQUAD',
 
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
@@ -178,7 +177,6 @@ tabBarLabelStyle: {
         name="players"
         options={{
           title: 'PLAYERS',
-          headerTitle: 'PLAYER SCOUT',
 
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
@@ -194,7 +192,6 @@ tabBarLabelStyle: {
         name="market"
         options={{
           title: 'MARKET',
-          headerTitle: 'TRANSFER MARKET',
 
           tabBarIcon: ({ color, size, focused }) => (
   <View style={styles.marketIconContainer}>
@@ -220,7 +217,6 @@ tabBarLabelStyle: {
         name="league"
         options={{
           title: 'LEAGUE',
-          headerTitle: 'LEAGUE HUB',
 
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons

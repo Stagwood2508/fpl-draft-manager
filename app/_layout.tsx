@@ -335,6 +335,7 @@ function RootLayoutContent() {
           <Stack.Screen name="community-guidelines" options={{ headerShown: false }} />
           <Stack.Screen name="help" options={{ headerShown: false }} />
           <Stack.Screen name="league-lounge" options={{ headerShown: false }} />
+          <Stack.Screen name="league-selector" options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }} />
           <Stack.Screen name="league-chronicle" options={{ headerShown: false }} />
           <Stack.Screen name="scoring-guide" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/create-league" options={{ title: 'CREATE LEAGUE' }} />
