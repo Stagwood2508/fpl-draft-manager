@@ -8,8 +8,7 @@ import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import SettingsDropdown from '@/components/SettingsDropdown';
-import NotificationBell from '@/components/NotificationBell';
+import { LeagueHeaderActions, LeagueHeaderSelector } from '@/components/TabHeaderControls';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -109,16 +108,18 @@ headerTitleContainerStyle: {
   paddingVertical: 0,
 },
 
+headerTitle: () => null,
+
+headerLeftContainerStyle: {
+  paddingLeft: 12,
+},
+
 headerRightContainerStyle: {
   paddingRight: 6,
 },
 
-        headerRight: () => (
-          <View style={styles.headerActions}>
-            <NotificationBell />
-            <SettingsDropdown />
-          </View>
-        ),
+        headerLeft: () => <LeagueHeaderSelector />,
+        headerRight: () => <LeagueHeaderActions />,
 
        tabBarStyle: {
   backgroundColor: colors.backgroundDeep,
@@ -244,11 +245,6 @@ tabBarLabelStyle: {
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
   marketIconContainer: {
     position: 'relative',
   },
