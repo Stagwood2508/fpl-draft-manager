@@ -184,6 +184,13 @@ export default function HomeDashboardScreen() {
     () => standings.find(row => row.userId === currentUserId) || null,
     [currentUserId, standings]
   );
+  const orderedPremierLeagueFixtures = useMemo(() => (
+    [...premierLeagueFixtures].sort((left, right) => {
+      const leftKickoff = left.kickoffTime ? new Date(left.kickoffTime).getTime() : Number.MAX_SAFE_INTEGER;
+      const rightKickoff = right.kickoffTime ? new Date(right.kickoffTime).getTime() : Number.MAX_SAFE_INTEGER;
+      return leftKickoff - rightKickoff || left.id - right.id;
+    })
+  ), [premierLeagueFixtures]);
   const topStandings = standings.slice(0, 3);
   const mobilePanelLimit = isWeb
     ? 3
@@ -345,7 +352,7 @@ export default function HomeDashboardScreen() {
     </TouchableOpacity>
   );
 
-  const matchdayScoreRibbon = premierLeagueFixtures.length > 0 ? (
+  const matchdayScoreRibbon = orderedPremierLeagueFixtures.length > 0 ? (
     <View style={styles.liveScoreRibbon}>
       <View style={styles.liveScoreRibbonHeading}>
         <View style={styles.liveTitleRow}>
@@ -354,10 +361,10 @@ export default function HomeDashboardScreen() {
             GAMEWEEK {gameweek?.gameweek || '—'} {fixtureIsLive ? 'LIVE' : fixtureAwaitingConfirmation ? 'SCORES CHECKING' : fixture?.isFinished ? 'COMPLETE' : 'NEXT UP'}
           </Text>
         </View>
-        <Text style={styles.liveScoreRibbonMeta}>{premierLeagueFixtures.length} FIXTURES</Text>
+        <Text style={styles.liveScoreRibbonMeta}>{orderedPremierLeagueFixtures.length} FIXTURES</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScoreRibbonList}>
-        {premierLeagueFixtures.map(item => {
+        {orderedPremierLeagueFixtures.map(item => {
           const started = item.homeScore !== null || item.awayScore !== null;
           return (
             <View key={item.id} style={styles.liveScoreChip}>

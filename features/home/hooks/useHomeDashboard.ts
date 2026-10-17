@@ -241,6 +241,7 @@ export function useHomeDashboard(currentUserId: string | null, activeLeagueId: s
             .from('fixtures')
             .select('id, home_team_id, away_team_id, home_team_short, away_team_short, home_score, away_score, kickoff_time, is_finished, is_finished_provisional')
             .eq('gameweek', Number(selectedGameweek.gameweek))
+            .order('kickoff_time', { ascending: true, nullsFirst: false })
         : { data: [], error: null };
       if (premierLeagueFixturesResponse.error) throw premierLeagueFixturesResponse.error;
 
