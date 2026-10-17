@@ -1101,18 +1101,14 @@ export default function SquadScreen() {
             style={styles.pitchTurf}
           />
           <View pointerEvents="none" style={styles.pitchMowingPattern}>
-            {Array.from({ length: 7 }, (_, row) => (
-              <View key={row} style={styles.pitchMowingRow}>
-                {Array.from({ length: 5 }, (_, column) => (
-                  <View
-                    key={column}
-                    style={[
-                      styles.pitchMowingCell,
-                      (row + column) % 2 === 0 ? styles.pitchMowingCellLight : styles.pitchMowingCellDark,
-                    ]}
-                  />
-                ))}
-              </View>
+            {Array.from({ length: 8 }, (_, row) => (
+              <View
+                key={row}
+                style={[
+                  styles.pitchMowingBand,
+                  row % 2 === 0 ? styles.pitchMowingBandLight : styles.pitchMowingBandDark,
+                ]}
+              />
             ))}
           </View>
           <LinearGradient
@@ -1323,10 +1319,9 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   pitchCompact: { height: 440, paddingVertical: 5 },
   pitchTurf: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   pitchMowingPattern: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  pitchMowingRow: { flex: 1, flexDirection: 'row' },
-  pitchMowingCell: { flex: 1 },
-  pitchMowingCellLight: { backgroundColor: 'rgba(112, 195, 132, 0.12)' },
-  pitchMowingCellDark: { backgroundColor: 'rgba(0, 13, 9, 0.09)' },
+  pitchMowingBand: { flex: 1 },
+  pitchMowingBandLight: { backgroundColor: 'rgba(112, 195, 132, 0.13)' },
+  pitchMowingBandDark: { backgroundColor: 'rgba(0, 13, 9, 0.10)' },
   pitchLighting: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   pitchLines: { position: 'absolute', top: 8, right: 8, bottom: 8, left: 8, alignItems: 'center', justifyContent: 'center', opacity: 0.52, borderWidth: 1.5, borderColor: appColors.pitchLine, borderRadius: appRadius.medium },
   penaltyArea: { position: 'absolute', top: -1, width: 180, height: 75, borderWidth: 1.5, borderColor: appColors.pitchLine },
