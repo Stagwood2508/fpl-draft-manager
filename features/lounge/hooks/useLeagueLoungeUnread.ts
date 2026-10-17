@@ -34,8 +34,12 @@ export function useLeagueLoungeUnread(leagueId: string | null, currentUserId: st
     void refresh();
     if (!leagueId || !currentUserId) return;
 
+    // A tab transition can mount the next consumer before the previous
+    // channel's asynchronous cleanup has completed. Use a unique topic so
+    // Supabase never reuses an already-subscribed channel instance.
+    const channelInstanceId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`lounge-unread-${leagueId}-${currentUserId}`)
+      .channel(`lounge-unread-${leagueId}-${currentUserId}-${channelInstanceId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'league_lounge_messages', filter: `league_id=eq.${leagueId}`,
       }, () => void refresh())
