@@ -8,8 +8,7 @@ import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import SettingsDropdown from '@/components/SettingsDropdown';
-import NotificationBell from '@/components/NotificationBell';
+import LeagueContextHeader from '@/components/LeagueContextHeader';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -91,6 +90,7 @@ useEffect(() => {
       initialRouteName="dashboard"
       screenOptions={{
         headerShown: true,
+        header: () => <LeagueContextHeader />,
 
        headerStyle: {
   backgroundColor: colors.backgroundDeep,
@@ -112,13 +112,6 @@ headerTitleContainerStyle: {
 headerRightContainerStyle: {
   paddingRight: 6,
 },
-
-        headerRight: () => (
-          <View style={styles.headerActions}>
-            <NotificationBell />
-            <SettingsDropdown />
-          </View>
-        ),
 
        tabBarStyle: {
   backgroundColor: colors.backgroundDeep,
@@ -244,11 +237,6 @@ tabBarLabelStyle: {
 }
 
 const createStyles = (colors: AppColors) => StyleSheet.create({
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
   marketIconContainer: {
     position: 'relative',
   },

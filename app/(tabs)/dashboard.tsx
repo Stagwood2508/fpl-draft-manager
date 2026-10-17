@@ -54,6 +54,15 @@ const formatCountdown = (target: string | null, now: number) => {
 const statusLabel = (status?: string | null) =>
   String(status || 'UPCOMING').replaceAll('_', ' ');
 
+const formatFixtureKickoff = (kickoffTime: string | null) => {
+  if (!kickoffTime) return 'TBC';
+  const kickoff = new Date(kickoffTime);
+  if (Number.isNaN(kickoff.getTime())) return 'TBC';
+  const day = kickoff.toLocaleDateString([], { weekday: 'short' }).toUpperCase();
+  const time = kickoff.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${day} ${time}`;
+};
+
 const activityMovement = (activity: LeagueActivityItem) => {
   const incoming = activity.playersIn.map(player => player.web_name).filter(Boolean).join(', ');
   const outgoing = activity.playersOut.map(player => player.web_name).filter(Boolean).join(', ');
@@ -186,6 +195,9 @@ export default function HomeDashboardScreen() {
   );
   const orderedPremierLeagueFixtures = useMemo(() => (
     [...premierLeagueFixtures].sort((left, right) => {
+      const leftIsLive = !left.isFinished && (left.homeScore !== null || left.awayScore !== null);
+      const rightIsLive = !right.isFinished && (right.homeScore !== null || right.awayScore !== null);
+      if (leftIsLive !== rightIsLive) return leftIsLive ? -1 : 1;
       const leftKickoff = left.kickoffTime ? new Date(left.kickoffTime).getTime() : Number.MAX_SAFE_INTEGER;
       const rightKickoff = right.kickoffTime ? new Date(right.kickoffTime).getTime() : Number.MAX_SAFE_INTEGER;
       return leftKickoff - rightKickoff || left.id - right.id;
@@ -370,7 +382,7 @@ export default function HomeDashboardScreen() {
             <View key={item.id} style={styles.liveScoreChip}>
               <Text style={styles.liveScoreTeams}>{item.homeTeam} · {item.awayTeam}</Text>
               <Text style={styles.liveScoreChipValue}>{started ? `${item.homeScore ?? 0}–${item.awayScore ?? 0}` : 'UP NEXT'}</Text>
-              <Text style={styles.liveScoreChipMeta}>{item.isFinished ? 'FT' : started ? 'LIVE' : item.kickoffTime ? new Date(item.kickoffTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBC'}</Text>
+              <Text style={styles.liveScoreChipMeta}>{item.isFinished ? 'FT' : started ? 'LIVE' : formatFixtureKickoff(item.kickoffTime)}</Text>
             </View>
           );
         })}
