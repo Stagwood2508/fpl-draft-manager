@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Animated,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router/react-navigation';
@@ -457,6 +458,7 @@ export default function MatchesScreen() {
 
   const selectRosterSide = (matchupId: string, side: 'HOME' | 'AWAY') => {
     setActiveRosterSides(current => ({ ...current, [matchupId]: side }));
+    if (Platform.OS === 'web') return;
     const pageWidth = rosterPagerWidths[matchupId];
     if (pageWidth) {
       rosterPagerRefs.current[matchupId]?.scrollTo({
@@ -641,54 +643,60 @@ export default function MatchesScreen() {
         })}
       </View>
 
-      <View
-        style={styles.mobileRosterViewport}
-        onLayout={(event) => {
-          const pageWidth = event.nativeEvent.layout.width;
-          if (pageWidth > 0 && rosterPagerWidths[match.id] !== pageWidth) {
-            setRosterPagerWidths(current => ({ ...current, [match.id]: pageWidth }));
-          }
-        }}
-      >
-        <ScrollView
-          ref={(ref) => { rosterPagerRefs.current[match.id] = ref; }}
-          horizontal
-          pagingEnabled
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onMomentumScrollEnd={(event) => {
-            const pageWidth = rosterPagerWidths[match.id] || event.nativeEvent.layoutMeasurement.width;
-            const side = event.nativeEvent.contentOffset.x >= pageWidth / 2 ? 'AWAY' : 'HOME';
-            setActiveRosterSides(current => ({ ...current, [match.id]: side }));
-          }}
-        >
-          <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
-            {match.home_players?.length === 0 ? (
-              <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-            ) : displayMode === 'PITCH' ? renderPitchSquad(match.home_players) : renderSquadPlayers(match.home_players)}
-          </View>
-
-          <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
-            {match.is_league_average ? (
-              <View style={styles.averageExplanation}>
-                <Text style={styles.averageExplanationTitle}>LEAGUE AVERAGE</Text>
-                <Text style={styles.averageExplanationText}>
-                  Rounded average of every other manager's score. Your own score is excluded.
-                </Text>
+      {Platform.OS === 'web' ? (
+        <View style={styles.webRosterPage}>
+          {(activeRosterSides[match.id] || 'HOME') === 'HOME' ? (
+            match.home_players?.length === 0
+              ? <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
+              : displayMode === 'PITCH' ? renderPitchSquad(match.home_players) : renderSquadPlayers(match.home_players)
+          ) : match.is_league_average ? (
+            <View style={styles.averageExplanation}>
+              <Text style={styles.averageExplanationTitle}>LEAGUE AVERAGE</Text>
+              <Text style={styles.averageExplanationText}>Rounded average of every other manager's score. Your own score is excluded.</Text>
+            </View>
+          ) : match.away_players?.length === 0 ? (
+            <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
+          ) : displayMode === 'PITCH' ? renderPitchSquad(match.away_players) : renderSquadPlayers(match.away_players)}
+        </View>
+      ) : (
+        <>
+          <View
+            style={styles.mobileRosterViewport}
+            onLayout={(event) => {
+              const pageWidth = event.nativeEvent.layout.width;
+              if (pageWidth > 0 && rosterPagerWidths[match.id] !== pageWidth) {
+                setRosterPagerWidths(current => ({ ...current, [match.id]: pageWidth }));
+              }
+            }}
+          >
+            <ScrollView
+              ref={(ref) => { rosterPagerRefs.current[match.id] = ref; }}
+              horizontal
+              pagingEnabled
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={(event) => {
+                const pageWidth = rosterPagerWidths[match.id] || event.nativeEvent.layoutMeasurement.width;
+                const side = event.nativeEvent.contentOffset.x >= pageWidth / 2 ? 'AWAY' : 'HOME';
+                setActiveRosterSides(current => ({ ...current, [match.id]: side }));
+              }}
+            >
+              <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
+                {match.home_players?.length === 0 ? <Text style={styles.lineupUnavailable}>Lineup unavailable</Text> : displayMode === 'PITCH' ? renderPitchSquad(match.home_players) : renderSquadPlayers(match.home_players)}
               </View>
-            ) : match.away_players?.length === 0 ? (
-              <Text style={styles.lineupUnavailable}>Lineup unavailable</Text>
-            ) : displayMode === 'PITCH' ? renderPitchSquad(match.away_players) : renderSquadPlayers(match.away_players)}
+              <View style={[styles.mobileRosterPage, { width: rosterPagerWidths[match.id] || Math.max(260, width - 50) }]}>
+                {match.is_league_average ? <View style={styles.averageExplanation}><Text style={styles.averageExplanationTitle}>LEAGUE AVERAGE</Text><Text style={styles.averageExplanationText}>Rounded average of every other manager's score. Your own score is excluded.</Text></View> : match.away_players?.length === 0 ? <Text style={styles.lineupUnavailable}>Lineup unavailable</Text> : displayMode === 'PITCH' ? renderPitchSquad(match.away_players) : renderSquadPlayers(match.away_players)}
+              </View>
+            </ScrollView>
           </View>
-        </ScrollView>
-      </View>
-
-      <View style={styles.mobileSwipeHint}>
-        <View style={[styles.mobileSwipeDot, (activeRosterSides[match.id] || 'HOME') === 'HOME' && styles.mobileSwipeDotActive]} />
-        <Text style={styles.mobileSwipeHintText}>SWIPE BETWEEN TEAMS</Text>
-        <View style={[styles.mobileSwipeDot, activeRosterSides[match.id] === 'AWAY' && styles.mobileSwipeDotActive]} />
-      </View>
+          <View style={styles.mobileSwipeHint}>
+            <View style={[styles.mobileSwipeDot, (activeRosterSides[match.id] || 'HOME') === 'HOME' && styles.mobileSwipeDotActive]} />
+            <Text style={styles.mobileSwipeHintText}>SWIPE BETWEEN TEAMS</Text>
+            <View style={[styles.mobileSwipeDot, activeRosterSides[match.id] === 'AWAY' && styles.mobileSwipeDotActive]} />
+          </View>
+        </>
+      )}
     </View>
   );
 
@@ -1048,6 +1056,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   mobileTeamTabScoreActive: { color: colors.accent },
   mobileRosterViewport: { width: '100%', overflow: 'hidden' },
   mobileRosterPage: { paddingHorizontal: 1 },
+  webRosterPage: { width: '100%', paddingHorizontal: 1 },
   mobileSwipeHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 3 },
   mobileSwipeHintText: { color: colors.textMuted, fontSize: 7, fontWeight: '900', letterSpacing: 0.45 },
   mobileSwipeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.borderStrong },
