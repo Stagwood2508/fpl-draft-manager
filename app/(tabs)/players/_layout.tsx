@@ -1,8 +1,7 @@
 import { createMaterialTopTabNavigator } from 'expo-router/js-top-tabs';
 import { withLayoutContext } from 'expo-router';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
-import TabLeagueControls from '@/components/TabLeagueControls';
 
 const { Navigator } = createMaterialTopTabNavigator();
 export const MaterialTopTabs = withLayoutContext(Navigator);
@@ -10,10 +9,8 @@ export const MaterialTopTabs = withLayoutContext(Navigator);
 export default function PlayersLayout() {
   const { colors } = useAppTheme();
   return (
-    <View style={{ flex: 1 }}>
-      <TabLeagueControls />
-      <MaterialTopTabs
-        screenOptions={{
+    <MaterialTopTabs
+      screenOptions={{
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
@@ -21,12 +18,11 @@ export default function PlayersLayout() {
         tabBarStyle: { backgroundColor: colors.backgroundDeep, borderBottomColor: colors.border, borderBottomWidth: 1 },
         animationEnabled: Platform.OS !== 'web',
       }}
-      >
+    >
 
       {/* ✅ Clean and simple: Only your true visible sub-tabs live here */}
       <MaterialTopTabs.Screen name="scout" options={{ title: "Scout Pool" }} />
-        <MaterialTopTabs.Screen name="watchlist" options={{ title: "Watchlist" }} />
-      </MaterialTopTabs>
-    </View>
+      <MaterialTopTabs.Screen name="watchlist" options={{ title: "Watchlist" }} />
+    </MaterialTopTabs>
   );
 }

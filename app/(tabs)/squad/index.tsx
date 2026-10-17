@@ -19,7 +19,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import PlayerHeadshot from '@/components/PlayerHeadshot';
 import PlayerCardModal from '@/components/PlayerCardModal';
-import TabLeagueControls from '@/components/TabLeagueControls';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import {
   AppColors,
@@ -1002,7 +1001,6 @@ export default function SquadScreen() {
 
   return (
     <View style={styles.screen}>
-      <TabLeagueControls />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.page, !isCompact && styles.pageWide]}

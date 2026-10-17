@@ -1,8 +1,7 @@
 import { createMaterialTopTabNavigator } from 'expo-router/js-top-tabs';
 import { withLayoutContext } from 'expo-router';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
-import TabLeagueControls from '@/components/TabLeagueControls';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
@@ -11,10 +10,8 @@ export const MaterialTopTabs = withLayoutContext(Navigator);
 export default function MarketLayout() {
   const { colors } = useAppTheme();
   return (
-    <View style={{ flex: 1 }}>
-      <TabLeagueControls />
-      <MaterialTopTabs
-        screenOptions={{
+    <MaterialTopTabs
+      screenOptions={{
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
 
@@ -44,7 +41,7 @@ export default function MarketLayout() {
 
         animationEnabled: Platform.OS !== 'web',
       }}
-      >
+    >
       {/* 🙈 Hide the index redirect file from the top tabs visually */}
       <MaterialTopTabs.Screen
         name="index"
@@ -63,11 +60,10 @@ export default function MarketLayout() {
         options={{ title: 'Waivers & Trades' }}
       />
 
-        <MaterialTopTabs.Screen
-          name="waiver-history"
-          options={{ title: 'Transactions' }}
-        />
-      </MaterialTopTabs>
-    </View>
+      <MaterialTopTabs.Screen
+        name="waiver-history"
+        options={{ title: 'Transactions' }}
+      />
+    </MaterialTopTabs>
   );
 }
