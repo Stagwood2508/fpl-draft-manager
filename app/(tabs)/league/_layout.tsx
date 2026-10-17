@@ -1,6 +1,8 @@
 import { createMaterialTopTabNavigator } from 'expo-router/js-top-tabs';
 import { withLayoutContext } from 'expo-router';
+import { View } from 'react-native';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import TabLeagueControls from '@/components/TabLeagueControls';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
@@ -10,8 +12,10 @@ export const MaterialTopTabs = withLayoutContext(Navigator);
 export default function LeagueLayout() {
   const { colors } = useAppTheme();
   return (
-    <MaterialTopTabs
-      screenOptions={{
+    <View style={{ flex: 1 }}>
+      <TabLeagueControls />
+      <MaterialTopTabs
+        screenOptions={{
         tabBarStyle: { 
           backgroundColor: colors.backgroundDeep,
           borderBottomWidth: 1, 
@@ -30,7 +34,7 @@ export default function LeagueLayout() {
           borderRadius: 2 
         },
       }}
-    >
+      >
       <MaterialTopTabs.Screen
         name="index"
         options={{
@@ -49,12 +53,13 @@ export default function LeagueLayout() {
           title: 'CUPS',
         }}
       />
-      <MaterialTopTabs.Screen
-        name="stats"
-        options={{
-          title: 'STATS',
-        }}
-      />
-    </MaterialTopTabs>
+        <MaterialTopTabs.Screen
+          name="stats"
+          options={{
+            title: 'STATS',
+          }}
+        />
+      </MaterialTopTabs>
+    </View>
   );
 }
