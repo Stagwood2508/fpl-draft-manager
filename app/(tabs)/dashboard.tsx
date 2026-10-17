@@ -22,7 +22,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
+import NotificationBell from '@/components/NotificationBell';
 import PlayerHeadshot from '@/components/PlayerHeadshot';
+import SettingsDropdown from '@/components/SettingsDropdown';
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
@@ -513,6 +515,47 @@ export default function HomeDashboardScreen() {
           />
         </View>
       ) : null}
+      <View style={[styles.dashboardHeader, { paddingTop: Math.max(safeArea.top, appSpacing.sm) }]}>
+        <TouchableOpacity
+          style={styles.dashboardLeagueSelector}
+          onPress={() => setLeaguePickerOpen(true)}
+          activeOpacity={0.75}
+          accessibilityLabel="Switch active league"
+        >
+          <View style={styles.dashboardLeagueCopy}>
+            <Text style={styles.dashboardLeagueLabel}>ACTIVE LEAGUE</Text>
+            <Text style={styles.dashboardLeagueName} numberOfLines={1}>{activeLeague?.name || 'League Hub'}</Text>
+          </View>
+          <Ionicons name="chevron-down" size={16} color={appColors.accent} />
+        </TouchableOpacity>
+        <View style={styles.dashboardHeaderActions}>
+          <TouchableOpacity
+            style={styles.dashboardHeaderButton}
+            onPress={() => router.push('/league-lounge')}
+            accessibilityLabel={loungeUnread > 0 ? `League Lounge, ${loungeUnread} unread messages` : 'League Lounge'}
+          >
+            <View>
+              <Ionicons name="chatbubbles-outline" size={19} color={appColors.accent} />
+              {loungeUnread > 0 ? (
+                <View style={styles.headerActionBadge}>
+                  <Text style={styles.headerActionBadgeText}>{loungeUnread > 99 ? '99+' : loungeUnread}</Text>
+                </View>
+              ) : null}
+            </View>
+          </TouchableOpacity>
+          {isCommissioner ? (
+            <TouchableOpacity
+              style={styles.dashboardHeaderButton}
+              onPress={() => router.push({ pathname: '/(admin)/league-announcements', params: { leagueId: activeLeagueId || '' } } as any)}
+              accessibilityLabel="League announcements"
+            >
+              <Ionicons name="megaphone-outline" size={19} color={appColors.accent} />
+            </TouchableOpacity>
+          ) : null}
+          <NotificationBell />
+          <SettingsDropdown />
+        </View>
+      </View>
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -524,86 +567,10 @@ export default function HomeDashboardScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           !isDesktop && styles.scrollContentMobile,
-          Platform.OS === 'web' ? styles.webHeaderContent : styles.transparentHeaderContent,
-          Platform.OS !== 'web' && styles.liveScrollContent,
         ]}
       >
         <View style={[styles.page, isDesktop ? styles.pageDesktop : styles.pageMobile]}>
           {matchdayScoreRibbon}
-          <LinearGradient
-            colors={[appColors.backgroundElevated, appColors.surface, appColors.backgroundElevated]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.leagueBar, !isDesktop && styles.leagueBarMobile]}
-          >
-            <View pointerEvents="none" style={styles.stadiumGlow} />
-            <View pointerEvents="none" style={styles.stadiumArc} />
-            <View pointerEvents="none" style={styles.stadiumLights}>
-              {[0, 1, 2, 3, 4, 5].map(light => <View key={light} style={styles.stadiumLight} />)}
-            </View>
-            <View style={styles.leagueIdentity}>
-              <Text style={styles.eyebrow}>ACTIVE LEAGUE</Text>
-<TouchableOpacity
-  style={styles.leagueSelector}
-  onPress={() => setLeaguePickerOpen(true)}
-  activeOpacity={0.75}
->
-  <Text style={styles.leagueName} numberOfLines={1}>{activeLeague?.name || 'League Hub'}</Text>
-  <Ionicons name="chevron-down" size={16} color={appColors.accent} />
-</TouchableOpacity>
-              <Text style={styles.leagueMeta}>
-                {myStanding ? `${myStanding.played} played · ${myStanding.won} won` : 'Season overview'}
-              </Text>
-              {myStanding ? (
-                <View style={styles.leagueMetrics}>
-                  <View style={styles.leagueMetric}>
-                    <Text style={styles.leagueMetricLabel}>POSITION</Text>
-                    <Text style={styles.leagueMetricValue}>#{myStanding.rank}</Text>
-                  </View>
-                  <View style={styles.leagueMetricDivider} />
-                  <View style={styles.leagueMetric}>
-                    <Text style={styles.leagueMetricLabel}>LEAGUE PTS</Text>
-                    <Text style={[styles.leagueMetricValue, styles.leagueMetricValueAccent]}>{myStanding.points}</Text>
-                  </View>
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.leagueActions}>
-                <TouchableOpacity
-                  style={styles.settingsButton}
-                  onPress={() => router.push('/league-lounge')}
-                  accessibilityLabel={loungeUnread > 0 ? `League Lounge, ${loungeUnread} unread messages` : 'League Lounge'}
-                >
-                  <View>
-                    <Ionicons name="chatbubbles-outline" size={17} color={appColors.accent} />
-                    {loungeUnread > 0 ? (
-                      <View style={styles.headerActionBadge}>
-                        <Text style={styles.headerActionBadgeText}>{loungeUnread > 99 ? '99+' : loungeUnread}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  {isDesktop && <Text style={styles.settingsText}>LOUNGE</Text>}
-                </TouchableOpacity>
-              {isCommissioner && (
-                <>
-                <TouchableOpacity
-                  style={styles.settingsButton}
-                  onPress={() => router.push({ pathname: '/(admin)/league-announcements', params: { leagueId: activeLeagueId || '' } } as any)}
-                >
-                  <Ionicons name="megaphone-outline" size={17} color={appColors.accent} />
-                  {isDesktop && <Text style={styles.settingsText}>ANNOUNCEMENTS</Text>}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.settingsButton}
-                  onPress={() => router.push({ pathname: '/(admin)/league-settings', params: { leagueId: activeLeagueId || '' } })}
-                >
-                  <Ionicons name="settings-outline" size={17} color={appColors.accent} />
-                  {isDesktop && <Text style={styles.settingsText}>LEAGUE SETTINGS</Text>}
-                </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </LinearGradient>
 
           {errorMessage && (
             <TouchableOpacity style={styles.errorBanner} onPress={() => void refresh(false)}>
@@ -1112,6 +1079,13 @@ const createStyles = (appColors: AppColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: appColors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: appSpacing.md, backgroundColor: appColors.background },
   loadingText: { ...appTypography.body, color: appColors.textMuted },
+  dashboardHeader: { zIndex: 3, minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: appSpacing.md, paddingBottom: appSpacing.sm, backgroundColor: appColors.backgroundDeep, borderBottomWidth: 1, borderBottomColor: appColors.border },
+  dashboardLeagueSelector: { minWidth: 0, flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dashboardLeagueCopy: { flex: 1, minWidth: 0 },
+  dashboardLeagueLabel: { ...appTypography.label, color: appColors.accent, fontSize: 7 },
+  dashboardLeagueName: { color: appColors.textPrimary, fontSize: 15, fontWeight: '900', marginTop: 1 },
+  dashboardHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  dashboardHeaderButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: appRadius.medium },
   scrollContent: { padding: appSpacing.md, paddingBottom: 36 },
   scrollContentMobile: { flexGrow: 1, padding: appSpacing.sm, paddingBottom: appSpacing.sm },
   transparentHeaderContent: { paddingTop: 76 },

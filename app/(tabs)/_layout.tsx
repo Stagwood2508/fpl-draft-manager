@@ -145,9 +145,7 @@ tabBarLabelStyle: {
         name="dashboard"
         options={{
           title: 'HOME',
-          headerTitle: 'DASHBOARD',
-          headerTransparent: true,
-          headerStyle: { backgroundColor: 'transparent' },
+          headerShown: false,
 
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
