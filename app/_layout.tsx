@@ -8,6 +8,7 @@ import {
   Platform,
   StyleSheet,
   StatusBar,
+  View,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
@@ -347,6 +348,10 @@ function RootLayoutContent() {
           <Stack.Screen name="draft-room/index" options={{ headerShown: false }} />
         </Stack>
 
+        {resolvedMode === 'dark' && (
+          <View pointerEvents="none" style={styles.edgeHighlight} />
+        )}
+
         {!appReady && (
           <AppLaunchScreen />
         )}
@@ -358,5 +363,24 @@ function RootLayoutContent() {
 const createStyles = (colors: AppColors) => StyleSheet.create({
   root: {
     flex: 1,
+    position: 'relative',
+  },
+  // Keep this at the screen level: one quiet premium edge rather than a
+  // distracting outline around every card. Light mode remains untouched.
+  edgeHighlight: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    bottom: 5,
+    left: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 242, 122, 0.24)',
+    borderRadius: 22,
+    shadowColor: colors.accent,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    opacity: 0.85,
+    zIndex: 1000,
   },
 });
