@@ -20,6 +20,7 @@ import { useIsFocused } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
+import PlayerHeadshot from '@/components/PlayerHeadshot';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import FreeAgentClaimModal from '@/components/FreeAgentClaimModal';
 import { AppColors } from '@/constants/theme';
@@ -529,7 +530,7 @@ export default function PlayerPoolScreen() {
       
       const { data: rosterData } = await supabase
         .from('rosters')
-        .select('player_id, players(id, first_name, second_name, web_name, element_type, team_name)')
+        .select('player_id, players(id, first_name, second_name, web_name, element_type, team_name, code)')
         .eq('user_id', currentUserId)
         .eq('league_id', activeLeagueId);
 
@@ -897,45 +898,85 @@ export default function PlayerPoolScreen() {
       <Modal visible={isWaiverModalVisible} animationType="slide" transparent={true} presentationStyle="overFullScreen" statusBarTranslucent onRequestClose={() => !submittingWaiver && setIsWaiverModalVisible(false)}>
         <View style={[styles.modalOverlay, isMobileLayout && styles.modalOverlayMobile]}>
           <View style={[styles.modalContent, isMobileLayout && styles.modalContentMobile, isMobileLayout && { paddingTop: Math.max(safeArea.top, 8), paddingBottom: Math.max(safeArea.bottom, 8) }]}>
-            <Text style={styles.modalHeader}>Request Waiver Swap</Text>
+            <View style={styles.waiverModalHeaderRow}>
+              <View>
+                <Text style={styles.waiverModalEyebrow}>WAIVER CLAIM</Text>
+                <Text style={styles.modalHeader}>Build your claim</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.waiverCloseButton}
+                disabled={submittingWaiver}
+                onPress={() => setIsWaiverModalVisible(false)}
+                accessibilityLabel="Close waiver claim"
+              >
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
             {selectedPoolPlayer && (
-              <View style={styles.swapVisualContainer}>
-                <View style={styles.swapCard}>
+              <View style={styles.waiverSelectionDeck}>
+                <View style={[styles.waiverSelectionCard, styles.waiverAddCard]}>
                   <TouchableOpacity
-                    style={styles.swapInfoButton}
+                    style={styles.waiverCardInfoButton}
                     onPress={() => openPlayerDetails(selectedPoolPlayer.id, true)}
                     accessibilityRole="button"
                     accessibilityLabel={`View ${selectedPoolPlayer.web_name} stats`}
                   >
                     <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
                   </TouchableOpacity>
-                  <Text style={styles.swapLabel}>ADD</Text>
-                  <Text style={styles.swapPlayerName}>{selectedPoolPlayer.web_name}</Text>
-                  <Text style={styles.swapPlayerMeta}>{selectedPoolPlayer.team_name} • {selectedPoolPlayer.element_type}</Text>
+                  <Text style={styles.waiverCardLabel}>CLAIM</Text>
+                  <View style={styles.waiverPlayerPhoto}>
+                    <PlayerHeadshot code={selectedPoolPlayer.code} fallbackSize={44} />
+                  </View>
+                  <Text style={styles.waiverCardPlayerName} numberOfLines={1}>{selectedPoolPlayer.web_name}</Text>
+                  <View style={styles.waiverCardMetaRow}>
+                    <Text style={styles.waiverCardMeta} numberOfLines={1}>{selectedPoolPlayer.team_short_name || selectedPoolPlayer.team_name}</Text>
+                    <View style={[styles.waiverPositionBadge, { backgroundColor: POSITION_COLORS[selectedPoolPlayer.element_type] || colors.accent }]}>
+                      <Text style={styles.waiverPositionBadgeText}>{selectedPoolPlayer.element_type}</Text>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.swapArrow}>⇄</Text>
-                <View style={[styles.swapCard, !selectedRosterPlayerId && styles.swapCardEmpty]}>
-                  <Text style={styles.swapLabel}>DROP</Text>
+                <View style={styles.waiverSwapArrow}>
+                  <Ionicons name="swap-horizontal" size={20} color={colors.accent} />
+                </View>
+                <View style={[styles.waiverSelectionCard, styles.waiverDropCard, !selectedRosterPlayerId && styles.waiverDropCardEmpty]}>
+                  <Text style={styles.waiverCardLabel}>RELEASE</Text>
                   {selectedRosterPlayerId ? (
                     (() => {
                       const p = eligibleRosterPlayers.find(x => x.id === selectedRosterPlayerId);
                       return (
                         <>
-                          <Text style={[styles.swapPlayerName, { color: colors.danger }]}>{p?.web_name}</Text>
-                          <Text style={styles.swapPlayerMeta}>{p?.team_name}</Text>
+                          <View style={styles.waiverPlayerPhoto}>
+                            <PlayerHeadshot code={p?.code} fallbackSize={44} />
+                          </View>
+                          <Text style={[styles.waiverCardPlayerName, { color: colors.danger }]} numberOfLines={1}>{p?.web_name}</Text>
+                          <View style={styles.waiverCardMetaRow}>
+                            <Text style={styles.waiverCardMeta} numberOfLines={1}>{p?.team_short_name || p?.team_name}</Text>
+                            <View style={[styles.waiverPositionBadge, { backgroundColor: POSITION_COLORS[p?.element_type || ''] || colors.danger }]}>
+                              <Text style={styles.waiverPositionBadgeText}>{p?.element_type}</Text>
+                            </View>
+                          </View>
                         </>
                       );
                     })()
                   ) : (
-                    <Text style={styles.emptySwapText}>Select squad member</Text>
+                    <View style={styles.waiverDropPlaceholder}>
+                      <Ionicons name="person-remove-outline" size={25} color={colors.textMuted} />
+                      <Text style={styles.emptySwapText}>Choose a player below</Text>
+                    </View>
                   )}
                 </View>
               </View>
             )}
 
-            <Text style={styles.selectionTitle}>
-              {rosterType === 'FLEXIBLE' ? 'Choose an eligible player to drop:' : `Drop player (${selectedPoolPlayer?.element_type}):`}
-            </Text>
+            <View style={styles.waiverSelectionHeading}>
+              <View>
+                <Text style={styles.selectionTitle}>Choose a player to release</Text>
+                <Text style={styles.waiverSelectionHint}>
+                  {rosterType === 'FLEXIBLE' ? 'Only valid squad swaps are shown.' : `Select a ${selectedPoolPlayer?.element_type} from your squad.`}
+                </Text>
+              </View>
+              <Text style={styles.waiverSelectionCount}>{eligibleRosterPlayers.length} eligible</Text>
+            </View>
             <View style={styles.rosterSelectorViewport}>
               <ScrollView
                 style={styles.rosterSelectorList}
@@ -951,11 +992,32 @@ export default function PlayerPoolScreen() {
                       <View
                         key={player.id}
                         style={[
-                          styles.rosterSelectRow,
-                          isMobileLayout ? styles.rosterSelectRowMobile : styles.rosterSelectRowDesktop,
-                          isSelected && styles.rosterSelectRowActive,
+                          styles.waiverPlayerSelectCard,
+                          isMobileLayout ? styles.waiverPlayerSelectCardMobile : styles.waiverPlayerSelectCardDesktop,
+                          isSelected && styles.waiverPlayerSelectCardActive,
                         ]}
                       >
+                        <TouchableOpacity
+                          style={styles.waiverPlayerSelectTrigger}
+                        onPress={() => setSelectedRosterPlayerId(player.id)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={`Select ${player.web_name} to release`}
+                      >
+                        <View style={styles.waiverPlayerSelectPhoto}>
+                          <PlayerHeadshot code={player.code} fallbackSize={34} />
+                        </View>
+                        <View style={styles.waiverPlayerSelectIdentity}>
+                          <Text style={[styles.rosterSelectName, isSelected && styles.rosterSelectNameActive]} numberOfLines={1}>{player.web_name}</Text>
+                          <View style={styles.waiverPlayerSelectMetaRow}>
+                            <Text style={styles.rosterSelectTeam} numberOfLines={1}>{player.team_short_name || player.team_name}</Text>
+                            <View style={[styles.waiverPositionBadge, styles.waiverPositionBadgeCompact, { backgroundColor: POSITION_COLORS[player.element_type] || colors.accent }]}>
+                              <Text style={styles.waiverPositionBadgeText}>{player.element_type}</Text>
+                            </View>
+                          </View>
+                        </View>
+                        {isSelected && <Ionicons name="checkmark-circle" size={18} color={colors.accent} />}
+                        </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.rosterInfoButton}
                           onPress={() => openPlayerDetails(player.id, true)}
@@ -964,17 +1026,6 @@ export default function PlayerPoolScreen() {
                         >
                           <Ionicons name="information-circle-outline" size={20} color={colors.accent} />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.rosterSelectTrigger}
-                          onPress={() => setSelectedRosterPlayerId(player.id)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: isSelected }}
-                          accessibilityLabel={`Select ${player.web_name} to drop`}
-                        >
-                          <Text style={[styles.rosterSelectName, isSelected && styles.rosterSelectNameActive]} numberOfLines={1}>{player.web_name}</Text>
-                          <Text style={styles.rosterSelectTeam} numberOfLines={1}>{player.team_name} · {player.element_type}</Text>
-                        </TouchableOpacity>
-                        {isSelected && <Ionicons name="checkmark-circle" size={18} color={colors.accent} />}
                       </View>
                     );
                   })
@@ -1098,31 +1149,48 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   applyButtonText: { color: colors.accentForeground, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   modalOverlayMobile: { justifyContent: 'flex-start', alignItems: 'stretch' },
-  modalContent: { backgroundColor: colors.surface, width: '90%', maxHeight: '80%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.borderStrong },
-  modalContentMobile: { width: '100%', height: '100%', maxHeight: undefined, borderRadius: 0, borderWidth: 0, paddingHorizontal: 10 },
-  modalHeader: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', textTransform: 'uppercase', textAlign: 'center', marginBottom: 4 },
-  swapVisualContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.backgroundElevated, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
-  swapCard: { flex: 1, alignItems: 'center', padding: 10, backgroundColor: colors.surfaceRaised, borderRadius: 6, borderWidth: 1, borderColor: colors.borderStrong, minHeight: 74, justifyContent: 'center' },
-  swapInfoButton: { position: 'absolute', top: 3, left: 3, width: 28, height: 28, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  swapCardEmpty: { backgroundColor: colors.surfaceMuted, borderStyle: 'dashed', borderColor: colors.borderStrong },
-  swapLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, marginBottom: 6 },
-  swapPlayerName: { color: colors.accent, fontSize: 13, fontWeight: '800', textAlign: 'center' },
-  swapPlayerMeta: { color: colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  modalContent: { backgroundColor: colors.backgroundElevated, width: '90%', maxHeight: '80%', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.borderStrong },
+  modalContentMobile: { width: '100%', height: '100%', maxHeight: undefined, borderRadius: 0, borderWidth: 0, paddingHorizontal: 12 },
+  waiverModalHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  waiverModalEyebrow: { color: colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
+  modalHeader: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', textTransform: 'uppercase', marginTop: 2 },
+  waiverCloseButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18 },
+  waiverSelectionDeck: { flexDirection: 'row', alignItems: 'stretch', gap: 8, backgroundColor: colors.backgroundDeep, padding: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 14 },
+  waiverSelectionCard: { flex: 1, minWidth: 0, minHeight: 142, alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: colors.surface, borderRadius: 9, borderWidth: 1, borderColor: colors.borderStrong },
+  waiverAddCard: { borderColor: colors.accentBorder, backgroundColor: colors.accentSoft },
+  waiverDropCard: { borderColor: colors.dangerBorder },
+  waiverDropCardEmpty: { borderStyle: 'dashed', borderColor: colors.borderStrong, backgroundColor: colors.surfaceMuted },
+  waiverCardInfoButton: { position: 'absolute', top: 5, left: 5, width: 29, height: 29, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  waiverCardLabel: { alignSelf: 'flex-start', color: colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 0.6, marginBottom: 4 },
+  waiverPlayerPhoto: { width: 48, height: 48, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 24, backgroundColor: colors.surfaceRaised, marginBottom: 5 },
+  waiverCardPlayerName: { width: '100%', color: colors.accent, fontSize: 13, fontWeight: '900', textAlign: 'center' },
+  waiverCardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, width: '100%', marginTop: 4 },
+  waiverCardMeta: { flexShrink: 1, color: colors.textMuted, fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
+  waiverPositionBadge: { minWidth: 29, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3 },
+  waiverPositionBadgeCompact: { minWidth: 25, paddingHorizontal: 3, paddingVertical: 1 },
+  waiverPositionBadgeText: { color: colors.black, fontSize: 7, fontWeight: '900' },
+  waiverSwapArrow: { width: 28, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  waiverDropPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   emptySwapText: { color: colors.textDisabled, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingHorizontal: 4 },
-  swapArrow: { color: colors.textMuted, fontSize: 20, fontWeight: '700', marginHorizontal: 8 },
-  selectionTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 },
+  waiverSelectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
+  selectionTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.3 },
+  waiverSelectionHint: { color: colors.textMuted, fontSize: 10, fontWeight: '600', marginTop: 3 },
+  waiverSelectionCount: { color: colors.accent, fontSize: 9, fontWeight: '900', textTransform: 'uppercase', paddingBottom: 1 },
   rosterSelectorViewport: { flex: 1, minHeight: 180 },
-  rosterSelectorList: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.surface },
-  rosterSelectorGrid: { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start', padding: 6, gap: 6 },
-  rosterSelectRow: { minHeight: 48, paddingVertical: 5, paddingHorizontal: 6, borderWidth: 1, borderColor: colors.borderSubtle, flexDirection: 'row', alignItems: 'center', borderRadius: 6 },
-  rosterSelectRowMobile: { width: '49%' },
-  rosterSelectRowDesktop: { width: '32.5%' },
-  rosterSelectRowActive: { backgroundColor: colors.accentSoft, borderBottomColor: 'transparent' },
-  rosterInfoButton: { width: 30, height: 34, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
-  rosterSelectTrigger: { flex: 1, minWidth: 0, justifyContent: 'center' },
-  rosterSelectName: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  rosterSelectorList: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.backgroundDeep },
+  rosterSelectorGrid: { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start', padding: 7, gap: 7 },
+  waiverPlayerSelectCard: { minHeight: 62, position: 'relative', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' },
+  waiverPlayerSelectCardMobile: { width: '48.8%' },
+  waiverPlayerSelectCardDesktop: { width: '32.5%' },
+  waiverPlayerSelectCardActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  waiverPlayerSelectTrigger: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingLeft: 7, paddingRight: 30 },
+  waiverPlayerSelectPhoto: { width: 36, height: 36, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 18, backgroundColor: colors.surfaceRaised, marginRight: 7 },
+  waiverPlayerSelectIdentity: { flex: 1, minWidth: 0 },
+  waiverPlayerSelectMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  rosterInfoButton: { position: 'absolute', top: 3, right: 2, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  rosterSelectName: { color: colors.textPrimary, fontSize: 11, fontWeight: '900' },
   rosterSelectNameActive: { color: colors.accent },
-  rosterSelectTeam: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  rosterSelectTeam: { flexShrink: 1, color: colors.textMuted, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' },
   noPlayersText: { color: colors.textMuted, textAlign: 'center', padding: 20, fontSize: 12, fontWeight: '700' },
   modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 6, justifyContent: 'center' },
