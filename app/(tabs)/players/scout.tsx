@@ -228,6 +228,7 @@ export default function PlayerPoolScreen() {
   const [eligibleRosterPlayers, setEligibleRosterPlayers] = useState<any[]>([]);
   const [selectedRosterPlayerId, setSelectedRosterPlayerId] = useState<number | null>(null);
   const [submittingWaiver, setSubmittingWaiver] = useState(false);
+  const [waiverSubmitError, setWaiverSubmitError] = useState<string | null>(null);
 
   // Free Agent Instant Swap Modal State
   const [isFreeAgentModalVisible, setIsFreeAgentModalVisible] = useState(false);
@@ -526,6 +527,7 @@ export default function PlayerPoolScreen() {
     try {
       setSelectedPoolPlayer(poolPlayer);
       setSelectedRosterPlayerId(null);
+      setWaiverSubmitError(null);
       setLoading(true);
       
       const { data: rosterData } = await supabase
@@ -605,6 +607,7 @@ export default function PlayerPoolScreen() {
   const handleSubmitWaiverClaim = async () => {
     if (!selectedPoolPlayer || !selectedRosterPlayerId || !activeLeagueId) return;
     try {
+      setWaiverSubmitError(null);
       setSubmittingWaiver(true);
       const { data, error } = await supabase.rpc('submit_waiver_claim', {
         p_league_id: activeLeagueId,
@@ -627,10 +630,21 @@ export default function PlayerPoolScreen() {
         throw new Error(messages[data?.error] || 'The server rejected this waiver claim.');
       }
 
-      Alert.alert("Claim Submitted", `Waiver request successfully filed under Priority #${data.priority_order}.`);
+      const successMessage = `Waiver request successfully filed under Priority #${data.priority_order}.`;
+      if (Platform.OS === 'web') {
+        window.alert(`Claim submitted\n\n${successMessage}`);
+      } else {
+        Alert.alert('Claim Submitted', successMessage);
+      }
       setIsWaiverModalVisible(false);
     } catch (err: any) {
-      Alert.alert("Claim Failed", err.message);
+      const message = err?.message || 'The waiver claim could not be submitted. Please try again.';
+      // React Native Alert does not reliably surface on Expo Web. Keep the
+      // message in the modal so the user can correct the selection in place.
+      setWaiverSubmitError(message);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Claim Failed', message);
+      }
     } finally {
       setSubmittingWaiver(false);
     }
@@ -999,7 +1013,10 @@ export default function PlayerPoolScreen() {
                       >
                         <TouchableOpacity
                           style={styles.waiverPlayerSelectTrigger}
-                        onPress={() => setSelectedRosterPlayerId(player.id)}
+                        onPress={() => {
+                          setSelectedRosterPlayerId(player.id);
+                          setWaiverSubmitError(null);
+                        }}
                         accessibilityRole="button"
                         accessibilityState={{ selected: isSelected }}
                         accessibilityLabel={`Select ${player.web_name} to release`}
@@ -1032,6 +1049,13 @@ export default function PlayerPoolScreen() {
                 )}
               </ScrollView>
             </View>
+
+            {waiverSubmitError && (
+              <View style={styles.waiverSubmitError} accessibilityRole="alert">
+                <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                <Text style={styles.waiverSubmitErrorText}>{waiverSubmitError}</Text>
+              </View>
+            )}
 
             <View style={styles.modalActionRow}>
               <TouchableOpacity style={[styles.modalButton, styles.modalButtonCancel]} disabled={submittingWaiver} onPress={() => setIsWaiverModalVisible(false)}>
@@ -1192,6 +1216,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   rosterSelectNameActive: { color: colors.accent },
   rosterSelectTeam: { flexShrink: 1, color: colors.textMuted, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' },
   noPlayersText: { color: colors.textMuted, textAlign: 'center', padding: 20, fontSize: 12, fontWeight: '700' },
+  waiverSubmitError: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10, padding: 10, borderWidth: 1, borderColor: colors.dangerBorder, borderRadius: 8, backgroundColor: colors.dangerSoft },
+  waiverSubmitErrorText: { flex: 1, color: colors.danger, fontSize: 11, fontWeight: '700', lineHeight: 16 },
   modalActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 6, justifyContent: 'center' },
   modalButtonCancel: { backgroundColor: colors.surfacePressed },
