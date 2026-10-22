@@ -204,11 +204,16 @@ export default function HomeDashboardScreen() {
       return leftKickoff - rightKickoff || left.id - right.id;
     })
   ), [premierLeagueFixtures]);
-  const topStandings = standings.slice(0, 3);
   const mobilePanelLimit = isWeb
-    ? 3
+    ? 4
     : height >= 800 ? 5 : height >= 690 ? 4 : 3;
-  const mobileStandings = standings.slice(0, mobilePanelLimit);
+  const standingsSnapshot = useCallback((limit: number) => {
+    const leaders = standings.slice(0, limit);
+    if (myStanding && !leaders.some(row => row.userId === myStanding.userId)) return [...leaders, myStanding];
+    return leaders;
+  }, [myStanding, standings]);
+  const topStandings = standingsSnapshot(4);
+  const mobileStandings = standingsSnapshot(mobilePanelLimit);
   const mobileActivity = recentActivity.slice(0, mobilePanelLimit);
   const deadlinePassed = Boolean(
     gameweek && new Date(gameweek.deadline).getTime() <= clockNow && !gameweek.isFinished
