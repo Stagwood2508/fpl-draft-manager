@@ -20,6 +20,7 @@ import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import PlayerHeadshot from '@/components/PlayerHeadshot';
+import FirstVisitGuide from '@/components/FirstVisitGuide';
 import {
   AppColors,
   appRadius,
@@ -1291,6 +1292,15 @@ if (!userId || !leagueId) {
 
   return (
     <View style={styles.container}>
+      <FirstVisitGuide
+        guideId="market"
+        title="Waivers and trades"
+        cards={[
+          { icon: 'swap-vertical-outline', title: 'Waivers are ordered', message: 'Your pending claims are processed in priority order at the waiver deadline. Drag through your alternatives by reordering them here.' },
+          { icon: 'person-remove-outline', title: 'Every claim is a swap', message: 'A waiver claim adds an available player and releases one from your squad. The app only offers roster-valid choices.' },
+          { icon: 'repeat-outline', title: 'Trades need agreement', message: 'Trade offers stay pending until the other manager accepts, rejects or counters them. They can expire or be voided if a player moves first.' },
+        ]}
+      />
       <View style={styles.tabContainer}>
         <TouchableOpacity style={[styles.tabBtn, activeTab === 'WAIVERS' && styles.tabBtnActive]} onPress={() => setActiveTab('WAIVERS')}>
           <Text style={[styles.tabText, activeTab === 'WAIVERS' && styles.tabTextActive]}>WAIVERS</Text>

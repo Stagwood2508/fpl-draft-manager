@@ -18,6 +18,7 @@ import { useIsFocused } from 'expo-router/react-navigation';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import PlayerHeadshot from '@/components/PlayerHeadshot';
+import FirstVisitGuide from '@/components/FirstVisitGuide';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import {
@@ -1001,6 +1002,15 @@ export default function SquadScreen() {
 
   return (
     <View style={styles.screen}>
+      {!viewingOtherTeam && <FirstVisitGuide
+        guideId="squad"
+        title="Managing your squad"
+        cards={[
+          { icon: 'shirt-outline', title: 'Your starting XI', message: 'This pitch shows the team you have selected for the next Gameweek. Use Edit Lineup to move eligible players between your XI and bench.' },
+          { icon: 'swap-vertical-outline', title: 'Bench priority matters', message: 'Set your outfield substitute order carefully. The app uses it for automatic substitutions while preserving a legal formation.' },
+          { icon: 'lock-closed-outline', title: 'Beat the deadline', message: 'Your saved lineup locks at the Gameweek deadline. Changes afterwards apply to the next available Gameweek.' },
+        ]}
+      />}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.page, !isCompact && styles.pageWide]}

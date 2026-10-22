@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import PlayerCardModal from '@/components/PlayerCardModal';
 import PlayerHeadshot from '@/components/PlayerHeadshot';
+import FirstVisitGuide from '@/components/FirstVisitGuide';
 import TradeDeskModal from '@/features/market/components/TradeDeskModal';
 import FreeAgentClaimModal from '@/components/FreeAgentClaimModal';
 import { AppColors } from '@/constants/theme';
@@ -742,6 +743,15 @@ export default function PlayerPoolScreen() {
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['bottom', 'left', 'right']}>
+      <FirstVisitGuide
+        guideId="players"
+        title="Finding your next player"
+        cards={[
+          { icon: 'search-outline', title: 'Scout the pool', message: 'Search by name, then use the position and Available filters to narrow down every Premier League player.' },
+          { icon: 'stats-chart-outline', title: 'Open the player card', message: 'Tap a player to see form, fixtures, availability and scoring history before making a move.' },
+          { icon: 'add-circle-outline', title: 'Make your move', message: 'An add button starts a waiver claim or free-agent move. An owner badge shows who owns a player and can lead to a trade offer.' },
+        ]}
+      />
       {/* Top Search Input */}
       <View style={styles.searchBoxRow}>
         <Ionicons name="search" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />

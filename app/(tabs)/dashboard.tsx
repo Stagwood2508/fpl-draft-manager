@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import DraftCountdownCard from '@/components/DraftCountdownCard';
+import FirstVisitGuide from '@/components/FirstVisitGuide';
 import NotificationBell from '@/components/NotificationBell';
 import PlayerHeadshot from '@/components/PlayerHeadshot';
 import SettingsDropdown from '@/components/SettingsDropdown';
@@ -518,6 +519,15 @@ export default function HomeDashboardScreen() {
 
   return (
     <View style={styles.container}>
+      <FirstVisitGuide
+        guideId="home"
+        title="Welcome to Home"
+        cards={[
+          { icon: 'business-outline', title: 'Your active league', message: 'Use the league name at the top to switch between any leagues you belong to. Everything on this screen follows that choice.' },
+          { icon: 'radio-outline', title: 'Your weekly picture', message: 'Your next matchup, lineup deadline and live score appear here. Tap View XI to manage your team before the deadline.' },
+          { icon: 'flash-outline', title: 'Quick routes', message: 'Use the shortcuts for fast access to trades, waivers, live matches and your league chat.' },
+        ]}
+      />
       {showStadiumBackdrop ? (
         <View pointerEvents="none" style={styles.matchdayBackdrop}>
           <Image

@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { supabase } from '../../utils/supabase';
 import PlayerCardModal from '../../components/PlayerCardModal';
+import FirstVisitGuide from '@/components/FirstVisitGuide';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
 import type { AppColors } from '@/constants/theme';
 
@@ -2773,6 +2774,15 @@ useEffect(() => {
 
   return (
     <SafeAreaView style={[styles.container, themeStyles.container]} edges={['top', 'left', 'right', 'bottom']}>
+      <FirstVisitGuide
+        guideId="draft-room"
+        title="The live draft"
+        cards={[
+          { icon: 'people-outline', title: 'Take turns', message: 'The turn banner and clock show who is choosing. Your league uses a snake draft, so the pick direction reverses after each round.' },
+          { icon: 'list-outline', title: 'Prepare a watchlist', message: 'Add and order players before your turn. If time expires, the app uses the highest eligible player from your watchlist where possible.' },
+          { icon: 'checkmark-circle-outline', title: 'Confirm every pick', message: 'Choose an available, eligible player and confirm the pick. Once selected, that player belongs only to your team in this league.' },
+        ]}
+      />
       <View style={{ flex: 1 }}>
         {/* 📢 DYNAMIC HEADER STATE ENGINE */}
         {isDraftActive || session?.draft_status === 'COMPLETED' ? (

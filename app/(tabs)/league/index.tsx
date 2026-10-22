@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { AppColors } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import FirstVisitGuide from '@/components/FirstVisitGuide';
 import {
   GameweekPresentationState,
   resolveGameweekPresentationState,
@@ -210,6 +211,15 @@ export default function StandingsScreen() {
 
   return (
     <View style={styles.container}>
+      <FirstVisitGuide
+        guideId="league"
+        title="Your League Hub"
+        cards={[
+          { icon: 'trophy-outline', title: 'Track the table', message: 'Standings show league results and fantasy points. During a live Gameweek, provisional positions can move as scores update.' },
+          { icon: 'calendar-outline', title: 'Follow matchups', message: 'Use Matches to see past results, live head-to-head scores and the fixtures still to come.' },
+          { icon: 'book-outline', title: 'Know the rules', message: 'Open Chronicle and Rules to understand your league’s scoring, season story and commissioner settings.' },
+        ]}
+      />
       <View style={styles.topBar}>
         <View style={styles.toggleContainer}>
           <TouchableOpacity

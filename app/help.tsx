@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppColors, appRadius, appSpacing, appTypography } from '@/constants/theme';
 import { useAppTheme } from '@/features/appearance/hooks/useAppTheme';
+import { useAppSession } from '@/features/account/hooks/useAppSession';
 import { HELP_SECTIONS, HelpSection } from '@/features/help/helpContent';
+import { resetFirstVisitGuides } from '@/components/FirstVisitGuide';
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -29,6 +33,7 @@ export default function HelpScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const { colors } = useAppTheme();
+  const { currentUserId } = useAppSession();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const requestedSection = Array.isArray(params.section) ? params.section[0] : params.section;
   const [query, setQuery] = useState('');
@@ -73,6 +78,13 @@ export default function HelpScreen() {
 
   const searching = Boolean(normalize(query));
 
+  const replayWalkthroughs = async () => {
+    await resetFirstVisitGuides(currentUserId);
+    const message = 'Walkthroughs have been reset. Open Home, Squad, Players, Market, League Hub or the Draft Room to see its guide again.';
+    if (Platform.OS === 'web') window.alert(`Walkthroughs reset\n\n${message}`);
+    else Alert.alert('Walkthroughs reset', message);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
       <Head>
@@ -107,6 +119,16 @@ export default function HelpScreen() {
           <Text style={styles.heroEyebrow}>APP GUIDE</Text>
           <Text style={styles.heroTitle}>What would you like help with?</Text>
           <Text style={styles.heroBody}>Search for a feature or open a topic below. League-specific point values are available separately from the Rules button in League Hub.</Text>
+          {currentUserId ? (
+            <TouchableOpacity
+              style={styles.replayWalkthroughButton}
+              onPress={() => void replayWalkthroughs()}
+              accessibilityLabel="Replay screen walkthroughs"
+            >
+              <Ionicons name="play-circle-outline" size={18} color={colors.accent} />
+              <Text style={styles.replayWalkthroughText}>REPLAY SCREEN WALKTHROUGHS</Text>
+            </TouchableOpacity>
+          ) : null}
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color={colors.textMuted} />
             <TextInput
@@ -207,6 +229,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
   heroEyebrow: { color: colors.accent, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
   heroTitle: { color: colors.textPrimary, fontSize: 21, fontWeight: '900', marginTop: 3 },
   heroBody: { color: colors.textSecondary, fontSize: 11, fontWeight: '600', lineHeight: 17, marginTop: 5 },
+  replayWalkthroughButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 39, marginTop: 13, paddingHorizontal: 12, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, borderRadius: appRadius.small },
+  replayWalkthroughText: { color: colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 0.35 },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 14, paddingHorizontal: 13, backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: appRadius.medium },
   searchInput: { flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: 13, fontWeight: '700', paddingVertical: 10 },
   clearButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
