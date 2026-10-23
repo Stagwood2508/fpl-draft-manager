@@ -85,3 +85,10 @@ begin
 
     return jsonb_build_object('success', true, 'package_id', v_package_id);
   exception when others then
+    return jsonb_build_object('success', false, 'error', sqlerrm);
+  end;
+end;
+$$;
+
+revoke all on function public.create_trade_package(uuid,uuid,integer[],integer[]) from public, anon;
+grant execute on function public.create_trade_package(uuid,uuid,integer[],integer[]) to authenticated;
